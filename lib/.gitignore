@@ -1,3 +1,3 @@
 # Add this lib folder for easy test on crosssing-platform
-!.gitignore
+
 !libglfw3.a
