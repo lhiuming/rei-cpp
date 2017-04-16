@@ -29,4 +29,7 @@
 *.app
 
 # Some library that is needed
+!/lib
+!/lib/
+!/lib/*
 !lib/*
