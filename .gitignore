@@ -27,3 +27,6 @@
 *.exe
 *.out
 *.app
+
+# Some library that is need
+!/lib/*
