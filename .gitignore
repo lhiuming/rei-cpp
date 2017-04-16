@@ -28,5 +28,5 @@
 *.out
 *.app
 
-# Some library that is need
+# Some library that is needed
 !lib/*
