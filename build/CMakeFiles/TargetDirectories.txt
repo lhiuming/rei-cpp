@@ -1,0 +1,5 @@
+/Users/syaoming/Documents/Git/Cel/build/CMakeFiles/rebuild_cache.dir
+/Users/syaoming/Documents/Git/Cel/build/CMakeFiles/edit_cache.dir
+/Users/syaoming/Documents/Git/Cel/build/tests/CMakeFiles/rebuild_cache.dir
+/Users/syaoming/Documents/Git/Cel/build/tests/CMakeFiles/edit_cache.dir
+/Users/syaoming/Documents/Git/Cel/build/tests/CMakeFiles/play_with_glfw.dir
