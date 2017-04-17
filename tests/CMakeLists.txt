@@ -4,6 +4,9 @@
 include_directories(${CELENGINE_SOURCE_DIR}/tests)
 link_directories(${CELENGINE_BINARY_DIR}/tests)
 
+# Core libraries
+set(CORELIBS glfw ${OPENGL_gl_LIBRARY})
+
 # we can use for each to compile a bunch of similar test programs
 set(TESTPROGRAMS play_with_glfw)
 foreach(program ${TESTPROGRAMS})
