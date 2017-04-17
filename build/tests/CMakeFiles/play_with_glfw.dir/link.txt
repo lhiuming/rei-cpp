@@ -1,1 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/c++   -g -Wall -Wl,-search_paths_first -Wl,-headerpad_max_install_names  CMakeFiles/play_with_glfw.dir/play_with_glfw.cpp.o  -o play_with_glfw  -L/Users/syaoming/Documents/Git/Cel/build/tests -Wl,-rpath,/Users/syaoming/Documents/Git/Cel/build/tests  -framework OpenGL 
