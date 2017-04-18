@@ -5,7 +5,7 @@ include_directories(${CELENGINE_SOURCE_DIR}/tests)
 link_directories(${CELENGINE_BINARY_DIR}/tests)
 
 # Core libraries
-set(CORELIBS glew glfw)
+set(CORELIBS glew glfw gl)
 
 # we can use for each to compile a bunch of similar test programs
 set(TESTPROGRAMS play_with_glfw)

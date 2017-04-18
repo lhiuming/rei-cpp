@@ -5,6 +5,9 @@ project (CELENGINE)
 # Get dependencies
 #------------------
 
+# Required OpenGL
+find_package(OpenGL REQUIRED)
+
 # GLEW (built) using written CMakeLists.txt
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps/glew")
 
@@ -14,6 +17,8 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps/glfw")
+
+set(gl ${OPENGL_gl_LIBRARY})
 
 #--------------
 # Set includes
