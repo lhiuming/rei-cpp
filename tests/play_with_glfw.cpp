@@ -17,30 +17,8 @@ void error_callback(int error, const char* description)
 
 void update(size_t width, size_t height, unsigned char *pixels)
 {
-  glClear(GL_COLOR_BUFFER_BIT);
 
-  // copy pixels to the screen
-//glPushAttrib( GL_VIEWPORT_BIT );
-//glViewport(0, 0, width, height);
-
-//glMatrixMode( GL_PROJECTION );
-//glPushMatrix();
-//glLoadIdentity();
-//glOrtho( 0, width, 0, height, 0, 0 );
-
-//glMatrixMode( GL_MODELVIEW );
-//glPushMatrix();
-//glLoadIdentity();
-//glTranslatef( -1, 1, 0 );
-
-//glRasterPos2f(0, 0);
-//glPixelZoom( 1.0, -1.0 );
-glDrawPixels( width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels );
-//glPixelZoom( 1.0, 1.0 );
-
-//glPopAttrib();
-//glMatrixMode( GL_PROJECTION ); glPopMatrix();
-//glMatrixMode( GL_MODELVIEW  ); glPopMatrix();
+  // find a way to draw a buffer to the screen 
 
 }
 
