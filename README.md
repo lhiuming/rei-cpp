@@ -5,7 +5,7 @@ Project under construction
 
 - Rendering
   - draw 2D window
-    - glDrawPixel is removed from OpenGL 3.0 ... needs an alternative 
+    - plan: draw 2 triangle, and fill buffer as texture
   - implement 3D triangle rasterization
   - support mesh and material
   - web demo ?
