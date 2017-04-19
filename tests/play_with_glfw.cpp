@@ -1,4 +1,7 @@
-#include <GL/glew.h>
+// GLEW
+#define GLEW_BUILD GLEW_STATIC // need in Windows
+#include <GL/glew.h>  // include this before glfw
+// GLFW
 #include <GLFW/glfw3.h>
 
 #include <iostream>
