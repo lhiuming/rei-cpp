@@ -51,4 +51,5 @@ int main()
   glViewport(0, 0, width, height); // safe even in HDPI mode
 
 
+  return 0;
 }
