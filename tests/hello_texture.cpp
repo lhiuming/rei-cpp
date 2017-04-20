@@ -103,16 +103,16 @@ int main()
     0xAF, 0xA7, 0x07, 0xFF   // Asuka Orange ?
   };
 
-    // Generate a texture Object
-    GLuint tex;
-    glGenTextures(1, &tex); // allocate 1 texture object id
-    glBindTexture(GL_TEXTURE_2D, tex); // set the type and activate it
+  // Generate a texture Object
+  GLuint tex;
+  glGenTextures(1, &tex); // allocate 1 texture object id
+  glBindTexture(GL_TEXTURE_2D, tex); // set the type and activate it
 
-    // Optional: set a filtering method for the texture object
-    // (See section above)
+  // Optional: set a filtering method for the texture object
+  // (See section above)
 
-    // Fill the image data after activation
-    glTexImage2D(
+  // Fill the image data after activation
+  glTexImage2D(
       GL_TEXTURE_2D, // texture target on the object; will not affect _1D, etc
       0, // create at which mipmap level
       GL_RGBA, // format to store the texture
@@ -120,13 +120,13 @@ int main()
       0, // always 0; legacy stuff
       GL_RGBA, GL_UNSIGNED_BYTE, // source format
       image // actual source data
-    );
+  );
 
-    // Optional: generate the mipmap for the object
-    glGenerateMipmap(GL_TEXTURE_2D);
+  // Optional: generate the mipmap for the object
+  glGenerateMipmap(GL_TEXTURE_2D);
 
-    // Cancel the activation
-    glBindTexture(GL_TEXTURE_2D, 0);
+  // Cancel the activation
+  glBindTexture(GL_TEXTURE_2D, 0);
 
 
   /////////////////////////////////////////////////////////////////////////////

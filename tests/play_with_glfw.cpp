@@ -1,3 +1,9 @@
+/**
+ * Experimenting about working with OpenGL.
+ *
+ * Morals:
+ *   1. Set the internal sampler parameter after the binding of texture !!!
+ */
 // GLEW
 #define GLEW_BUILD GLEW_STATIC // need in Windows
 #include <GL/glew.h>  // include this before glfw
@@ -5,7 +11,7 @@
 #include <GLFW/glfw3.h>
 
 #include <iostream>
-#include <cstdio>
+#include <cmath>
 
 #define WINDOW_W 720
 #define WINDOW_H 480
@@ -68,6 +74,7 @@ int main()
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //We don't want the old OpenGL
+  //glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);  // user cannot resize window !
 
   GLFWwindow* window = glfwCreateWindow(WINDOW_W, WINDOW_H,
      "My Play Window", NULL, NULL);
@@ -96,34 +103,35 @@ int main()
 
   cout << "Status: Using GLEW " << glewGetString(GLEW_VERSION) << endl;
   cout << "Hello, world! with OpenGL and GLEW" << endl;
+  cout << "Window buffer size is (" << width << ", " << height << ")" << endl;
 
 
   ////////////////////////////////////////////////////////////////////////
-  // Create drawing objects
+  // Preprae texture object
 
-  // create a gray buffer
-  GLubyte pixels[WINDOW_W * WINDOW_H * 4];
-  for (size_t i = 0; i < WINDOW_H; ++i)
-    for (size_t j = 0; j < WINDOW_W; ++j) {
-      pixels[i * WINDOW_H + j    ] = (GLubyte) 128;
-      pixels[i * WINDOW_H + j + 1] = (GLubyte) 128;
-      pixels[i * WINDOW_H + j + 2] = (GLubyte) 128;
-      pixels[i * WINDOW_H + j + 3] = (GLubyte) 128;
-    }
+  // define the input buffer
+  unsigned char pixels[width * height * 4];
 
   // create a texture object
   glGenTextures(1, &Texture);  // retrive a texture object id
   glBindTexture(GL_TEXTURE_2D, Texture);  // set the type of the texture
 
-  glTexImage2D(
+  glTexStorage2D(
       GL_TEXTURE_2D, // texture target on the object; will not affect _1D, etc
-      0, // create at which mipmap level
-      GL_RGBA, // format to store the texture
-      WINDOW_W, WINDOW_H, // result dimension of the texture
-      0, // always 0; legacy stuff
-      GL_RGBA, GL_UNSIGNED_BYTE, // source format
-      pixels // actual source data
+      1, // number of levels ?
+      GL_RGBA8, // format to store the texture
+      width, height // result dimension of the texture
   );
+
+  // Optional: generate the mipmap for the object
+  //glGenerateMipmap(GL_TEXTURE_2D);
+
+  // When not using mipmap filtering, dont need mipmap generating.
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+  ////////////////////////////////////////////////////////////////////////
+  // Prepare drawing objects
 
   // create triangle array objects
   glGenVertexArrays(1, &VAO); // retrive a VAO id
@@ -132,11 +140,11 @@ int main()
   // specify the vertices
   GLfloat two_triangle_data[] = {
       // vertex positions
-      -0.9, -0.9, -0.9, 0.9, 0.9, 0.9, // top-left
-      0.9, 0.9, 0.9, -0.9, -0.9, -0.9,  // bottom-right
+      -0.5, -0.5, -0.5,  0.5,  0.5,  0.5, // Top Left
+       0.5,  0.5,  0.5, -0.5, -0.5, -0.5, // Bottom Right
       // vertex texture coordinates
-      0, 0,  0, 1,  1, 1,
-      1, 1,  1, 0,  0, 0,
+      0.0, 0.0,  0.0, 1.0,  1.0, 1.0,
+      1.0, 1.0,  1.0, 0.0,  0.0, 0.0
   };
 
   // create the buffer for vertex data
@@ -146,14 +154,11 @@ int main()
                two_triangle_data, GL_STATIC_DRAW);          // the buffer
 
   // link vertex attributes
-  glVertexAttribPointer(0,  // vPosition is with location 0
-                          2,  // each vertex take two data (as position)
-                          GL_FLOAT, // type of data each vertex takes
-                          GL_FALSE, // ask GL not to normalize the data
-                          0,  // stride; 0 means read buffer side-by-side/no-skip
-                          (GLvoid *)0); // read from the start of the buffer
-  glEnableVertexAttribArray(0); // enable the input data of id 0
-  // second part is texture coordinates
+  // location 0 is position
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0,
+    (GLvoid *)0); // read from the start of the buffer
+  glEnableVertexAttribArray(0);
+  // location 1 is tex coord
   glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0,
     (GLvoid *)(12 * sizeof(GLfloat)));
   glEnableVertexAttribArray(1); // enable the input data of id 1
@@ -181,29 +186,55 @@ int main()
 
   // Keep running when the window is not "closed" by user
   glClearColor(0.9, 0.4, 0.0, 1.0);
+  int magic_factor = 0;
   while (!glfwWindowShouldClose(window))
   {
-
     glfwPollEvents(); // actually we havent set any callback function yet
 
     // Clear the buffer with color set above with glClearColor(..)
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Render the two-triangle element
+    // Activate related objects
     glUseProgram(program);
     glBindVertexArray(VAO); // activate the VAO
     glBindTexture(GL_TEXTURE_2D, Texture); // bind the texture before draw
+
+    // set the input buffer
+    for (size_t i = 0; i < height; ++i)
+      for (size_t j = 0; j < width; ++j) {
+        size_t base_ind = (i * width + j) * 4;
+        pixels[base_ind    ] = i * 255 / height;
+        pixels[base_ind + 1] = j * 255 / width;
+        pixels[base_ind + 2] = (unsigned char) abs(magic_factor);
+        pixels[base_ind + 3] = 0xFF;
+      }
+
+    // load the buffer
+    glTexSubImage2D(
+      GL_TEXTURE_2D, // target
+      0, // mipmap level
+      0, 0, // x and y offset
+      width, height, // data dimension
+      GL_RGBA, GL_UNSIGNED_BYTE, // source data format
+      pixels // source data
+    );
+
+    // Render the two-triangle element
     glDrawArrays(GL_TRIANGLES, 0, 6);  // ask GL to draw triangle from the vertices
+
+    // clean the binding
     glBindVertexArray(0); // cancellel the activation
 
+    // display !
     glfwSwapBuffers(window);
 
+    // update the magic factor
+    magic_factor += 1;
+    if (magic_factor > 255)
+      magic_factor = -255;
   }
 
   cout << "Window closed. " << endl;
-
-  // Destroy the window after used.
-  glfwDestroyWindow(window);
 
   // Terminate GLFW before exit
   glfwTerminate();
