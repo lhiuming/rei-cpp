@@ -32,7 +32,7 @@ int main()
 {
 
   /////////////////////////////////////////////////////////////////////////////
-  // initialize and configure the a openGL window
+  // Initialize and configure the a openGL window
   // see
   //    http://www.glfw.org/docs/latest/window.html#window_hints
   // for more details
@@ -73,7 +73,7 @@ int main()
 
 
   /////////////////////////////////////////////////////////////////////////////
-  // Seting the dimensino of gl context
+  // Seting the dimension of gl context
   int width, height;
   glfwGetFramebufferSize(window, &width, &height); // retrive from glfw
   glViewport(0, 0, width, height); // safe even in HDPI mode
