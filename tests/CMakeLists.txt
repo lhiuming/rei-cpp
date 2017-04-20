@@ -8,7 +8,7 @@ link_directories(${CELENGINE_BINARY_DIR}/tests)
 set(CORELIBS glew glfw ${OPENGL_gl_LIBRARY})
 
 # we can use for each to compile a bunch of similar test programs
-set(TESTPROGRAMS play_with_glfw hello_rectangle )
+set(TESTPROGRAMS play_with_glfw hello_rectangle hello_texture )
 foreach(program ${TESTPROGRAMS})
   add_executable(${program} ${program}.cpp)
   target_link_libraries(${program} ${CORELIBS})
