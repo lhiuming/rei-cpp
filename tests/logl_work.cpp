@@ -85,8 +85,52 @@ int main()
 
 
   /////////////////////////////////////////////////////////////////////////////
-  // Initialize the buffer for drawing two triangle using EBO
+  // Initialize objects for drawing two triangle (using EBO instead of VAO)
 
+  // Create a Vertex Array Object (VAO)
+  // NOTE: following vertex-ralated operation will be stored in this object
+  GLuint VAO;
+  glGenVertexArrays(1, &VAO); // allocate 1 VAO id
+  glBindVertexArray(VAO); // now this VAO is alse "activated"
+
+  // Setup the buffer for vertex positions (use Vertec Buffer Object)
+  GLfloat vertices[] = {
+    -0.5f, -0.5f, 0.0f,
+     0.5f, -0.5f, 0.0f,
+     0.5f,  0.5f, 0.0f,
+    -0.5f,  0.5f, 0.0f
+  };
+  GLuint VBO;  // vertex buffer object
+  glGenBuffers(1, &VBO); // allocate 1 buffer id
+  glBindBuffer(GL_ARRAY_BUFFER, VBO); // binding: specify the type of buffer
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+    GL_STATIC_DRAW); // preferred type of D-RAM in the graphic card
+
+  // Link the buffer to a vertex attribute (related to the activated VAO)
+  glVertexAttribPointer(
+    0, // location = 0 in the shader
+    3, // size of vertex attribute (get by shader); we mean to use vec3
+    GL_FLOAT, // type of data
+    GL_FALSE, // OpenGL dont need to normalized the data
+    3 * sizeof(GLfloat), // stride in the data; if this is 0, let GL determine
+    (GLvoid *)0); // offset in the input; here we dont need to offset
+  glEnableVertexAttribArray(0);
+
+  // Setup the buffer for vertex index (using Elemtn Buffer Object)
+  // NOTE: we will draw the triangles with glDrawElements in stead of
+  // glDrawArrays.
+  // NOTE: we might want to activate the EBO with glBindBuffer(.., EBO) before
+  // the draw-call; but actually this EBO is also stored in the current active
+  // VAO, so we can just activate the related VAO as usual.
+  GLuint indices[] = {
+    0, 1, 2,  // starts from 0 !
+    0, 2, 3
+  };
+  GLuint EBO; // Element Buffer Object
+  glGenBuffers(1, &EBO); // allocate 1 buffer id
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+    GL_STATIC_DRAW);
 
 
   /////////////////////////////////////////////////////////////////////////////
@@ -99,9 +143,11 @@ int main()
   // A pass-through vertice shader. Modern OpenGL needs this.
   static const char* vertice_shader_text =
   "#version 330 core\n"
-  "layout (location = 0) in vec3 position;\n"  // location ?
+  "layout (location = 0) in vec3 position;\n"  // see: vertex attribute linking
+  "out vec2 p_color;\n"
   "void main() {\n"
   "  gl_Position = vec4(position, 1.0);\n"
+  "  p_color = vec2(position.x + 1, position.y + 1) / 2;\n"
   "}\n";
 
   // Create a shader object, load the text source, and compile it
@@ -126,9 +172,10 @@ int main()
   // A pass-through fragment shader. Modern OpenGL also needs this.
   static const char* fragment_shader_text =
   "#version 330 core\n"
+  "in vec2 p_color;\n"
   "out vec4 color;\n"
   "void main() {\n"
-  "  color = vec4(1.0f, 0.8f, 0.1f, 1.0f);\n"
+  "  color = vec4(p_color, 0.5f, 1.0f);\n"
   "}\n";
   GLuint fragmentShader;
   fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -157,6 +204,18 @@ int main()
               << infoLog << std::endl;
   }
 
+  // Delte the shader object after porgram setup
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
+
+
+  /////////////////////////////////////////////////////////////////////////////
+  // Alternative: switching on the Wireframe mode
+  // NOTE: GL_FRONT_AND_BACK means to apply the setting to both face of polygon
+  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);  // framw-wire mode
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);  // back to normal mode
+
+
   /////////////////////////////////////////////////////////////////////////////
   // Starts the game loop
   glClearColor(0.1f, 0.6f, 0.7f, 1.0f); // set the default background color
@@ -164,8 +223,15 @@ int main()
   {
     glfwPollEvents(); // actually we havent set any callback function yet
 
-    // Some rendering works
+    // Clear the buffer with color set above with glClearColor(..)
     glClear(GL_COLOR_BUFFER_BIT);
+
+    // Render the two-triangle element
+    glUseProgram(shaderProgram); // Q: why do need to call this every run?
+    glBindVertexArray(VAO); // activate the VAO
+    glDrawElements(GL_TRIANGLES, 6,  // draw vertice-triangle according to the
+      GL_UNSIGNED_INT, 0);            // vertice indices store in the E buffer
+    glBindVertexArray(0); // cancellel the activation
 
     glfwSwapBuffers(window);
   }
