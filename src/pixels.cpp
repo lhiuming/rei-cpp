@@ -8,8 +8,6 @@
 #include <GLFW/glfw3.h>  // GLFW, a cross-platform OpenGL utility framework
 
 using namespace std;
-using namespace CEL;
-
 
 /////////////////////////////////////////////////////////////////////////////
 // Private stuffs

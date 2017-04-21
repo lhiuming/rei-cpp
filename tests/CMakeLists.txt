@@ -23,5 +23,4 @@ include_directories(${CELENGINE_SOURCE_DIR}/src)
 # Test pixels
 add_executable(test_pixels test_pixels.cpp)
 target_link_libraries(test_pixels pixels)
-
 add_test (NAME pixels COMMAND test_pixels)
