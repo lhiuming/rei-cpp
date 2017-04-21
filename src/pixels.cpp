@@ -2,6 +2,7 @@
 #include "pixels.h"
 
 #include <iostream>
+#include <map>
 
 #define GLEW_STATIC // for GLEW in Windows
 #include <GL/glew.h>     // GLEW, the loader for OpenGL API
@@ -12,14 +13,56 @@ using namespace std;
 /////////////////////////////////////////////////////////////////////////////
 // Private stuffs
 
-static int buffer_w, buffer_h; // current buffer dimension
-static GLFWwindow* window; // current GLFW window
+struct Canvas {
+  GLuint VAO; // a unique Vertex Array Object ID
+  GLuint VBO; // a unique Vertex Buffer Object ID
+  GLuint EBO; // a unique Element Buffer Object ID
+  GLuint program; // a unique shader program object id
+  GLuint texture; // a unique texture object id
 
-static GLuint VAO; // the only Vertex Array Object ID
-static GLuint VBO; // the only Vertex Buffer Object ID
-static GLuint EBO; // the only Element Buffer Object ID
-static GLuint texture; // the only texture object
-static GLuint program; // the only shader program (object id)
+  // constructor
+  Canvas() {}
+  Canvas(GLuint vao, GLuint vbo, GLuint ebo, GLuint prog, GLuint tex) :
+    VAO(vao), VBO(vbo), EBO(ebo), program(prog), texture(tex) {}
+};
+
+static map<GLFWwindow*, Canvas> canvas_table;  // to look up canvas
+
+static bool gl_initialized = false;
+
+// Some constant data
+
+static const char* vertex_shader_text =  // vertiex shader source
+"#version 330 core\n"
+"layout (location = 0) in vec2 position_2d;\n"
+"layout (location = 1) in vec2 tex_coord_in;\n"
+"out vec2 tex_coord;\n"
+"void main() {\n"
+"  gl_Position = vec4(position_2d, 0.0, 1.0);\n"  // convert to vec4
+"  tex_coord = tex_coord_in;\n"                   // pass-through
+"}\n";
+
+static const char* fragment_shader_text =  // fragment shader source
+"#version 330 core\n"
+"uniform sampler2D tex;\n"
+"in vec2 tex_coord;\n"
+"out vec4 color;\n"
+"void main() {\n"
+"  color = texture(tex, tex_coord);\n"
+"}\n";
+
+static const GLfloat vertices[] = {
+  // positions      // tex-coords
+  -1.0f, -1.0f,     0.0f, 0.0f,   // Bottom Left
+   1.0f, -1.0f,     0.0f, 1.0f,   // Top Left
+   1.0f,  1.0f,     1.0f, 1.0f,   // Top Right
+  -1.0f,  1.0f,     1.0f, 0.0f    // Bottom Right
+};
+
+static const GLuint indices[] = {
+  0, 1, 2,  // top left triangle
+  0, 2, 3   // bottom right triangle
+};
 
 // Error callback. Useful when GLFW see something wrong
 void error_callback(int error, const char* description)
@@ -27,15 +70,12 @@ void error_callback(int error, const char* description)
     cerr << "Error: " << description << endl;
 }
 
-// Create a new texture object
-void create_texture()
+// Private procudure to create a new texture object
+void create_texture(GLuint* texture_p, int buffer_w, int buffer_h)
 {
-  // Destroy the old texture object if there is any.
-  glDeleteTextures(1, &texture);
-
   // Get a new texture object id
-  glGenTextures(1, &texture);
-  glBindTexture(GL_TEXTURE_2D, texture);
+  glGenTextures(1, texture_p);
+  glBindTexture(GL_TEXTURE_2D, *texture_p);
   glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, buffer_w, buffer_h);
 
   // Set the sampling method. Default method is mipmap filering, which
@@ -49,20 +89,20 @@ void create_texture()
 
 // Window resize call back. Just update things when the frame buffer is
 // changed by user or system.
-void resize_callback(GLFWwindow* resized_window, int window_w, int window_h)
+void resize_callback(GLFWwindow* window, int window_w, int window_h)
 {
-  // CHECK: We should have only one window.
-  if (resized_window != window) {
-    cerr << "Error: Get wrong window object in resize_callback" << endl;
-    exit(1);
-  }
+  // Make the window current
+  glfwMakeContextCurrent(window); // make current before any use
 
   // Update the OpenGL viewport and the private buffer size variables
+  int buffer_w, buffer_h;
   glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
   glViewport(0, 0, buffer_w, buffer_h);
 
-  // Create a new texture object for the new size
-  create_texture();
+  // Make a new texture object for the resized window
+  GLuint* tex_p = &(canvas_table[window].texture);
+  glDeleteTextures(1, tex_p); // release the old one
+  create_texture(tex_p, buffer_w, buffer_h);  // get a new one with new size
 
 } // end resize_callback
 
@@ -72,105 +112,74 @@ void resize_callback(GLFWwindow* resized_window, int window_w, int window_h)
 
 namespace CEL {
 
-// Initialize the GL window and prepare the buffer for input pixels
-int gl_init(size_t height, size_t width, const char* title)
+// Initialize GLFW and set the default context hints
+int gl_init()
 {
+  // Check if already initlaized
+  if (gl_initialized)
+    return 0;
 
-  // Initialization of the GL enviroment //////////////////////////////////////
-
-  // Initlialize glfw
+  // Initlialize GLFW
   if (!glfwInit())
   {
     cerr << "Error: GLFW intialization failed!" << endl;
     return -1;
   }
+  cout << "GLFW initialized. " << endl;
 
-  // Make a GLFW window context with the given window size
+  // Set the default GLFW window hints
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // use OpenGL 3.3
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS required
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // modern GL
-  glfwSetErrorCallback(error_callback);
-  window = glfwCreateWindow(height, width, "LearnOpenGL",
-    nullptr, nullptr);
+
+  // Finished Initialization
+  gl_initialized = true;
+
+  return 0;
+
+} // end gl_init
+
+// Create a new window context, and intialize the buffer object, etc.
+GLFWwindow* gl_create_window(size_t width, size_t height, const char* s)
+{
+  GLuint VAO, VBO, EBO, program, texture;
+  int buffer_w, buffer_h;
+
+  // Create a GLFW window context and initialize GLEW for it //////////////////
+
+  // Create the GLFW context
+  GLFWwindow* window = glfwCreateWindow(width, height, s, nullptr, nullptr);
   if (window == nullptr)
   {
     cerr << "Error: Failed to create a GLFW window" << endl;
     glfwTerminate();
-    return -1;
+    exit(1);
   }
-  glfwMakeContextCurrent(window);
+  glfwMakeContextCurrent(window); // make current before any use
+  glfwSetErrorCallback(error_callback); // error call back
 
-  // Initialize GLEW before making any gl calls
+  // Initialize GLEW for this context
   glewExperimental = GL_TRUE;  // good with modern core-profile
   if (glewInit() != GLEW_OK)
   {
     cerr << "Error: GLEW initialization failed!" << endl;
-    return -1;
+    exit(1);
   }
+  cout << "GLEW initialized. " << endl;
 
   // Retrive the buffer dimension of gl context.
   // In HDPI setting, the buffer dimension is lager than the window dimension.
   glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
   glViewport(0, 0, buffer_w, buffer_h);
 
-  // Create the canvas for drawing pixels /////////////////////////////////////
-
-  // Make a texture object using a private procedure
-  create_texture();
-
-  // Make and activate a Vertex Array Object (VAO)
-  // NOTE: following vertex-ralated operation will be stored in this object
-  glGenVertexArrays(1, &VAO);
-  glBindVertexArray(VAO);
-
-  // Setup the buffer for vertex positions and texture coordinates
-  // The rectange should cover the whole window area.
-  GLfloat vertices[] = {
-    // positions      // tex-coords
-    -1.0f, -1.0f,     0.0f, 0.0f,   // Bottom Left
-     1.0f, -1.0f,     0.0f, 1.0f,   // Top Left
-     1.0f,  1.0f,     1.0f, 1.0f,   // Top Right
-    -1.0f,  1.0f,     1.0f, 0.0f    // Bottom Right
-  };
-  glGenBuffers(1, &VBO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-  // Link the position and tex-coord buffer to a vertex attribute
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,  // position, at location 0
-    4 * sizeof(GLfloat), (GLvoid *)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,  // tex-coord, at location 1
-    4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
-  glEnableVertexAttribArray(1);
-
-  // Setup the buffer for vertex index (using Elemtn Buffer Object)
-  GLuint indices[] = {
-    0, 1, 2,  // top left triangle
-    0, 2, 3   // bottom right triangle
-  };
-  glGenBuffers(1, &EBO); // allocate 1 buffer id
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
-    GL_STATIC_DRAW);
-
-  // Prepare the pass-through style shader ////////////////////////////////////
+  // Prepare a shared pass-through style shaders //////////////////////////////
 
   // Variables for compile error check
   GLint success;
   GLchar infoLog[512];
 
   // Compile the vertex shader
-  const char* vertex_shader_text =  // vertiex shader source
-  "#version 330 core\n"
-  "layout (location = 0) in vec2 position_2d;\n"
-  "layout (location = 1) in vec2 tex_coord_in;\n"
-  "out vec2 tex_coord;\n"
-  "void main() {\n"
-  "  gl_Position = vec4(position_2d, 0.0, 1.0);\n"  // convert to vec4
-  "  tex_coord = tex_coord_in;\n"                   // pass-through
-  "}\n";
   GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
   glShaderSource(vertexShader, 1, &vertex_shader_text, nullptr);
   glCompileShader(vertexShader);
@@ -182,14 +191,6 @@ int gl_init(size_t height, size_t width, const char* title)
   }
 
   // Compile the fragment shader. Similar above.
-  const char* fragment_shader_text =  // fragment shader source
-  "#version 330 core\n"
-  "uniform sampler2D tex;\n"
-  "in vec2 tex_coord;\n"
-  "out vec4 color;\n"
-  "void main() {\n"
-  "  color = texture(tex, tex_coord);\n"
-  "}\n";
   GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
   glShaderSource(fragmentShader, 1, &fragment_shader_text, nullptr);
   glCompileShader(fragmentShader);
@@ -217,6 +218,36 @@ int gl_init(size_t height, size_t width, const char* title)
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
 
+  // Set up some vertex buffers ///////////////////////////////////////////////
+
+  // Make a texture object using a private procedure
+  create_texture(&texture, buffer_w, buffer_h);
+
+  // Make and activate a Vertex Array Object (VAO)
+  // NOTE: following vertex-ralated operation will be stored in this object
+  glGenVertexArrays(1, &VAO);
+  glBindVertexArray(VAO);
+
+  // Setup the buffer for vertex positions and texture coordinates
+  // The rectange should cover the whole window area.
+  glGenBuffers(1, &VBO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+  // Link the position and tex-coord buffer to a vertex attribute
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE,  // position, at location 0
+    4 * sizeof(GLfloat), (GLvoid *)0);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE,  // tex-coord, at location 1
+    4 * sizeof(GLfloat), (GLvoid *)(2 * sizeof(GLfloat)));
+  glEnableVertexAttribArray(1);
+
+  // Setup the buffer for vertex index (using Elemtn Buffer Object)
+  glGenBuffers(1, &EBO); // allocate 1 buffer id
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
+    GL_STATIC_DRAW);
+
   // Some final settings //////////////////////////////////////////////////////
 
   // Fill the window with a default color. This also set the default color
@@ -230,20 +261,26 @@ int gl_init(size_t height, size_t width, const char* title)
   // Allow automatical update the buffer dimension
   glfwSetWindowSizeCallback(window, resize_callback);
 
-  return 0;
+  // Insert the new window into canvas table
+  canvas_table[window] = Canvas(VAO, VBO, EBO, program, texture);
 
-} // end gl_init
+  return window;
+
+} // end gl_create_window
+
 
 // Retrive the window buffer size. This may be used for making the buffer
 // for drawing on canvas.
-void gl_get_buffer_size(size_t &width, size_t &height)
+void gl_get_buffer_size(GLFWwindow* window, size_t &width, size_t &height)
 {
-  // TODO: add range check of dynamic casting between size_t and int
+  // Retrive the frame buffer size by window id
+  int buffer_w, buffer_h;
+  glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
   width = (size_t)buffer_w;
   height = (size_t)buffer_h;
 }
 
-bool gl_window_is_open()
+bool gl_window_is_open(GLFWwindow* window)
 {
   return !glfwWindowShouldClose(window);
 }
@@ -256,18 +293,25 @@ void gl_poll_events()
 
 
 // Draw a pixel buffer
-void gl_draw(char unsigned *pixels)
+void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
 {
+  // make the window current
+  glfwMakeContextCurrent(window); // make current before any use
+
+  // Get the canvas struct
+  Canvas canvas = canvas_table[window];
+
   // Clear the frame buffer
   glClear(GL_COLOR_BUFFER_BIT);
 
   // Activate related objects
-  glUseProgram(program);
-  glBindVertexArray(VAO); // activate the VAO
-  glBindTexture(GL_TEXTURE_2D, texture); // bind the texture before draw
+  glUseProgram(canvas.program);
+  glBindVertexArray(canvas.VAO); // activate the VAO
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, canvas.EBO);
+  glBindTexture(GL_TEXTURE_2D, canvas.texture); // bind texture before draw
 
   // Load the input buffer into texture
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, buffer_w, buffer_h,
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
     GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
   // Render on the rectangle canvas
@@ -280,6 +324,25 @@ void gl_draw(char unsigned *pixels)
   // Display !
   glfwSwapBuffers(window);
 } // end gl_draw
+
+
+// destroy the window
+void gl_destroy_window(GLFWwindow* window)
+{
+  Canvas canvas = canvas_table[window];
+
+  // release the OpenGL resource
+  glDeleteVertexArrays(1, &(canvas.VAO));
+  glDeleteBuffers(1, &(canvas.VBO));
+  glDeleteBuffers(1, &(canvas.EBO));
+  glDeleteTextures(1, &(canvas.texture));
+
+  // destroy GLFW window object
+  glfwDestroyWindow(window);
+
+  // remove from the table
+  canvas_table.erase(window);
+}
 
 
 // Terminate glfw library

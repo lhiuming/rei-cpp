@@ -11,33 +11,51 @@
 
 #include <cstdlib>
 
+#include <GL/glew.h>    // must include before glfw
+#include <GLFW/glfw3.h> // only for defining the Canvas type
+
 namespace CEL {
 
 /*
- * gl_init -- Initialize the OpenGL enviroment and a window context. Return
- * -1 if initialization fails.
+ * Use WindowID to identify different drawable window. This interface supports
+ * multiple windows (thanks to GLFW3)
+ */
+typedef GLFWwindow* WindowID;
+
+/*
+ * gl_init -- Initialize the wrapper.
+ * Return 0 if successed. It is safe to call this multiple times.
+ */
+int gl_init();
+
+/*
+ * gl_create_window -- Create a window context, ready for drawing pixels.
  *   width: width of the window
  *   height: height of the window
+ *   title: the title of the window
  */
-int gl_init(std::size_t width, std::size_t height, const char* title);
+WindowID gl_create_window(std::size_t width, std::size_t height,
+  const char* title);
 
 /*
- * gl_get_buffer_size -- Retrive the buffer size for drawing pixels.
+ * gl_get_buffer_size -- Retrive the most up-to-datebuffer size for the given
+ * window. Useful for preparing a pixel buffer.
  */
-void gl_get_buffer_size(std::size_t &width, std::size_t &height);
+void gl_get_buffer_size(WindowID window,
+  std::size_t &width, std::size_t &height);
 
 /*
- * gl_draw -- Render the pixel buffer on the OpenGL windows and display.
- * We assume the dimension of the buffer agrees with gl_get_buffer_size.
+ * gl_draw -- Render the pixel buffer on the OpenGL windows and display it.
  */
-void gl_draw(char unsigned *pixels);
+void gl_draw(WindowID window, char unsigned *pixels,
+  std::size_t buffer_w, std::size_t buffer_h);
 
 /*
  * gl_set_key_callback -- Set the callback function when keys are pressed
  * by the user. Useful into making interaction.
  * TODO: implement me
  */
-void gl_set_key_callback();
+void gl_set_key_callback(WindowID window);
 
 /*
  * gl_poll_event -- Poll the events and call the callback functions.
@@ -48,7 +66,12 @@ void gl_poll_events();
 /*
  * gl_window_is_open -- Return true if the window is not closed.
  */
-bool gl_window_is_open();
+bool gl_window_is_open(WindowID window);
+
+/*
+ * gl_destroy_window -- Release the resource of the window object.
+ */
+void gl_destroy_window(WindowID window);
 
 /*
  * gl_terminate -- Finishe using the GL window.
