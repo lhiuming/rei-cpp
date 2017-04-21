@@ -27,30 +27,47 @@ void error_callback(int error, const char* description)
     cerr << "Error: " << description << endl;
 }
 
+// Create a new texture object
+void create_texture()
+{
+  // Destroy the old texture object if there is any.
+  glDeleteTextures(1, &texture);
+
+  // Get a new texture object id
+  glGenTextures(1, &texture);
+  glBindTexture(GL_TEXTURE_2D, texture);
+  glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, buffer_w, buffer_h);
+
+  // Set the sampling method. Default method is mipmap filering, which
+  // we dont need (and will causes rendering error if no mipmap generated)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  // Clear the binding
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 // Window resize call back. Just update things when the frame buffer is
 // changed by user or system.
-void resize_callback(GLFWwindow* resized_window, int width, int height)
+void resize_callback(GLFWwindow* resized_window, int window_w, int window_h)
 {
-  // We should have only one windows.
-  if (window != resized_window) {
-    cerr << "Error: wrong window object in resize_callback" << endl;
+  // CHECK: We should have only one window.
+  if (resized_window != window) {
+    cerr << "Error: Get wrong window object in resize_callback" << endl;
     exit(1);
   }
 
-  // Update private variables
-  buffer_w = width;
-  buffer_h = height;
+  // Update the OpenGL viewport and the private buffer size variables
+  glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
+  glViewport(0, 0, buffer_w, buffer_h);
 
-  // update the OpenGL viewport
-  glViewport(0, 0, width, height);
-
-  // Update the texture size
-  // TODO: implement me
+  // Create a new texture object for the new size
+  create_texture();
 
 } // end resize_callback
 
 
-/////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 // Define the interface
 
 namespace CEL {
@@ -59,7 +76,7 @@ namespace CEL {
 int gl_init(size_t height, size_t width, const char* title)
 {
 
-  // Initialization of the GL enviroment ////////////////
+  // Initialization of the GL enviroment //////////////////////////////////////
 
   // Initlialize glfw
   if (!glfwInit())
@@ -68,7 +85,7 @@ int gl_init(size_t height, size_t width, const char* title)
     return -1;
   }
 
-  // Make a GLFW window context
+  // Make a GLFW window context with the given window size
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // use OpenGL 3.3
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // macOS required
@@ -97,17 +114,10 @@ int gl_init(size_t height, size_t width, const char* title)
   glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
   glViewport(0, 0, buffer_w, buffer_h);
 
-  // Create the canvas for drawing pixels ////////////////
+  // Create the canvas for drawing pixels /////////////////////////////////////
 
-  // Make a texture object
-  glGenTextures(1, &texture);  // retrive a texture object id
-  glBindTexture(GL_TEXTURE_2D, texture);
-  glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, buffer_w, buffer_h);
-
-  // Set the sampling method. Default method is mipmap filering, which
-  // we dont need (and will causes rendering error if no mipmap generated)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  // Make a texture object using a private procedure
+  create_texture();
 
   // Make and activate a Vertex Array Object (VAO)
   // NOTE: following vertex-ralated operation will be stored in this object
@@ -116,13 +126,12 @@ int gl_init(size_t height, size_t width, const char* title)
 
   // Setup the buffer for vertex positions and texture coordinates
   // The rectange should cover the whole window area.
-  // TODO: currently is half of the windows; make it full
   GLfloat vertices[] = {
     // positions      // tex-coords
-    -0.5f, -0.5f,     0.0f, 0.0f,   // Bottom Left
-     0.5f, -0.5f,     0.0f, 1.0f,   // Top Left
-     0.5f,  0.5f,     1.0f, 1.0f,   // Top Right
-    -0.5f,  0.5f,     1.0f, 0.0f    // Bottom Right
+    -1.0f, -1.0f,     0.0f, 0.0f,   // Bottom Left
+     1.0f, -1.0f,     0.0f, 1.0f,   // Top Left
+     1.0f,  1.0f,     1.0f, 1.0f,   // Top Right
+    -1.0f,  1.0f,     1.0f, 0.0f    // Bottom Right
   };
   glGenBuffers(1, &VBO);
   glBindBuffer(GL_ARRAY_BUFFER, VBO);
@@ -146,9 +155,13 @@ int gl_init(size_t height, size_t width, const char* title)
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices,
     GL_STATIC_DRAW);
 
-  // Prepare the pass-through style shader
-  GLint success;  // for compile error check
+  // Prepare the pass-through style shader ////////////////////////////////////
+
+  // Variables for compile error check
+  GLint success;
   GLchar infoLog[512];
+
+  // Compile the vertex shader
   const char* vertex_shader_text =  // vertiex shader source
   "#version 330 core\n"
   "layout (location = 0) in vec2 position_2d;\n"
@@ -167,6 +180,8 @@ int gl_init(size_t height, size_t width, const char* title)
     glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
     cerr << "Error: vertex shader compile failed:\n" << infoLog << endl;
   }
+
+  // Compile the fragment shader. Similar above.
   const char* fragment_shader_text =  // fragment shader source
   "#version 330 core\n"
   "uniform sampler2D tex;\n"
@@ -197,12 +212,23 @@ int gl_init(size_t height, size_t width, const char* title)
     std::cerr << "Error: shader linking failed:\n"
               << infoLog << std::endl;
   }
-  glDeleteShader(vertexShader);  // dont need them after set up the program
+
+  // Do not need them after set up the shader program
+  glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
+
+  // Some final settings //////////////////////////////////////////////////////
 
   // Fill the window with a default color. This also set the default color
   // for followed glClear().
   glClearColor(0.9, 0.4, 0.0, 1.0); // eva blue
+
+  // Set the swaping intercal to 1 (synchronize with monitor refresh rate)
+  // May have no effect on some machine. Atleast no effect on mine.
+  glfwSwapInterval(1);
+
+  // Allow automatical update the buffer dimension
+  glfwSetWindowSizeCallback(window, resize_callback);
 
   return 0;
 
@@ -217,10 +243,17 @@ void gl_get_buffer_size(size_t &width, size_t &height)
   height = (size_t)buffer_h;
 }
 
-inline bool gl_window_is_open()
+bool gl_window_is_open()
 {
   return !glfwWindowShouldClose(window);
 }
+
+// Poll event
+void gl_poll_events()
+{
+  glfwPollEvents();
+}
+
 
 // Draw a pixel buffer
 void gl_draw(char unsigned *pixels)
@@ -241,13 +274,15 @@ void gl_draw(char unsigned *pixels)
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
   // Clear the binding
-  glBindVertexArray(0); // cancellel the activation
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glBindVertexArray(0);
 
   // Display !
   glfwSwapBuffers(window);
 } // end gl_draw
 
-// Terminate glfw
+
+// Terminate glfw library
 void gl_terminate()
 {
   glfwTerminate();

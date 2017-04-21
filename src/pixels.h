@@ -29,7 +29,6 @@ void gl_get_buffer_size(std::size_t &width, std::size_t &height);
 /*
  * gl_draw -- Render the pixel buffer on the OpenGL windows and display.
  * We assume the dimension of the buffer agrees with gl_get_buffer_size.
- * NOTE: I think the user should use some other interface ...
  */
 void gl_draw(char unsigned *pixels);
 
