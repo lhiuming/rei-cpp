@@ -18,16 +18,19 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps/glfw")
 
-#--------------
-# Set includes
-#--------------
+#--------------------
+# Add subdirectories
+#--------------------
+
+# Include idrectory
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-#-------------------
-# Add executables
-#-------------------
-
+# Set compile flags
 set(CMAKE_CXX_FLAGS "-g -Wall")
 
+# Build the source
+add_subdirectory(src)
+
 # Build the tests
+enable_testing ()
 add_subdirectory(tests)

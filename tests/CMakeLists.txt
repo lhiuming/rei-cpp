@@ -1,20 +1,27 @@
-# The test for playing with cmake and glfw
+# All unit test for the Cel project
 
-# set up the directory accoding to the project root
-include_directories(${CELENGINE_SOURCE_DIR}/tests)
-link_directories(${CELENGINE_BINARY_DIR}/tests)
+#-----------------------
+# Test the GL libraries
+#-----------------------
 
-# Core libraries
-set(CORELIBS glew glfw ${OPENGL_gl_LIBRARY})
+# GL libraries
+set(GL_LIBS glew glfw ${OPENGL_gl_LIBRARY})
 
 # we can use for each to compile a bunch of similar test programs
-set(TESTPROGRAMS play_with_glfw hello_rectangle hello_texture )
-foreach(program ${TESTPROGRAMS})
+set(GL_lib_test play_with_glfw hello_rectangle hello_texture)
+foreach(program ${GL_lib_test})
   add_executable(${program} ${program}.cpp)
-  target_link_libraries(${program} ${CORELIBS})
+  target_link_libraries(${program} ${GL_LIBS})
 endforeach(program)
 
-# we can build a library and link it this way
-# add_library(somelib somelib.cpp)
-# add_executable(use_lib use_lib.cpp)
-# target_link_libraries(use_lib ${CORELIBS} somelib)
+#----------------------
+# Test the CEL modules
+#----------------------
+
+include_directories(${CELENGINE_SOURCE_DIR}/src)
+
+# Test pixels
+add_executable(test_pixels test_pixels.cpp)
+target_link_libraries(test_pixels pixels)
+
+add_test (NAME pixels COMMAND test_pixels)

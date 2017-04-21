@@ -63,7 +63,7 @@ int main()
 
 
   /////////////////////////////////////////////////////////////////////////////
-  // Initialize GLFW before making gl calls
+  // Initialize GLEW before making gl calls
   glewExperimental = GL_TRUE;  // good with modern setting / core-profile
   if (glewInit() != GLEW_OK)
   {
