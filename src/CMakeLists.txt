@@ -4,6 +4,9 @@
 add_library(pixels pixels.cpp pixels.h) # do this need pixels.h ?
 target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
 
+# math
+add_library(math math.h)
+
 # renderer
 add_library(renderer renderer.cpp renderer.h)
 

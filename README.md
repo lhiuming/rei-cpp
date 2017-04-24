@@ -4,8 +4,7 @@ Project under construction
 ## todos
 
 - Rendering
-  - draw 2D window
-    - implement Viewer class 
   - implement 3D triangle rasterization
+    - implement a over-simplified triangle class 
+    - implement triangle rasterization
   - support mesh and material
-  - web demo ?

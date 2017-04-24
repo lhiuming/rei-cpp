@@ -53,17 +53,9 @@ void Viewer::set_scene(Scene* scene)
 // The update&render loop
 void Viewer::run()
 {
-  auto start = chrono::system_clock::now();
-  chrono::duration<double> time_limit(3.14);
-  cout << "This viewer is alive for 3.14 secs." << endl;
-
   // start the loop
   while (gl_window_should_open(window))
   {
-    // debug check
-    if (chrono::system_clock::now() - time_limit > start )
-      break;
-
     // Don't forget this
     gl_poll_events();
 

@@ -36,7 +36,7 @@ public:
 private:
 
   WindowID window;
-  std::size_t buffer_w, buffer_h;
+  std::size_t buffer_w, buffer_h;    // size of the pixel buffer 
   std::vector<unsigned char> pixels; // the pixel buffer
 
   Renderer* renderer; // a pointer to a renderer
@@ -49,7 +49,6 @@ private:
   void sleep_alittle();
 
 };
-
 
 } // namespace CEL
 
