@@ -2,6 +2,7 @@
 // Create a window and draw a spining dot
 
 #include <cmath>
+#include <cassert>
 
 #include <iostream>
 #include <vector>
@@ -25,13 +26,12 @@ int main()
   // this should fail
   //WindowID window0 = gl_create_window(0, 0, "test_pixels .cpp");
 
-  WindowID window1 = gl_create_window(720, 480, "test_pixels 1.cpp");
-  WindowID window2 = gl_create_window(480, 720, "test_pixels 2.cpp");
-
+  WindowID window1 = gl_open_window(720, 480, "test_pixels 1.cpp");
+  WindowID window2 = gl_open_window(480, 720, "test_pixels 2.cpp");
 
   size_t buffer_w, buffer_h;
   gl_get_buffer_size(window1, buffer_w, buffer_h);
-  cout << "Successfully call gl_get_buffer_size, return "
+  cout << "Successfully call gl_get_buffer_size for window 1, return "
        << "(" << buffer_w << ", " << buffer_h << ") " << endl;
 
   // Initialize the buffer
@@ -48,7 +48,7 @@ int main()
     }
 
   size_t t = 0;
-  while (gl_window_is_open(window1) && gl_window_is_open(window2))
+  while (gl_window_should_open(window1) && gl_window_should_open(window2))
   {
     #ifdef DEBUG_PRINT
     cout << "Loop at t = " << t << endl;
@@ -95,11 +95,15 @@ int main()
     t %= 360;
   }
 
-  gl_destroy_window(window1);
-  cout << "Destroy window 1 " << endl;
+  assert(gl_close_window(window1) == 0);
+  cout << "Close window 1 " << endl;
 
-  gl_destroy_window(window2);
-  cout << "Destroy window 2 " << endl;
+  assert(gl_close_window(window2) == 0);
+  cout << "Close window 2 " << endl;
+
+  // test the resutn
+  assert(gl_close_window(window1) == -1);
+  cout << "Successfully detect a second close on window 1" << endl;
 
   gl_terminate();
 

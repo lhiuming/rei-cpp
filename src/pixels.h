@@ -12,6 +12,8 @@
  * buffer to the window context (stored in the Grapihcs Card memory), and
  * then render the pixiels as-it-is on the screen.
  *
+ * TODO: implement usefull call-back function setting api, and remove
+ *    gl_window_should_open.
  * TODO: make this thread-safe
  */
 
@@ -30,12 +32,12 @@ typedef GLFWwindow* WindowID;
 int gl_init();
 
 /*
- * gl_create_window -- Create a window context, ready for drawing pixels.
+ * gl_create_window -- Open a window, which is ready for drawing pixels.
  *   width: width of the window
  *   height: height of the window
  *   title: the title of the window
  */
-WindowID gl_create_window(std::size_t width, std::size_t height,
+WindowID gl_open_window(std::size_t width, std::size_t height,
   const char* title);
 
 /*
@@ -65,14 +67,16 @@ void gl_set_key_callback(WindowID window);
 void gl_poll_events();
 
 /*
- * gl_window_is_open -- Return true if the window is not closed.
+ * gl_window_is_open -- Return true if the window is set to be closed (by
+ * checking the state of an internal closing flag)
  */
-bool gl_window_is_open(WindowID window);
+bool gl_window_should_open(WindowID window);
 
 /*
  * gl_destroy_window -- Release the resource of the window object.
+ * Return -1 if the window is not valid (or already closed)
  */
-void gl_destroy_window(WindowID window);
+int gl_close_window(WindowID window);
 
 /*
  * gl_terminate -- Finish using the pixel library. Will release resouces.

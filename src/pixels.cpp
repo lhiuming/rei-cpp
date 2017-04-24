@@ -141,7 +141,7 @@ int gl_init()
 } // end gl_init
 
 // Create a new window context, and intialize the buffer object, etc.
-GLFWwindow* gl_create_window(size_t width, size_t height, const char* s)
+GLFWwindow* gl_open_window(size_t width, size_t height, const char* s)
 {
   GLuint VAO, VBO, EBO, program, texture;
   int buffer_w, buffer_h;
@@ -280,7 +280,7 @@ void gl_get_buffer_size(GLFWwindow* window, size_t &width, size_t &height)
   height = (size_t)buffer_h;
 }
 
-bool gl_window_is_open(GLFWwindow* window)
+bool gl_window_should_open(GLFWwindow* window)
 {
   return !glfwWindowShouldClose(window);
 }
@@ -326,9 +326,13 @@ void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
 } // end gl_draw
 
 
-// destroy the window
-void gl_destroy_window(GLFWwindow* window)
+// destroy the window context, and delete the table entry
+int gl_close_window(GLFWwindow* window)
 {
+  // make sure the window is there
+  if (canvas_table.find(window) == canvas_table.end())
+    return -1;
+
   Canvas canvas = canvas_table[window];
 
   // release the OpenGL resource
@@ -342,6 +346,8 @@ void gl_destroy_window(GLFWwindow* window)
 
   // remove from the table
   canvas_table.erase(window);
+
+  return 0;
 }
 
 
