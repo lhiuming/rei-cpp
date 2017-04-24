@@ -2,6 +2,7 @@
 #define CEL_VIEWER_H
 
 #include <string>
+#include <vector>
 
 #include "pixels.h"
 #include "scene.h"
@@ -23,44 +24,32 @@ class Viewer {
 
 public:
 
-  // Constructors
   Viewer() = delete;
-  Viewer(size_t window_w, size_t window_h, std::string title) {
-    gl_init();
-    this->window = gl_create_window(window_w, window_h, title.c_str());
-    gl_get_buffer_size(this->window, this->buffer_w, this->buffer_h);
-    ++view_count; // increase the internal count
-  }
-
-  // Destructor
-  ~Viewer() {
-    gl_destroy_window(window);
-    --view_count;
-    if (view_count == 0) gl_terminate();
-  }
+  Viewer(std::size_t window_w, std::size_t window_h, std::string title) ;
+  ~Viewer() ;
 
   // operations
-  void set_renderer(Renderer* renderer) {
-    this->renderer = renderer;
-  }
-  void set_scene(Scene* scene) {
-    this->scene = scene;
-  }
+  void set_renderer(Renderer* renderer) ;
+  void set_scene(Scene* scene) ;
+  void run(); // start the update&render loop
 
 private:
 
   WindowID window;
-  size_t buffer_w, buffer_h;
+  std::size_t buffer_w, buffer_h;
+  std::vector<unsigned char> pixels; // the pixel buffer
 
   Renderer* renderer; // a pointer to a renderer
   Scene* scene; // a pointer to a scene
 
   static int view_count; // count the number of viewer window
 
+  // private helper
+  void update_buffer_size();
+  void sleep_alittle();
+
 };
 
-// Static variable initialization
-int Viewer::view_count = 0;
 
 } // namespace CEL
 

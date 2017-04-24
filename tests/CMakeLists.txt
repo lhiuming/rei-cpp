@@ -18,7 +18,6 @@ endforeach(program)
 # Test the CEL modules
 #----------------------
 
-SET(CMAKE_CXX_FLAGS "-O3 -Wall -std=c++11")
 include_directories(${CELENGINE_SOURCE_DIR}/src)
 
 # Test pixels
