@@ -1,18 +1,19 @@
-/**
- * pixiels.h -- This module provides a wrapper for a naive set of OpenGL API.
- * Bascially, you can use it to create a OpenGL window, send a pixel
- * buffer to the window context (stored in the Grapihcs Card memory), and
- * then render the pixiels as-it-is on the screen.
- *
- * NOTE: this wrapper currently only support one window.
- */
 #ifndef CEL_PIXELS_H
 #define CEL_PIXELS_H
 
-#include <cstdlib>
+#include <cstdlib>  // for size_t
 
 #include <GL/glew.h>    // must include before glfw
 #include <GLFW/glfw3.h> // only for defining the Canvas type
+
+/**
+ * pixiels.h -- This module provides a wrapper for a naive set of OpenGL API.
+ * Bascially, you can use it to create a (or more) OpenGL window, send a pixel
+ * buffer to the window context (stored in the Grapihcs Card memory), and
+ * then render the pixiels as-it-is on the screen.
+ *
+ * TODO: make this thread-safe 
+ */
 
 namespace CEL {
 
@@ -74,7 +75,7 @@ bool gl_window_is_open(WindowID window);
 void gl_destroy_window(WindowID window);
 
 /*
- * gl_terminate -- Finishe using the GL window.
+ * gl_terminate -- Finishe using the pixel library. Will release resouces.
  */
 void gl_terminate();
 

@@ -22,6 +22,9 @@ int main()
   }
   cout << "Successfully call gl_init" << endl;
 
+  // this should fail
+  //WindowID window0 = gl_create_window(0, 0, "test_pixels .cpp");
+
   WindowID window1 = gl_create_window(720, 480, "test_pixels 1.cpp");
   WindowID window2 = gl_create_window(480, 720, "test_pixels 2.cpp");
 

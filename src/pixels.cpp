@@ -345,9 +345,10 @@ void gl_destroy_window(GLFWwindow* window)
 }
 
 
-// Terminate glfw library
+// Release resources and terminate glfw library
 void gl_terminate()
 {
+  canvas_table.clear();
   glfwTerminate();
 }
 
