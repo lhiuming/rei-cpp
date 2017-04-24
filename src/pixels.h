@@ -12,7 +12,7 @@
  * buffer to the window context (stored in the Grapihcs Card memory), and
  * then render the pixiels as-it-is on the screen.
  *
- * TODO: make this thread-safe 
+ * TODO: make this thread-safe
  */
 
 namespace CEL {
@@ -75,7 +75,7 @@ bool gl_window_is_open(WindowID window);
 void gl_destroy_window(WindowID window);
 
 /*
- * gl_terminate -- Finishe using the pixel library. Will release resouces.
+ * gl_terminate -- Finish using the pixel library. Will release resouces.
  */
 void gl_terminate();
 

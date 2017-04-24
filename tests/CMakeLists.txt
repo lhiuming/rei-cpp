@@ -18,9 +18,15 @@ endforeach(program)
 # Test the CEL modules
 #----------------------
 
+SET(CMAKE_CXX_FLAGS "-O3 -Wall -std=c++11")
 include_directories(${CELENGINE_SOURCE_DIR}/src)
 
 # Test pixels
 add_executable(test_pixels test_pixels.cpp)
 target_link_libraries(test_pixels pixels)
 add_test (NAME pixels COMMAND test_pixels)
+
+# Test viewer
+add_executable(test_viewer test_viewer.cpp)
+target_link_libraries(test_viewer viewer)
+add_test (NAME viewer COMMAND test_viewer)
