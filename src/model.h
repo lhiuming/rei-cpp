@@ -39,7 +39,6 @@ struct Triangle {
 // Mesh Interface /////////////////////////////////////////////////////////////
 class Mesh {
 public:
-  virtual ~Mesh() {};
 
 };
 
@@ -48,26 +47,28 @@ class NaiveMesh : public Mesh {
 
 public:
 
+  typedef std::vector<Vertex>::iterator VertexIt;
   typedef std::vector<Vertex>::const_iterator VertexCIt;
-  typedef std::vector<Triangle<VertexCIt>>::const_iterator TriangleCIt;
+  typedef std::vector<Triangle<VertexIt>>::iterator TriangleIt;
+  typedef std::vector<Triangle<VertexIt>>::const_iterator TriangleCIt;
 
-  // Constructor
-  NaiveMesh() = delete;
-  NaiveMesh(std::vector<Vertex> &vertices,
-    std::vector<Triangle<VertexCIt>> &triangles) :
-    vertices(vertices), triangles(triangles) {};
+  // allow empty mesh
+  NaiveMesh() {};
+
+  // allow add both vertices and triangles
+  NaiveMesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta) ;
 
   // Destructor does nothing
   ~NaiveMesh() {};
 
   // Primitives queries
   TriangleCIt triangles_cbegin() const { return triangles.cbegin(); }
-  TriangleCIt triangles_cend() { return triangles.cend(); }
+  TriangleCIt triangles_cend() const { return triangles.cend(); }
 
 private:
 
-  const std::vector<Vertex> vertices;
-  const std::vector<Triangle<VertexCIt>> triangles;
+  std::vector<Vertex> vertices;
+  std::vector<Triangle<VertexIt>> triangles;
 
 };
 

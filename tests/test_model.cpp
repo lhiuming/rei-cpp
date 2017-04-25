@@ -10,8 +10,8 @@ int main()
 {
   Vertex a(Vec3(0, 0, 0)), b(Vec3(1, 0, 0)), c(Vec3(1, 1, 0));
   vector<Vertex> vao({a, b, c});
-  Triangle<NaiveMesh::VertexCIt> t(vao.cbegin(), vao.cbegin() + 1, vao.cbegin() + 2);
-  vector<Triangle<NaiveMesh::VertexCIt>> vbo{t};
+  Triangle<int> only_t(0, 1, 2);
+  vector<Triangle<int>> vbo{only_t};
 
   NaiveMesh mesh(vao, vbo);
 
