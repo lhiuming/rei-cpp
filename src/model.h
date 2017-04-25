@@ -14,6 +14,22 @@
 
 namespace CEL {
 
+// Some primitives for the Halfedge mesh
+struct Vertex {
+  Vec3 pos; // position
+
+};
+struct Edge {
+
+};
+struct Halfedge {
+
+};
+struct Face {
+
+};
+
+// Triangular Mesh
 class Mesh {
 
 public:
@@ -23,7 +39,10 @@ public:
 
 private:
 
-  vertex
+  vector<Vertex> vertices;
+  vector<Edge> edges;
+  vector<Halfedge> halfedges;
+  vector<Face> faces; 
 
 };
 
