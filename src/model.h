@@ -10,20 +10,18 @@
  * This module considers how a model is composed.
  *
  * TODO: Implement 3D triangular mesh
+ * TODO: Support cube and sphere
  */
 
 namespace CEL {
 
-//
 
 // Fundamental Primitives /////////////////////////////////////////////////////
 
 // Simple Vertex class
 struct Vertex {
-  Vec3 pos; // Vertex position
-
-  Vertex(Vec3 pos) : pos(pos) {};
-
+  Vec4 coord; // Vertex position
+  Vertex(Vec3 pos3) : coord(pos3) {};
 };
 
 // Triangle template class, details depend on implementation of mesh
@@ -32,53 +30,64 @@ struct Triangle {
   VertexIt a;  // Iterator to vertices
   VertexIt b;
   VertexIt c;
-
   Triangle(VertexIt a, VertexIt b, VertexIt c) : a(a), b(b), c(c) {};
 };
 
-// Mesh Interface /////////////////////////////////////////////////////////////
-class Mesh {
+
+// Model classes //////////////////////////////////////////////////////////////
+
+typedef enum e_ModelType {
+  MESH,
+  SPHERE,
+  CUBE,
+  AGGREGATE  // a collection of generic models
+} ModelType;
+
+// Base
+class Model {
 public:
+  ModelType type;
+
+  Model() = default;
+  Model(ModelType t) : type(t) {};
+  virtual ~Model() = default;
+
+  virtual const Mat4& transform() const = 0;
+
+protected:
+  Mat4 _transform;
 
 };
 
-// Naive Mesh /////////////////////////////////////////////////////////////////
-class NaiveMesh : public Mesh {
+typedef std::vector<Vertex>::iterator VertexIt;
+typedef std::vector<Vertex>::const_iterator VertexCIt;
+typedef std::vector<Triangle<VertexIt>>::iterator TriangleIt;
+typedef std::vector<Triangle<VertexIt>>::const_iterator TriangleCIt;
 
+// Trianglular Mesh
+class Mesh : public Model {
 public:
-
-  typedef std::vector<Vertex>::iterator VertexIt;
-  typedef std::vector<Vertex>::const_iterator VertexCIt;
-  typedef std::vector<Triangle<VertexIt>>::iterator TriangleIt;
-  typedef std::vector<Triangle<VertexIt>>::const_iterator TriangleCIt;
-
   // allow empty mesh
-  NaiveMesh() {};
+  Mesh() : Model(MESH) {};
 
   // allow add both vertices and triangles
-  NaiveMesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta) ;
+  Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta) ;
 
   // Destructor does nothing
-  ~NaiveMesh() {};
+  ~Mesh() override {};
 
   // Primitives queries
   TriangleCIt triangles_cbegin() const { return triangles.cbegin(); }
   TriangleCIt triangles_cend() const { return triangles.cend(); }
 
-private:
+  // Get transform
+  const Mat4& transform() const { return _transform; }
 
+private:
   std::vector<Vertex> vertices;
   std::vector<Triangle<VertexIt>> triangles;
 
 };
-
-
-
-
-
-
-// Primitives for the Halfedge mesh ///////////////////////////////////////////
-
 
 } // namespace CEL
 

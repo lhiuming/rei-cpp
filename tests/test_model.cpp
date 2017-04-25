@@ -13,15 +13,15 @@ int main()
   Triangle<int> only_t(0, 1, 2);
   vector<Triangle<int>> vbo{only_t};
 
-  NaiveMesh mesh(vao, vbo);
+  Mesh mesh(vao, vbo);
 
   cout << "Created a NaiveMesh" << endl;
 
   for (auto tri = mesh.triangles_cbegin(); tri != mesh.triangles_cend(); ++tri)
   {
-    cout << tri->a->pos << endl;
-    cout << tri->b->pos << endl;
-    cout << tri->c->pos << endl;
+    cout << tri->a->coord << endl;
+    cout << tri->b->coord << endl;
+    cout << tri->c->coord << endl;
   }
 
   return 0;

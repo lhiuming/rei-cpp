@@ -6,9 +6,9 @@ using namespace std;
 namespace CEL {
 
 // Constructor: allow add both vertices and triangles
-NaiveMesh::NaiveMesh(vector<Vertex> va, vector<Triangle<int>> ta)
-: vertices(va)
+Mesh::Mesh(vector<Vertex> va, vector<Triangle<int>> ta) : vertices(va)
 {
+  Mesh();
   VertexIt offset = vertices.begin();
   for (auto tri : ta)
     triangles.push_back(Triangle<VertexIt>(offset + tri.a,
