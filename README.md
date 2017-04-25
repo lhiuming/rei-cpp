@@ -5,6 +5,6 @@ Project under construction
 
 - Rendering
   - implement 3D triangle rasterization
-    - implement a over-simplified triangle class 
+    - implement a naive triangular mesh
     - implement triangle rasterization
   - support mesh and material

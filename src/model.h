@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "math"
+#include "math.h"
 
 /*
  * model.h
@@ -14,37 +14,70 @@
 
 namespace CEL {
 
-// Some primitives for the Halfedge mesh
+//
+
+// Fundamental Primitives /////////////////////////////////////////////////////
+
+// Simple Vertex class
 struct Vertex {
-  Vec3 pos; // position
+  Vec3 pos; // Vertex position
 
-};
-struct Edge {
-
-};
-struct Halfedge {
-
-};
-struct Face {
+  Vertex(Vec3 pos) : pos(pos) {};
 
 };
 
-// Triangular Mesh
+// Triangle template class, details depend on implementation of mesh
+template<typename VertexIt>
+struct Triangle {
+  VertexIt a;  // Iterator to vertices
+  VertexIt b;
+  VertexIt c;
+
+  Triangle(VertexIt a, VertexIt b, VertexIt c) : a(a), b(b), c(c) {};
+};
+
+// Mesh Interface /////////////////////////////////////////////////////////////
 class Mesh {
+public:
+  virtual ~Mesh() {};
+
+};
+
+// Naive Mesh /////////////////////////////////////////////////////////////////
+class NaiveMesh : public Mesh {
 
 public:
 
-  Mesh();
-  ~Mesh();
+  typedef std::vector<Vertex>::const_iterator VertexCIt;
+  typedef std::vector<Triangle<VertexCIt>>::const_iterator TriangleCIt;
+
+  // Constructor
+  NaiveMesh() = delete;
+  NaiveMesh(std::vector<Vertex> &vertices,
+    std::vector<Triangle<VertexCIt>> &triangles) :
+    vertices(vertices), triangles(triangles) {};
+
+  // Destructor does nothing
+  ~NaiveMesh() {};
+
+  // Primitives queries
+  TriangleCIt triangles_cbegin() const { return triangles.cbegin(); }
+  TriangleCIt triangles_cend() { return triangles.cend(); }
 
 private:
 
-  vector<Vertex> vertices;
-  vector<Edge> edges;
-  vector<Halfedge> halfedges;
-  vector<Face> faces; 
+  const std::vector<Vertex> vertices;
+  const std::vector<Triangle<VertexCIt>> triangles;
 
 };
+
+
+
+
+
+
+// Primitives for the Halfedge mesh ///////////////////////////////////////////
+
 
 } // namespace CEL
 

@@ -1,10 +1,9 @@
 // source of model.h
 #include "model.h"
 
-using namespcae std;
+using namespace std;
 
 namespace CEL {
-
 
 
 

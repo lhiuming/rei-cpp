@@ -7,6 +7,10 @@ target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
 # math
 add_library(math math.cpp math.h)
 
+# model
+add_library(model model.cpp model.h)
+target_link_libraries(model math)
+
 # renderer
 add_library(renderer renderer.cpp renderer.h)
 
