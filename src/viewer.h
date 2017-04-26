@@ -36,11 +36,11 @@ public:
 private:
 
   WindowID window;
-  std::size_t buffer_w, buffer_h;    // size of the pixel buffer 
+  std::size_t buffer_w, buffer_h;    // size of the pixel buffer
   std::vector<unsigned char> pixels; // the pixel buffer
 
-  Renderer* renderer; // a pointer to a renderer
-  Scene* scene; // a pointer to a scene
+  Renderer* renderer = nullptr; // a pointer to a renderer
+  Scene* scene = nullptr; // a pointer to a scene
 
   static int view_count; // count the number of viewer window
 

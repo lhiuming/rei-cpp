@@ -105,17 +105,18 @@ public:
 
   typedef std::vector<Mat4>::size_type size_type;
 
-  // Dont alloow emtpy aggregated
-  Aggregate() = delete;
-
   // Simple constructors
   // TODO: move
+  Aggregate();
   Aggregate(std::vector<ModelPtr> models); // with default transform
-  Aggregate(std::vector<ModelPtr> models, std::vector<Mat4> trans)
-    : Model(AGGREGATE), models(models), transforms(trans) {};
+  Aggregate(std::vector<ModelPtr> models, std::vector<Mat4> trans);
 
   // Destructor: STL takes care of the memory
-  ~Aggregate() override {};
+  ~Aggregate() override {}
+
+  // Put models
+  void insert(ModelPtr& mp);
+  void insert(ModelPtr& mp, Mat4&& tran);
 
   // Models queries
   size_type size() const { return transforms.size(); }

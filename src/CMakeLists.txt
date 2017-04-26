@@ -11,11 +11,13 @@ add_library(math math.cpp math.h)
 add_library(model model.cpp model.h)
 target_link_libraries(model math)
 
-# renderer
-add_library(renderer renderer.cpp renderer.h)
-
 # scene
 add_library(scene scene.cpp scene.h)
+target_link_libraries(scene math model)
+
+# renderer
+add_library(renderer renderer.cpp renderer.h)
+target_link_libraries(renderer math scene)
 
 # viewer
 add_library(viewer viewer.cpp viewer.h)

@@ -17,7 +17,7 @@ int main()
   cout << "Successfully craeted a Viewer." << endl;
 
   // setting renderer and scene
-  Scene s;
+  StaticScene s;
   Renderer r;
   v.set_scene(&s);
   v.set_renderer(&r);
