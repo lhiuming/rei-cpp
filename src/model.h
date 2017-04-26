@@ -2,6 +2,7 @@
 #define CEL_MODEL_H
 
 #include <vector>
+#include <memory>
 
 #include "math.h"
 
@@ -9,7 +10,12 @@
  * model.h
  * This module considers how a model is composed.
  *
- * TODO: Implement 3D triangular mesh
+ * NOTE: A Model object shoule be unique, but possible to have multiple
+ * "instances" by relating with different transforms. (see Aggreate, also
+ * see scene.h)
+ *
+ * TODO: add aggregated model
+ * TODO: support move constructors
  * TODO: Support cube and sphere
  */
 
@@ -43,51 +49,88 @@ typedef enum e_ModelType {
   AGGREGATE  // a collection of generic models
 } ModelType;
 
-// Base
+// Base class
 class Model {
 public:
-  ModelType type;
+  const ModelType type;
 
-  Model() = default;
-  Model(ModelType t) : type(t) {};
   virtual ~Model() = default;
 
-  virtual const Mat4& transform() const = 0;
-
 protected:
-  Mat4 _transform;
+
+  // Initialized the ModelType
+  Model(ModelType t) : type(t) {};
 
 };
 
+
 typedef std::vector<Vertex>::iterator VertexIt;
 typedef std::vector<Vertex>::const_iterator VertexCIt;
-typedef std::vector<Triangle<VertexIt>>::iterator TriangleIt;
-typedef std::vector<Triangle<VertexIt>>::const_iterator TriangleCIt;
+typedef Triangle<VertexIt> TriangleType;
+typedef std::vector<TriangleType>::iterator TriangleIt;
+typedef std::vector<TriangleType>::const_iterator TriangleCIt;
+
 
 // Trianglular Mesh
 class Mesh : public Model {
+
 public:
-  // allow empty mesh
-  Mesh() : Model(MESH) {};
+  // dont allow empty mesh
+  Mesh() = delete;
 
-  // allow add both vertices and triangles
-  Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta) ;
+  // Constructor with both vertices and triangles
+  // TODO: support move
+  Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta);
 
-  // Destructor does nothing
-  ~Mesh() override {};
+  // Destructor is default, since we have only standard containers
+  ~Mesh() override = default;
 
   // Primitives queries
   TriangleCIt triangles_cbegin() const { return triangles.cbegin(); }
   TriangleCIt triangles_cend() const { return triangles.cend(); }
 
-  // Get transform
-  const Mat4& transform() const { return _transform; }
-
 private:
   std::vector<Vertex> vertices;
-  std::vector<Triangle<VertexIt>> triangles;
+  std::vector<TriangleType> triangles;
 
 };
+
+
+typedef std::shared_ptr<Model> ModelPtr;
+typedef std::vector<ModelPtr>::iterator ModelPtrIt;
+typedef std::vector<ModelPtr>::const_iterator ModelPtrCIt;
+
+
+// Model AGGREGATE
+class Aggregate : public Model {
+
+public:
+
+  typedef std::vector<Mat4>::size_type size_type;
+
+  // Dont alloow emtpy aggregated
+  Aggregate() = delete;
+
+  // Simple constructors
+  // TODO: move
+  Aggregate(std::vector<ModelPtr> models); // with default transform
+  Aggregate(std::vector<ModelPtr> models, std::vector<Mat4> trans)
+    : Model(AGGREGATE), models(models), transforms(trans) {};
+
+  // Destructor: STL takes care of the memory
+  ~Aggregate() override {};
+
+  // Models queries
+  size_type size() const { return transforms.size(); }
+  const std::vector<ModelPtr>& get_models() const { return models; }
+  const std::vector<Mat4>& get_transforms() const { return transforms; }
+
+private:
+  std::vector<ModelPtr> models;
+  std::vector<Mat4> transforms;
+
+};
+
 
 } // namespace CEL
 
