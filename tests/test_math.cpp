@@ -27,5 +27,8 @@ int main()
   // cross product
   cout << "a x b = " << cross(a, b) << endl;
 
+  // identity matrix
+  cout << "Mat4::identity() = " << Mat4::identity() << endl;
+
   return 0;
 }

@@ -15,6 +15,10 @@ target_link_libraries(model math)
 add_library(scene scene.cpp scene.h)
 target_link_libraries(scene math model)
 
+# camera
+add_library(camera camera.cpp camera.h)
+target_link_libraries(camera math)
+
 # renderer
 add_library(renderer renderer.cpp renderer.h)
 target_link_libraries(renderer math scene)
