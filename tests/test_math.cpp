@@ -24,5 +24,8 @@ int main()
   // dot product
   cout << "a .* b = " << dot(a, b) << endl;
 
+  // cross product
+  cout << "a x b = " << cross(a, b) << endl;
+
   return 0;
 }

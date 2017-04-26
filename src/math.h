@@ -6,8 +6,9 @@
 /*
  * math.h
  * Define some small and useful calss for mathematical computations.
- * TODO: Vec3 cross products 
+ * TODO: Vec3 cross products
  * TODO: matrix 4 operations
+ * TODO: support move to same copying 
  */
 
 namespace CEL {
