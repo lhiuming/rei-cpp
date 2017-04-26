@@ -21,8 +21,12 @@
 
 namespace CEL {
 
-
-// Fundamental Primitives /////////////////////////////////////////////////////
+typedef enum e_ModelType {
+  MESH,
+  SPHERE,
+  CUBE,
+  AGGREGATE  // a collection of generic models
+} ModelType;
 
 // Simple Vertex class
 struct Vertex {
@@ -39,15 +43,14 @@ struct Triangle {
   Triangle(VertexIt a, VertexIt b, VertexIt c) : a(a), b(b), c(c) {};
 };
 
+typedef std::vector<Vertex>::iterator VertexIt;
+typedef std::vector<Vertex>::const_iterator VertexCIt;
+typedef Triangle<VertexIt> TriangleType;
+typedef std::vector<TriangleType>::iterator TriangleIt;
+typedef std::vector<TriangleType>::const_iterator TriangleCIt;
+
 
 // Model classes //////////////////////////////////////////////////////////////
-
-typedef enum e_ModelType {
-  MESH,
-  SPHERE,
-  CUBE,
-  AGGREGATE  // a collection of generic models
-} ModelType;
 
 // Base class
 class Model {
@@ -64,18 +67,12 @@ protected:
 };
 
 
-typedef std::vector<Vertex>::iterator VertexIt;
-typedef std::vector<Vertex>::const_iterator VertexCIt;
-typedef Triangle<VertexIt> TriangleType;
-typedef std::vector<TriangleType>::iterator TriangleIt;
-typedef std::vector<TriangleType>::const_iterator TriangleCIt;
-
-
 // Trianglular Mesh
 class Mesh : public Model {
 
 public:
-  // dont allow empty mesh
+
+  // Dont allow empty mesh
   Mesh() = delete;
 
   // Constructor with both vertices and triangles
