@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 
-#include "math.h"
+#include "algebra.h"
 
 /*
  * model.h

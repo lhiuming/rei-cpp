@@ -1,7 +1,7 @@
 #ifndef CEL_CAMERA_H
 #define CEL_CAMERA_H
 
-#include "math.h"
+#include "algebra.h"
 
 /*
  * camera.h
