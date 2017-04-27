@@ -5,6 +5,6 @@ Project under construction
 
 - Rendering
   - implement 3D triangle rasterization
-    - add renderer (taking a camera and a scene; fill a pixel buffer )
     - implement triangle rasterization
+    - find the test_viewer memory bug
   - support mesh and material

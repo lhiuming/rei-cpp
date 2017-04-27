@@ -80,7 +80,8 @@ private:
   draw_func f;
 
   // Implementation helpers
-  void rasterize_triangle(BufferPtr b, BufferSize w, BufferSize h);
+  void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
+  void rasterize_triangle(const TriangleType& tri, const Mat4& trans);
 
 };
 

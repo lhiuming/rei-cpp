@@ -3,7 +3,7 @@
 
 #include <memory>
 
-#include "math.h"
+#include "algebra.h"
 #include "model.h"
 
 /*
@@ -40,6 +40,7 @@ public:
   virtual ~Scene() {};
 
   // Get elements
+  // TODO: replace this by a base container type
   typedef std::vector<ModelInstance> ModelContainer;
   virtual const ModelContainer& get_models() const = 0;
 
@@ -52,7 +53,7 @@ class StaticScene : public Scene {
 public:
 
   // Default constructor; an empty scene
-  StaticScene() {}
+  StaticScene() : no_models(true) {}
 
   // Destructor
   virtual ~StaticScene() override {}
@@ -62,12 +63,12 @@ public:
   void add_model(ModelPtr& mp, Mat4&& trans);
 
   // Get models
-  typedef std::vector<ModelInstance> ModelContainer;
-  const ModelContainer& get_models() const override { return models; }
+  const ModelContainer& get_models() const override;
 
 private:
 
   std::vector<ModelInstance> models;
+  bool no_models;
 
 };
 

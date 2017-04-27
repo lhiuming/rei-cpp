@@ -82,6 +82,8 @@ void Viewer::run()
     sleep_alittle();
   } // end while
 
+  cout << "user closed window; view stop running" << endl;
+
 } // end run()
 
 

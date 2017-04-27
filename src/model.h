@@ -31,7 +31,7 @@ typedef enum e_ModelType {
 // Simple Vertex class
 struct Vertex {
   Vec4 coord; // Vertex position
-  Vertex(Vec3 pos3) : coord(pos3) {};
+  Vertex(Vec3 pos3) : coord(pos3, 1.0) {};
 };
 
 // Triangle template class, details depend on implementation of mesh
@@ -94,6 +94,7 @@ private:
 
 
 typedef std::shared_ptr<Model> ModelPtr;
+typedef std::shared_ptr<Mesh> MeshPtr;
 typedef std::vector<ModelPtr>::iterator ModelPtrIt;
 typedef std::vector<ModelPtr>::const_iterator ModelPtrCIt;
 
