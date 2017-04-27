@@ -40,4 +40,4 @@
 .DS_Store
 
 # Build directory
-build/
+/build/
