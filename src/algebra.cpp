@@ -75,7 +75,7 @@ Mat4::Mat4(const Vec4& diag)
 
 
 // Transpose a matrix
-void transpose(Mat4& A)
+void Mat4::transpose(Mat4& A)
 {
   for (int i = 0; i < 3; ++i)
     for (int j = i + 1; j < 3; ++j)
@@ -98,7 +98,7 @@ Mat4 Mat4::T() const
 }
 
 // Inverse a matrix
-void inverse(Mat4& A)
+void Mat4::inverse(Mat4& A)
 {
   A = A.inv();
 }
