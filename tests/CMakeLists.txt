@@ -38,4 +38,4 @@ target_link_libraries(test_camera camera)
 
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
-target_link_libraries(test_viewer viewer)
+target_link_libraries(test_viewer viewer camera scene renderer)

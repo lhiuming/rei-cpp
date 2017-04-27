@@ -28,4 +28,4 @@ add_library(viewer viewer.cpp viewer.h)
 target_link_libraries(viewer pixels renderer scene)
 
 # Build the whole library ?
-#add_library(Cel pixels)
+#add_library(Cel ...)

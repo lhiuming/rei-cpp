@@ -17,11 +17,13 @@ int main()
   cout << "Successfully craeted a Viewer." << endl;
 
   // setting renderer and scene
+  Camera c;
   StaticScene s;
-  Renderer r;
+  SoftRenderer r;
+  v.set_camera(&c);
   v.set_scene(&s);
   v.set_renderer(&r);
-  cout << "Succefully set scene and renderer. " << endl;
+  cout << "Succefully set camera, scene, and renderer. " << endl;
 
   // try to draw
   v.run();

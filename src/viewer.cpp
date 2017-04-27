@@ -1,6 +1,7 @@
 // source of viewer.h
 #include "viewer.h"
 
+#include <cstddef>
 #include <vector>
 #include <chrono>  // for waiting
 #include <thread>  // for waiting
@@ -13,30 +14,24 @@ namespace CEL {
 // Static variable initialization
 int Viewer::view_count = 0;
 
-// A Simple constructor
+// Initialize with window size and title
 Viewer::Viewer(size_t window_w, size_t window_h, string title)
 {
   // open a window
   gl_init();
   this->window = gl_open_window(window_w, window_h, title.c_str());
-  // initialize an internal buffer
-  gl_get_buffer_size(this->window, this->buffer_w, this->buffer_h);
-  pixels.reserve(buffer_w * buffer_h * 4);
 
   // increase the global count
   ++view_count;
 }
 
-// Deconstructor
+// Deconstructor; a little bit work
 Viewer::~Viewer()
 {
-  gl_close_window(window);  // close the window if not already closed
-  --view_count;
-  if (view_count == 0) gl_terminate();
+  gl_close_window(window);  // close the window anyway
+  if (--view_count == 0) gl_terminate();
   cout << "A Viewer is closed." << endl;
 }
-
-// Opeartions
 
 // Set a renderer
 void Viewer::set_renderer(Renderer* renderer)
@@ -50,44 +45,60 @@ void Viewer::set_scene(Scene* scene)
   this->scene = scene;
 }
 
+// Set a camera (will be passed to renderer)
+void Viewer::set_camera(Camera* camera)
+{
+  this->camera = camera;
+}
+
 // The update&render loop
 void Viewer::run()
 {
+  // TODO: currently only works for soft renderer; abstract thing to work for
+  // both soft and hard renderer
+
+  // make sure the renderer is set corretly
+  renderer->set_scene(scene);
+  renderer->set_camera(camera);
+  //renderer->set_draw_func(draw);
+
   // start the loop
   while (gl_window_should_open(window))
   {
     // Don't forget this
     gl_poll_events();
 
+    // Get the newest buffer size
+    // TODO: embed in gl callback
+    update_buffer_size();
+
     // update the scene (it may be dynamics)
     //scene.update();
 
-    // Get the newest buffer size
-    update_buffer_size();
-
     // render the scene on the buffer
-    //renderer.render(scene, &pixels[0], buffer_w, buffer_h);
+    renderer->render();
 
     // just wait
     sleep_alittle();
-
-    // draw on the window
-    gl_draw(window, &pixels[0], buffer_w, buffer_h);
   } // end while
 
 } // end run()
 
 
-// Private helpers
-
+// Get the buffer size of the window
 void Viewer::update_buffer_size()
 {
-  gl_get_buffer_size(this->window, this->buffer_w, this->buffer_h);
-  pixels.reserve(buffer_w * buffer_h * 4);
-
+  // TODO: remove softrenderer specificiality
+  size_t width, height;
+  gl_get_buffer_size(this->window, width, height);
+  renderer->set_buffer_size(width, height);
 }
 
-void Viewer::sleep_alittle()
+// Make a callable draw function for soft renderer
+// TODO
+
+// Pause the loop (e.g. to maintain a low refresh rate)
+void Viewer::sleep_alittle() const
 {
   using namespace this_thread; // sleep_for, sleep_until
   using namespace chrono; // nanoseconds, system_clock, seconds

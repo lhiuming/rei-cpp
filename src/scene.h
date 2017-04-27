@@ -18,20 +18,30 @@
 namespace CEL {
 
 // Instance ///////////////////////////////////////////////////////////////////
+////
 
+// Model
+// NOTE: you can add more features to help rendering !
 struct ModelInstance {
   ModelPtr model_p;
   Mat4 transform;
+
+  // More
 };
 
 // Scene class ////////////////////////////////////////////////////////////////
+////
 
 // Base Scene
 class Scene {
-
 public:
 
+  // Destructor
   virtual ~Scene() {};
+
+  // Get elements
+  typedef std::vector<ModelInstance> ModelContainer;
+  virtual const ModelContainer& get_models() const = 0;
 
 };
 
@@ -41,15 +51,19 @@ class StaticScene : public Scene {
 
 public:
 
-  // Empty scene
+  // Default constructor; an empty scene
   StaticScene() {}
 
-  // Destructor: do not thing
+  // Destructor
   virtual ~StaticScene() override {}
 
   // Add elements
   void add_model(ModelPtr& mp, Mat4& trans);
   void add_model(ModelPtr& mp, Mat4&& trans);
+
+  // Get models
+  typedef std::vector<ModelInstance> ModelContainer;
+  const ModelContainer& get_models() const override { return models; }
 
 private:
 
