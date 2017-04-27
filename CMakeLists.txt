@@ -10,6 +10,7 @@ find_package(OpenGL REQUIRED)
 
 # Built dependence in deps directory
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
+#include_directories(GLEW_INCLUDE_DIR)
 
 #--------------------
 # Add subdirectories
