@@ -38,8 +38,9 @@ struct Vec3 {
     return Vec3(x - rhs.x, y - rhs.y, z - rhs.z);
   }
 
-  // length
-  double norm() const { return x*x + y*y + z*z; }
+  // length and norm
+  double norm2() const { return x*x + y*y + z*z; }
+  double norm() const { return sqrt(nrom2()); }
 
   // normalization
   void normalize() {
