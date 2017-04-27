@@ -1,7 +1,8 @@
-#ifndef CEL_MATH_H
-#define CEL_MATH_H
+#ifndef CEL_ALGEBRA_H
+#define CEL_ALGEBRA_H
 
 #include <ostream>
+#include <cmath>
 
 /*
  * math.h
@@ -13,34 +14,42 @@
 
 namespace CEL {
 
-// 3D vector //////////////////////////////////////////////////////////////////
+// Vec3 //////////////////////////////////////////////////////////////////////
+// A general 3D vector class
+////
+
 struct Vec3 {
   double x;
   double y;
   double z;
 
+  // Default constructor
   Vec3() {};
+
+  // Initialize components
   Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
 
-  // scalar multiplication
-  Vec3 operator*(const double c) const {
-    return Vec3(x * c, y * c, z * c);
-  }
-  Vec3 operator-() const {
-    return Vec3(-x, -y, -z);
-  }
+  // Scalar multiplications
+  Vec3& operator*=(double c) {
+    x *= x; y *= c; z *= c; return *this; }
+  Vec3 operator*(double c) const {
+    return Vec3(x * c, y * c, z * c); }
+  Vec3 operator-() const { // negation: -X
+    return Vec3(-x, -y, -z); }
 
-  // vector addition
-  Vec3 operator+(const Vec3& rhs) const {
-    return Vec3(x + rhs.x, y + rhs.y, z + rhs.z);
-  }
-  Vec3 operator-(const Vec3& rhs) const {
-    return Vec3(x - rhs.x, y - rhs.y, z - rhs.z);
-  }
+  // Vector arithmatics
+  Vec3 operator+(const Vec3& rhs) const { // addition
+    return Vec3(x + rhs.x, y + rhs.y, z + rhs.z); }
+  Vec3& operator+=(const Vec3& rhs) {
+    x += rhs.x; y += rhs.y; z += rhs.z; return *this; }
+  Vec3 operator-(const Vec3& rhs) const { // subtraction
+    return Vec3(x - rhs.x, y - rhs.y, z - rhs.z); }
+  Vec3& operator-=(const Vec3& rhs) {
+    x -= rhs.x; y -= rhs.y; z -= rhs.z; return *this; }
 
-  // length and norm
+  // Nroms
   double norm2() const { return x*x + y*y + z*z; }
-  double norm() const { return sqrt(nrom2()); }
+  double norm() const { return std::sqrt(norm2()); }
 
   // normalization
   void normalize() {
@@ -61,7 +70,6 @@ struct Vec3 {
 double dot(const Vec3& a, const Vec3& b);
 
 // cross product
-// TODO: implement me
 Vec3 cross(const Vec3& a, const Vec3& b);
 
 // print 3D vector

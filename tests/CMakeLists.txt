@@ -28,9 +28,9 @@ target_link_libraries(test_pixels pixels)
 add_executable(test_model test_model.cpp)
 target_link_libraries(test_model model)
 
-# Test math
-add_executable(test_math test_math.cpp)
-target_link_libraries(test_math math)
+# Test algebra
+add_executable(test_algebra test_algebra.cpp)
+target_link_libraries(test_algebra algebra)
 
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)

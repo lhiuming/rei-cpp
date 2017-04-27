@@ -4,24 +4,24 @@
 add_library(pixels pixels.cpp pixels.h) # do this need pixels.h ?
 target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
 
-# math
-add_library(math math.cpp math.h)
+# algebra (used to call algebra ... )
+add_library(algebra algebra.cpp algebra.h)
 
 # model
 add_library(model model.cpp model.h)
-target_link_libraries(model math)
+target_link_libraries(model algebra)
 
 # scene
 add_library(scene scene.cpp scene.h)
-target_link_libraries(scene math model)
+target_link_libraries(scene algebra model)
 
 # camera
 add_library(camera camera.cpp camera.h)
-target_link_libraries(camera math)
+target_link_libraries(camera algebra)
 
 # renderer
 add_library(renderer renderer.cpp renderer.h)
-target_link_libraries(renderer math scene)
+target_link_libraries(renderer algebra scene)
 
 # viewer
 add_library(viewer viewer.cpp viewer.h)

@@ -1,25 +1,35 @@
 // Test the math model
 
 #include <iostream>
-#include <math.h>
+#include <algebra.h>
 
 using namespace std;
 using namespace CEL;
 
 int main()
 {
+
+  // Test Vec3 //
+
   // construction
   Vec3 a(11, 1, 1);
   Vec3 b(0, -1, 2.7);
   cout << "a = " << a << endl;
   cout << "b = " << b << endl;
 
-  // scaler multiply
+  // scaler multiplication
+  a *= 0.3;
+  cout << "a *= 0.3; a = " << a << endl;
+  cout << "-a = " << -a << endl;
   cout << "a * 3.2 = " << a * 3.2 << endl;
 
-  // addition
+  // arithmatics
   cout << "a + b = " << a + b << endl;
   cout << "a - 2b = " << a - b * 2 << endl;
+  a += b;
+  b -= a;
+  cout << "a += b; a = " << a << endl;
+  cout << "b -= a; b = " << b << endl;
 
   // dot product
   cout << "a .* b = " << dot(a, b) << endl;
