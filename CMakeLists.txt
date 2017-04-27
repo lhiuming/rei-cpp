@@ -8,15 +8,8 @@ project (CELENGINE)
 # Required OpenGL
 find_package(OpenGL REQUIRED)
 
-# GLEW (built) using written CMakeLists.txt
-add_subdirectory("${PROJECT_SOURCE_DIR}/deps/glew")
-
-# GLFW (built) using native CMakeLists.txt
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory("${PROJECT_SOURCE_DIR}/deps/glfw")
+# Built dependence in deps directory
+add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
 
 #--------------------
 # Add subdirectories
