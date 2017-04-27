@@ -117,6 +117,18 @@ Mat4 Mat4::I()
   return Mat4(Vec4(1.0, 1.0, 1.0, 1.0));
 }
 
+// Matrix multiplication, or transform composition
+Mat4 Mat4::operator*(const Mat4& rhs) const
+{
+  const Mat4& me = *this;
+  Mat4 ret;
+  ret[0] = me * rhs[0];
+  ret[1] = me * rhs[1];
+  ret[2] = me * rhs[2];
+  ret[3] = me * rhs[3];
+  return ret;
+}
+
 // Print Mat4
 std::ostream& operator<<(std::ostream& os, const Mat4& m)
 {

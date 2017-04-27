@@ -71,7 +71,11 @@ int main()
   cout << "Mat4::I() = " << Mat4::I() << endl;
 
   seg("transform");
-  cout << "A x = " << A*x << endl; 
+  cout << "A x = " << A*x << endl;
+
+  seg("composition");
+  cout << "A * I = " << A * Mat4::I() << endl;
+  cout << "A * A = " << A * A << endl;
 
   return 0;
 }

@@ -139,7 +139,7 @@ public:
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(double rows[16]);
 
-  // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero 
+  // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   Mat4(const Vec4& diag);
 
   // Access by column
@@ -160,6 +160,9 @@ public:
 
   // Special matrix
   static Mat4 I(); // identity matrix
+
+  // Matrix multiplication, or transform composition
+  Mat4 operator*(const Mat4& rhs) const;
 
 private:
   Vec4 columns[4]; // store data by columns
