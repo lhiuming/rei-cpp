@@ -23,7 +23,7 @@ struct Vec3 {
   double z;
 
   // Default constructor
-  Vec3() {};
+  Vec3() : x(0.0), y(0.0), z(0.0) {};
 
   // Initialize components
   Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
@@ -88,7 +88,7 @@ struct Vec4 {
   double h;
 
   // Default constructor
-  Vec4() {};
+  Vec4() : x(0.0), y(0.0), z(0.0), h(0.0) {};
 
   // Initialize with components
   Vec4(double x, double y, double z, double h) : x(x), y(y), z(z), h(h) {};
