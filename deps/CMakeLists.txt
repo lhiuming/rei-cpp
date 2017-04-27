@@ -2,7 +2,10 @@
 # You would need to fetch the submodules first
 
 # GLEW (built using native cmake set-up)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/glew/auto")
+set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake")
+#add_library(glew ${CMAKE_CURRENT_SOURCE_DIR}/glew/auto/src/)
 
 # GLFW (built using native CMakeLists.txt)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
