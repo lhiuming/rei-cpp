@@ -32,6 +32,10 @@ target_link_libraries(test_model model)
 add_executable(test_algebra test_algebra.cpp)
 target_link_libraries(test_algebra algebra)
 
+# Test camera
+add_executable(test_camera test_camera.cpp)
+target_link_libraries(test_camera camera)
+
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
 target_link_libraries(test_viewer viewer)
