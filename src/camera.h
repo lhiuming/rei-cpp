@@ -8,8 +8,9 @@
  * Define the Camera class, used to created a viewport and provide world-to-
  * camera transformation.
  *
- * TODO: add sematic parameters
+ * TODO: add sematic parameters (focus distance, like a real camera)
  * TODO: add depth
+ * TODO: support tiltering ?
  */
 
 namespace CEL {
@@ -46,11 +47,10 @@ private:
 
   Mat4 world2camera;       // defined by position and direction
   Mat4 camera2normalized;  // defined by view angle and ration
-
   Mat4 world2normalized;   // composed from above 2
 
   // helpers to update transforms
-  Vec3 u_hint = Vec3(1.0, 0, 0); // used when camera direction is up
+  Vec3 u_hint = Vec3(1.0, 0, 0); // used when camera direction is at +y
   void update_w2c();
   void update_c2n();
   void update_w2n();
