@@ -66,6 +66,14 @@ Mat4::Mat4(double rows[16])
       me(i, j) = rows[i * 4 + j];
 }
 
+// Diagonal constructor
+Mat4::Mat4(const Vec4& diag)
+{
+  columns[0][0] = diag[0]; columns[1][1] = diag[1];
+  columns[2][2] = diag[2]; columns[3][3] = diag[3];
+}
+
+
 // Transpose a matrix
 void transpose(Mat4& A)
 {
@@ -106,10 +114,7 @@ Mat4 Mat4::inv() const
 // Make Identity matrix
 Mat4 Mat4::I()
 {
-  Mat4 ret;
-  for (int i = 0; i < 4; ++i)
-    ret(i, i) = 1.0;
-  return ret;
+  return Mat4(Vec4(1.0, 1.0, 1.0, 1.0));
 }
 
 // Print Mat4

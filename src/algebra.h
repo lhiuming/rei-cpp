@@ -139,6 +139,9 @@ public:
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(double rows[16]);
 
+  // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero 
+  Mat4(const Vec4& diag);
+
   // Access by column
   Vec4& operator[](int i) { return columns[i]; }
   const Vec4& operator[](int i) const { return columns[i]; }
