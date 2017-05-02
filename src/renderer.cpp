@@ -2,6 +2,7 @@
 #include "renderer.h"
 
 #include <iostream>
+#include <typeinfo>
 
 using namespace std;
 
@@ -49,16 +50,19 @@ void SoftRenderer::render()
   }
 
   // Fetch all models
-  auto& models = scene->get_models();
-
-  for (int i = 0; i < models.size(); ++i)
+  for (const auto& mi : scene->get_models() )
   {
-    const ModelPtr& p = models[i].pmodel;
-    const Mat4& trans = models[i].transform;
+    const Model& model = *(mi.pmodel);
+    const Mat4& trans = mi.transform;
 
-    // TODO: need better way to get different methods..
-
-  }
+    // choose a rendering procedure
+    const auto& model_type = typeid(model);
+    if (model_type == typeid(Mesh)) {
+      rasterize_mesh(dynamic_cast<const Mesh&>(model), trans);
+    } else {
+      cerr << "Error: Unkown model type: "<< model_type.name() << endl;
+    }
+  } // end for
 
   cout << "done rendering" << endl;
 }

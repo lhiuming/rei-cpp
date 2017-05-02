@@ -79,7 +79,7 @@ private:
   BufferSize width, height;
   draw_func f;
 
-  // Implementation helpers
+  // Implementation helpers //
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
   void rasterize_triangle(const TriangleType& tri, const Mat4& trans);
 
