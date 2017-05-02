@@ -10,6 +10,10 @@ namespace CEL {
 // Vec3 ///////////////////////////////////////////////////////////////////////
 ////
 
+// Convert from homogenous coordinated
+Vec3::Vec3(const Vec4& v) : x(v.x / v.h), y(v.y / v.h), z(v.z / v.h) {};
+Vec3::Vec3(const Vec4&& v) : x(v.x / v.h), y(v.y / v.h), z(v.z / v.h) {};
+
 // Scalar multiplications from left
 Vec3 operator*(double c, const Vec3& x)
 {

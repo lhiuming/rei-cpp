@@ -42,6 +42,8 @@ public:
 
 protected:
 
+  BufferSize width, height;
+
   const Scene* scene = nullptr;
   const Camera* camera = nullptr;
 
@@ -53,11 +55,6 @@ protected:
 ////
 
 class SoftRenderer : public Renderer {
-
-  typedef unsigned char* BufferPtr;
-  typedef std::vector<unsigned char> Buffer;
-  typedef void draw_func(BufferPtr, BufferSize, BufferSize);
-
 public:
 
   // Default constructor
@@ -67,6 +64,8 @@ public:
   ~SoftRenderer() override {};
 
   // Configuration
+  typedef unsigned char* Buffer;
+  typedef void draw_func(Buffer, BufferSize, BufferSize);
   void set_draw_func(draw_func fp);
 
   // Render request
@@ -75,13 +74,15 @@ public:
 
 private:
 
+  std::vector<unsigned char> buffer_maker;
   Buffer buffer;
-  BufferSize width, height;
   draw_func f;
 
-  // Implementation helpers //
+  // Implementation helpers
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
   void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
+
+  void put_sample(int x, int y);
 
 };
 

@@ -13,6 +13,9 @@
 
 namespace CEL {
 
+// Forward declaration, for converting
+struct Vec4;
+
 // Vec3 //////////////////////////////////////////////////////////////////////
 // A general 3D vector class
 ////
@@ -27,6 +30,10 @@ struct Vec3 {
 
   // Initialize components
   Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
+
+  // Convert from homogenous coordinated
+  Vec3(const Vec4& v);
+  Vec3(const Vec4&& v);
 
   // Access elemebt by index (from 0)
   // TODO: but is this portable ??? compliers may have differnt order

@@ -26,16 +26,16 @@ public:
   Camera(Vec3 pos, Vec3 dir);
 
   // Configurations
-  void set_position(Vec3 pos);
-  void set_target(Vec3 target);
-  void set_direction(Vec3 dir);
+  void set_position(const Vec3& pos);
+  void set_target(const Vec3& target);
+  void set_direction(const Vec3& dir);
   void set_angle(double theta); // vertical view range
   void set_ratio(double ratio); // widht / height
 
   // Get transforms
-  const Mat4& get_w2c() { return world2camera; }
-  const Mat4& get_c2n() { return camera2normalized; }
-  const Mat4& get_w2n() { return world2normalized; }
+  const Mat4& get_w2c() const { return world2camera; }
+  const Mat4& get_c2n() const { return camera2normalized; }
+  const Mat4& get_w2n() const { return world2normalized; }
 
 private:
 
