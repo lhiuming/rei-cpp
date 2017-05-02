@@ -21,31 +21,12 @@ int main()
 
   cout << "Created a Mesh" << endl;
 
-  for (auto tri = mesh.triangles_cbegin(); tri != mesh.triangles_cend(); ++tri)
+  for (const auto& tri : mesh.get_triangles())
   {
-    cout << tri->a->coord << endl;
-    cout << tri->b->coord << endl;
-    cout << tri->c->coord << endl;
+    cout << tri.a->coord << endl;
+    cout << tri.b->coord << endl;
+    cout << tri.c->coord << endl;
   }
-
-  // copy a new mesh mode
-  ModelPtr meshp = make_shared<Mesh>(mesh);
-  Aggregate meshagg = Aggregate({meshp, meshp});
-
-  cout << "Created a Aggreate with 2 instances of the same mesh" << endl;
-
-  for (const ModelPtr mp : meshagg.get_models()) {
-    for (auto tri = dynamic_cast<Mesh*>(mp.get())->triangles_cbegin();
-              tri != dynamic_cast<Mesh*>(mp.get())->triangles_cend();
-              ++tri)
-    {
-      cout << "mesh 1" << endl;
-      cout << tri->a->coord << endl;
-      cout << tri->b->coord << endl;
-      cout << tri->c->coord << endl;
-     }
-  }
-
 
   return 0;
 }

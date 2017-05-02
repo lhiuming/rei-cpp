@@ -20,10 +20,12 @@ namespace CEL {
 // Instance ///////////////////////////////////////////////////////////////////
 ////
 
+using ModelPtr = std::shared_ptr<Model>;
+
 // Model
 // NOTE: you can add more features to help rendering !
 struct ModelInstance {
-  ModelPtr model_p;
+  ModelPtr pmodel;
   Mat4 transform;
 
   // More
@@ -40,7 +42,7 @@ public:
   virtual ~Scene() {};
 
   // Get elements
-  // TODO: replace this by a base container type
+  // TODO: replace this by a base container type?
   typedef std::vector<ModelInstance> ModelContainer;
   virtual const ModelContainer& get_models() const = 0;
 

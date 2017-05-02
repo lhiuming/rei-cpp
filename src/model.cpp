@@ -8,8 +8,9 @@ namespace CEL {
 // Mesh
 
 // Constructor with both vertices and triangles
+// TODO: exception when vertex id is invalid?
 Mesh::Mesh(vector<Vertex> va, vector<Triangle<int>> ta)
- : Model(MESH), vertices(va)
+ : vertices(va)
 {
   VertexIt offset = vertices.begin();
   for (auto tri : ta)

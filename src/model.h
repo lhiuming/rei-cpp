@@ -20,13 +20,6 @@
 
 namespace CEL {
 
-typedef enum e_ModelType {
-  MESH,
-  SPHERE,
-  CUBE,
-  AGGREGATE  // a collection of generic models
-} ModelType;
-
 // Simple Vertex class
 struct Vertex {
   Vec4 coord; // Vertex position
@@ -43,10 +36,7 @@ struct Triangle {
 };
 
 typedef std::vector<Vertex>::iterator VertexIt;
-typedef std::vector<Vertex>::const_iterator VertexCIt;
 typedef Triangle<VertexIt> TriangleType;
-typedef std::vector<TriangleType>::iterator TriangleIt;
-typedef std::vector<TriangleType>::const_iterator TriangleCIt;
 
 
 // Model classes //////////////////////////////////////////////////////////////
@@ -63,21 +53,19 @@ public:
 
 // Trianglular Mesh
 class Mesh : public Model {
-
 public:
 
   // Dont allow empty mesh
   Mesh() = delete;
 
-  // Constructor with both vertices and triangles
+  // Constructor with both vertices and triangles of vertex indices
   Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta);
 
   // Destructor; we have only standard containers
   ~Mesh() override = default;
 
   // Primitives queries
-  TriangleCIt triangles_cbegin() const { return triangles.cbegin(); }
-  TriangleCIt triangles_cend() const { return triangles.cend(); }
+  const std::vector<TriangleType>& get_triangles() const { return triangles; }
 
 private:
   std::vector<Vertex> vertices;
