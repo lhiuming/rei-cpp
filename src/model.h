@@ -11,10 +11,9 @@
  * This module considers how a model is composed.
  *
  * NOTE: A Model object shoule be unique, but possible to have multiple
- * "instances" by relating with different transforms. (see Aggreate, also
- * see scene.h)
+ * "instances" by relating with different transforms. (see scene.h)
  *
- * TODO: add aggregated model
+ * TODO: add aggregated model (and animated model)
  * TODO: support move constructors
  * TODO: Support cube and sphere
  */
@@ -53,16 +52,11 @@ typedef std::vector<TriangleType>::const_iterator TriangleCIt;
 // Model classes //////////////////////////////////////////////////////////////
 
 // Base class
+// supports polymophism only through RTTI
 class Model {
 public:
-  const ModelType type;
 
   virtual ~Model() = default;
-
-protected:
-
-  // Initialized the ModelType
-  Model(ModelType t) : type(t) {};
 
 };
 
@@ -76,10 +70,9 @@ public:
   Mesh() = delete;
 
   // Constructor with both vertices and triangles
-  // TODO: support move
   Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta);
 
-  // Destructor is default, since we have only standard containers
+  // Destructor; we have only standard containers
   ~Mesh() override = default;
 
   // Primitives queries
@@ -89,44 +82,6 @@ public:
 private:
   std::vector<Vertex> vertices;
   std::vector<TriangleType> triangles;
-
-};
-
-
-typedef std::shared_ptr<Model> ModelPtr;
-typedef std::shared_ptr<Mesh> MeshPtr;
-typedef std::vector<ModelPtr>::iterator ModelPtrIt;
-typedef std::vector<ModelPtr>::const_iterator ModelPtrCIt;
-
-
-// Model AGGREGATE
-class Aggregate : public Model {
-
-public:
-
-  typedef std::vector<Mat4>::size_type size_type;
-
-  // Simple constructors
-  // TODO: move
-  Aggregate();
-  Aggregate(std::vector<ModelPtr> models); // with default transform
-  Aggregate(std::vector<ModelPtr> models, std::vector<Mat4> trans);
-
-  // Destructor: STL takes care of the memory
-  ~Aggregate() override {}
-
-  // Put models
-  void insert(ModelPtr& mp);
-  void insert(ModelPtr& mp, Mat4&& tran);
-
-  // Models queries
-  size_type size() const { return transforms.size(); }
-  const std::vector<ModelPtr>& get_models() const { return models; }
-  const std::vector<Mat4>& get_transforms() const { return transforms; }
-
-private:
-  std::vector<ModelPtr> models;
-  std::vector<Mat4> transforms;
 
 };
 
