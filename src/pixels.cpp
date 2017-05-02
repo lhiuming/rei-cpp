@@ -295,10 +295,15 @@ void gl_poll_events()
 // Draw a pixel buffer
 void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
 {
+
   // make the window current
   glfwMakeContextCurrent(window); // make current before any use
 
   // Get the canvas struct
+  if (canvas_table.find(window) == canvas_table.end()) {
+    cerr << "pixels Error: Invalid window id." << endl;
+    return;
+  }
   Canvas canvas = canvas_table[window];
 
   // Clear the frame buffer
