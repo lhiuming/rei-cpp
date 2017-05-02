@@ -18,8 +18,9 @@ Vertex b(Vec3(-100, 0,  100));
 Vertex c(Vec3(-100, 0, -100));
 Vertex d(Vec3( 100, 0, -100));
 vector<Vertex> va{a, b, c, d};
-Mesh plane(va, {{2, 1, 0}, {3, 2, 0}});
-ModelInstance plane_inst{shared_ptr<Model>(&plane), Mat4::I()};
+ModelInstance plane_inst{
+  shared_ptr<Model>(new Mesh(va, {{2, 1, 0}, {3, 2, 0}})),
+  Mat4::I() };
 vector<ModelInstance> default_models{plane_inst};
 
 // Static scene ///////////////////////////////////////////////////////////////

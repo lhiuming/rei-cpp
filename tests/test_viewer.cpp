@@ -28,5 +28,7 @@ int main()
   // try to draw
   v.run();
 
+  cout << "Viewer stop running." << endl;
+
   return 0;
 }

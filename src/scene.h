@@ -58,7 +58,7 @@ public:
   StaticScene() : no_models(true) {}
 
   // Destructor
-  virtual ~StaticScene() override {}
+  virtual ~StaticScene() override = default;
 
   // Add elements
   void add_model(ModelPtr& mp, Mat4& trans);
