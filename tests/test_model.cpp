@@ -13,8 +13,7 @@ int main()
   vector<Vertex> vao({a, b, c});
 
   // set triangle
-  Triangle<int> only_t(0, 1, 2);
-  vector<Triangle<int>> vbo{only_t};
+  vector<Mesh::size_type> vbo{0, 1, 2};
 
   // make the mesh
   Mesh mesh(vao, vbo);

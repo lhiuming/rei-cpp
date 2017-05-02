@@ -81,7 +81,7 @@ private:
 
   // Implementation helpers //
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
-  void rasterize_triangle(const TriangleType& tri, const Mat4& trans);
+  void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
 
 };
 

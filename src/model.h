@@ -27,16 +27,13 @@ struct Vertex {
 };
 
 // Triangle template class, details depend on implementation of mesh
-template<typename VertexIt>
-struct Triangle {
-  VertexIt a;  // Iterator to vertices
-  VertexIt b;
-  VertexIt c;
-  Triangle(VertexIt a, VertexIt b, VertexIt c) : a(a), b(b), c(c) {};
+template<typename VertexId>
+struct TriangleImp {
+  VertexId a;  // Iterator to vertices
+  VertexId b;
+  VertexId c;
+  TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
 };
-
-typedef std::vector<Vertex>::iterator VertexIt;
-typedef Triangle<VertexIt> TriangleType;
 
 
 // Model classes //////////////////////////////////////////////////////////////
@@ -55,21 +52,26 @@ public:
 class Mesh : public Model {
 public:
 
+  using size_type = std::vector<Vertex>::size_type;
+  using VertexIt = std::vector<Vertex>::iterator;
+  using Triangle = TriangleImp<VertexIt>;
+
   // Dont allow empty mesh
   Mesh() = delete;
 
   // Constructor with both vertices and triangles of vertex indices
-  Mesh(std::vector<Vertex> va, std::vector<Triangle<int>> ta);
+  Mesh(std::vector<Vertex> va, std::vector<size_type> ta);
 
   // Destructor; we have only standard containers
   ~Mesh() override = default;
 
   // Primitives queries
-  const std::vector<TriangleType>& get_triangles() const { return triangles; }
+  const std::vector<Vertex>& get_vertices() const { return vertices; }
+  const std::vector<Triangle>& get_triangles() const { return triangles; }
 
 private:
   std::vector<Vertex> vertices;
-  std::vector<TriangleType> triangles;
+  std::vector<Triangle> triangles;
 
 };
 

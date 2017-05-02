@@ -70,12 +70,14 @@ void SoftRenderer::render()
 // Rasterize a mesh
 void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 {
-
+  // distribute the work load of rendering each triangle
+  for (const auto& tri : mesh.get_triangles())
+    rasterize_triangle(tri, trans);
 }
 
 // Rasterize a triangle
-void SoftRenderer::rasterize_triangle(const TriangleType& tri,
-   const Mat4& trans)
+void SoftRenderer::rasterize_triangle(
+  const Mesh::Triangle& tri, const Mat4& trans)
 {
   cout << "draw triangle: ";
   cout << tri.a->coord << ", ";

@@ -19,7 +19,7 @@ Vertex c(Vec3(-100, 0, -100));
 Vertex d(Vec3( 100, 0, -100));
 vector<Vertex> va{a, b, c, d};
 ModelInstance plane_inst{
-  ModelPtr(new Mesh(va, {{2, 1, 0}, {3, 2, 0}})),
+  ModelPtr(new Mesh(va, {2, 1, 0, 3, 2, 0})),
   Mat4::I() };
 vector<ModelInstance> default_models{plane_inst};
 

@@ -8,15 +8,18 @@ namespace CEL {
 // Mesh
 
 // Constructor with both vertices and triangles
-// TODO: exception when vertex id is invalid?
-Mesh::Mesh(vector<Vertex> va, vector<Triangle<int>> ta)
+Mesh::Mesh(vector<Vertex> va, vector<size_type> ta)
  : vertices(va)
 {
+  // TODO check the size of va ta
+  // TODO check the maximum value in ta
+
+  // convert the vertices id to iterator
   VertexIt offset = vertices.begin();
-  for (auto tri : ta)
-    triangles.push_back(Triangle<VertexIt>(offset + tri.a,
-                                           offset + tri.b,
-                                           offset + tri.c ));
+  for (size_type i = 0; i < ta.size(); i += 3)
+    triangles.push_back(Triangle(offset + ta[i    ],
+                                 offset + ta[i + 1],
+                                 offset + ta[i + 2]));
 }
 
 
