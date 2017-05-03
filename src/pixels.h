@@ -71,6 +71,13 @@ enum ModKey : int {
   SUPER = GLFW_MOD_SUPER };
 
 /*
+ * gl_set_buffer_resize_callback -- Set the callback function when the
+ * framebuffer is resized by the user or system.
+ */
+using BufferFunc = std::function<void (int w, int h)>;
+void gl_set_buffer_callback(WindowID window, BufferFunc func);
+
+/*
  * gl_set_key_callback -- Set the callback function when keys are pressed
  * by the user. Useful into making interaction.
  * TODO: implement me

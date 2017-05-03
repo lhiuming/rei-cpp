@@ -15,25 +15,6 @@ namespace CEL {
 /////////////////////////////////////////////////////////////////////////////
 // Private stuffs
 
-struct Canvas {
-  GLuint VAO; // a unique Vertex Array Object ID
-  GLuint VBO; // a unique Vertex Buffer Object ID
-  GLuint EBO; // a unique Element Buffer Object ID
-  GLuint program; // a unique shader program object id
-  GLuint texture; // a unique texture object id
-
-  CEL::ScrollFunc scroll_call; // a unique scroll callback function object
-  CEL::MouseFunc mouse_call; // a unique mouse button callback function object
-  CEL::CursorFunc cursor_call; // a unique cursor position callback ...
-
-  // constructor
-  Canvas() {}
-  Canvas(GLuint vao, GLuint vbo, GLuint ebo, GLuint prog, GLuint tex) :
-    VAO(vao), VBO(vbo), EBO(ebo), program(prog), texture(tex) {}
-};
-
-static map<GLFWwindow*, Canvas> canvas_table;  // to look up canvas
-
 static bool gl_initialized = false;
 
 // Some constant data
@@ -70,21 +51,28 @@ static const GLuint indices[] = {
   0, 2, 3   // bottom right triangle
 };
 
-// Error callback. Useful when GLFW see something wrong
-void error_callback(int error, const char* description)
-{
-    cerr << "Error: " << description << endl;
-}
+// a struct to store information for each window
+struct Canvas {
+  GLuint VAO; // a unique Vertex Array Object ID
+  GLuint VBO; // a unique Vertex Buffer Object ID
+  GLuint EBO; // a unique Element Buffer Object ID
+  GLuint program; // a unique shader program object id
+  GLuint texture; // a unique texture object id
 
-// Scroll callback. Used to find and call window-specific callable object
-void uniform_scroll_callback(GLFWwindow* w, double x, double y) {
-  canvas_table[w].scroll_call(x, y); }
-// Mouse button callback. See above
-void uniform_mouse_callback(GLFWwindow* w, int button, int action, int mods) {
-  canvas_table[w].mouse_call(button, action, mods); }
-// Cursor position callback.
-void uniform_cursor_callback(GLFWwindow* w, double xpos, double ypos) {
-  canvas_table[w].cursor_call(ypos, xpos); /* yes, the order inversed */ }
+  CEL::BufferFunc buffer_call; // a unique buffer size callback
+  CEL::ScrollFunc scroll_call; // a unique scroll callback
+  CEL::MouseFunc mouse_call; // a unique mouse button callback
+  CEL::CursorFunc cursor_call; // a unique cursor position callback
+
+  // constructor
+  Canvas() {}
+  Canvas(GLuint vao, GLuint vbo, GLuint ebo, GLuint prog, GLuint tex) :
+    VAO(vao), VBO(vbo), EBO(ebo), program(prog), texture(tex) {}
+};
+
+// a map to look up canvas
+static map<GLFWwindow*, Canvas> canvas_table;
+
 
 // Check is the window id is in the cancas table
 int check_canvas(GLFWwindow* window)
@@ -95,6 +83,7 @@ int check_canvas(GLFWwindow* window)
   }
   return 0;
 }
+
 
 // Private procudure to create a new texture object
 void create_texture(GLuint* texture_p, int buffer_w, int buffer_h)
@@ -113,24 +102,46 @@ void create_texture(GLuint* texture_p, int buffer_w, int buffer_h)
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-// Window resize call back. Just update things when the frame buffer is
-// changed by user or system.
-void resize_callback(GLFWwindow* window, int window_w, int window_h)
-{
-  // Make the window current
-  glfwMakeContextCurrent(window); // make current before any use
 
-  // Update the OpenGL viewport and the private buffer size variables
-  int buffer_w, buffer_h;
-  glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
+// Error callback. Useful when GLFW see something wrong
+void error_callback(int error, const char* description)
+{
+    cerr << "Error: " << description << endl;
+}
+
+
+// Defulat callback for buffer resize. Necessary !
+void default_buffer_resize_callback(GLFWwindow* w, int buffer_w, int buffer_h)
+{
+  // Make the window current (before doing GL things)
+  glfwMakeContextCurrent(w);
+
+  // Update the OpenGL viewport
   glViewport(0, 0, buffer_w, buffer_h);
 
   // Make a new texture object for the resized window
-  GLuint* tex_p = &(canvas_table[window].texture);
+  GLuint* tex_p = &(canvas_table[w].texture);
   glDeleteTextures(1, tex_p); // release the old one
   create_texture(tex_p, buffer_w, buffer_h);  // get a new one with new size
 
 } // end resize_callback
+
+
+// Buffer resize callback
+void uniform_buffer_callback(GLFWwindow* w, int width, int height)
+{
+  default_buffer_resize_callback(w, width, height); // never forget this !
+  canvas_table[w].buffer_call(width, height);
+}
+// Scroll callback. Used to find and call window-specific callable object
+void uniform_scroll_callback(GLFWwindow* w, double x, double y) {
+  canvas_table[w].scroll_call(x, y); }
+// Mouse button callback. See above
+void uniform_mouse_callback(GLFWwindow* w, int button, int action, int mods) {
+  canvas_table[w].mouse_call(button, action, mods); }
+// Cursor position callback.
+void uniform_cursor_callback(GLFWwindow* w, double xpos, double ypos) {
+  canvas_table[w].cursor_call(ypos, xpos); /* yes, the order inversed */ }
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -283,7 +294,7 @@ GLFWwindow* gl_open_window(size_t width, size_t height, const char* s)
   glfwSwapInterval(1);
 
   // Allow automatical update the buffer dimension
-  glfwSetWindowSizeCallback(window, resize_callback);
+  glfwSetFramebufferSizeCallback(window, default_buffer_resize_callback);
 
   // Insert the new window into canvas table
   canvas_table[window] = Canvas(VAO, VBO, EBO, program, texture);
@@ -309,6 +320,17 @@ bool gl_window_should_open(GLFWwindow* window)
   return !glfwWindowShouldClose(window);
 }
 
+// Set frame buffer resize callback
+void gl_set_buffer_callback(GLFWwindow* window, BufferFunc func)
+{
+  // Store the callable object in table
+  if (check_canvas(window)) return;
+  canvas_table[window].buffer_call = func;
+  // Update glfw for this window
+  glfwSetFramebufferSizeCallback(window, uniform_buffer_callback);
+}
+
+
 // Set key-press callback
 void gl_set_key_callback(GLFWwindow* window)
 {
@@ -318,13 +340,9 @@ void gl_set_key_callback(GLFWwindow* window)
 // Set scroll callback
 void gl_set_scroll_callback(GLFWwindow* window, ScrollFunc func)
 {
-  // Store the callable object for the window
-  if (canvas_table.find(window) == canvas_table.end()) {
-    cerr << "pixels Error: Invalid window id." << endl;
-    return;
-  }
+  // Store the callable object in table
+  if (check_canvas(window)) return;
   canvas_table[window].scroll_call = func;
-
   // Update glfw for this window
   glfwSetScrollCallback(window, uniform_scroll_callback);
 }
@@ -332,13 +350,9 @@ void gl_set_scroll_callback(GLFWwindow* window, ScrollFunc func)
 // Set mouse button callback
 void gl_set_mouse_callback(GLFWwindow* window, MouseFunc func)
 {
-  // Store the callable object for the window
-  if (canvas_table.find(window) == canvas_table.end()) {
-    cerr << "pixels Error: Invalid window id." << endl;
-    return;
-  }
+  // Store the callable object in table
+  if (check_canvas(window)) return;
   canvas_table[window].mouse_call = func;
-
   // Update glfw for this window
   glfwSetMouseButtonCallback(window, uniform_mouse_callback);
 }
@@ -346,8 +360,10 @@ void gl_set_mouse_callback(GLFWwindow* window, MouseFunc func)
 // Set cursor position update callback
 void gl_set_cursor_callback(GLFWwindow* window, CursorFunc func)
 {
+  // Store the callable object in table
   if (check_canvas(window)) return;
   canvas_table[window].cursor_call = func;
+  // Update glfw for this window
   glfwSetCursorPosCallback(window, uniform_cursor_callback);
 }
 

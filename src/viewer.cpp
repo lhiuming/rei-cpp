@@ -35,33 +35,33 @@ Viewer::~Viewer()
   cout << "A Viewer is closed." << endl;
 }
 
+
 // Set a renderer
 void Viewer::set_renderer(Renderer* renderer)
-{
-  this->renderer = renderer;
-}
+{ this->renderer = renderer; }
 
 // Set a scene (will be passed to renderer)
 void Viewer::set_scene(Scene* scene)
-{
-  this->scene = scene;
-}
+{ this->scene = scene; }
 
 // Set a camera (will be passed to renderer)
 void Viewer::set_camera(Camera* camera)
-{
-  this->camera = camera;
-}
+{ this->camera = camera; }
+
 
 // The update&render loop
 void Viewer::run()
 {
   // make sure the renderer is set corretly
+  size_t w, h;
+  gl_get_buffer_size(window, w, h);
+  renderer->set_buffer_size(w, h);
   renderer->set_scene(scene);
   renderer->set_camera(camera);
   renderer->set_draw_func(make_buffer_draw());
 
   // update callback function
+  gl_set_buffer_callback(window, make_buffer_callback());
   gl_set_scroll_callback(window, make_scroll_callback());
   gl_set_cursor_callback(window, make_cursor_callback());
 
@@ -70,10 +70,6 @@ void Viewer::run()
   {
     // Don't forget this
     gl_poll_events();
-
-    // Get the newest buffer size
-    // TODO: embed in gl callback
-    update_buffer_size();
 
     // update the scene (it may be dynamics)
     //scene.update();
@@ -88,19 +84,18 @@ void Viewer::run()
 } // end run()
 
 
-// Get the buffer size of the window
-void Viewer::update_buffer_size() const
-{
-  size_t width, height;
-  gl_get_buffer_size(this->window, width, height);
-  renderer->set_buffer_size(width, height);
-}
-
 // Make a callable draw function for soft renderer
 DrawFunc Viewer::make_buffer_draw() const
 {
   return [=](unsigned char* b, size_t w, size_t h) -> void
          { gl_draw(this->window, b, w, h); };
+}
+
+// Make a buffer resize callback. See pixels.h
+BufferFunc Viewer::make_buffer_callback() const
+{
+  return [=](int width, int height) -> void
+         { this->renderer->set_buffer_size(width, height); };
 }
 
 // Make scroll callback. See pixels.h
@@ -111,7 +106,7 @@ ScrollFunc Viewer::make_scroll_callback() const
 }
 
 // Make cursor position callback. See pixels.h
-CursorFunc Viewer::make_cursor_callback()
+CursorFunc Viewer::make_cursor_callback() const
 {
   return [=](double i, double j) -> void
          {

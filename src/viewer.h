@@ -61,9 +61,10 @@ private:
   DrawFunc make_buffer_draw() const;
 
   // create callback objects for pixiels library
+  BufferFunc make_buffer_callback() const;
   ScrollFunc make_scroll_callback() const;
-  CursorFunc make_cursor_callback();
-  double last_i, last_j;
+  CursorFunc make_cursor_callback() const;
+  mutable double last_i, last_j;
 
 };
 
