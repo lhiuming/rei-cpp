@@ -115,11 +115,12 @@ CursorFunc Viewer::make_cursor_callback()
 { return [=](double i, double j) -> void
          {
            if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
-             double dx = j - this->last_j;
-             this->camera->move(- dx / 50, 0.0, 0.0); // oppose direction
-             cout << "move dx = " << dx << endl;
+             double dx = j - this->last_j, dy = i - this->last_i;
+             this->camera->move(- dx / 50, 0.0, - dy / 50); // oppose direction
+             cout << "move dx = " << dx << ", dy = " << dy << endl;
            } else { // must be RELEASR
              this->last_j = j;
+             this->last_i = j;
            } // end if
          };
 }
