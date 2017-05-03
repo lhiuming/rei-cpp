@@ -17,6 +17,19 @@ Camera::Camera() {
   update_w2n();
 };
 
+// Configurations //
+// TODO: set them
+
+
+// Dynamics Configurations //
+
+void Camera::zoom(double q)
+{
+  angle = min(max(angle - q, 0.0), 180.0);
+  update_c2n();
+  update_w2n();
+}
+
 // Compute world to camera transform
 void Camera::update_w2c()
 {

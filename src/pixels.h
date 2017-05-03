@@ -2,6 +2,7 @@
 #define CEL_PIXELS_H
 
 #include <cstdlib>  // for size_t
+#include <functional> // for std::function
 
 #include <GL/glew.h>    // must include before glfw
 #include <GLFW/glfw3.h> // only for defining the Canvas type
@@ -61,10 +62,21 @@ void gl_draw(WindowID window, char unsigned *pixels,
 void gl_set_key_callback(WindowID window);
 
 /*
- * gl_poll_event -- Poll the events and call the callback functions.
- * TODO: implement me. But implement gl_set_key_callback first
+ * gl_set_scroll_callback -- Similar to above. Unique for a window.
+ */
+typedef std::function<void (double, double)> ScrollFunc;
+void gl_set_scroll_callback(WindowID window, ScrollFunc func);
+
+/*
+ * gl_poll_events -- Poll the events and call the callback functions.
  */
 void gl_poll_events();
+
+/*
+ * gl_wait_events -- Wait for an event to return. Useful for updating static
+ * scene.
+ */
+void gl_wait_events();
 
 /*
  * gl_window_is_open -- Return true if the window is set to be closed (by

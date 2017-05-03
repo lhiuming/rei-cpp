@@ -20,6 +20,8 @@ struct Canvas {
   GLuint program; // a unique shader program object id
   GLuint texture; // a unique texture object id
 
+  CEL::ScrollFunc scroll_call; // a unique scroll callback function object
+
   // constructor
   Canvas() {}
   Canvas(GLuint vao, GLuint vbo, GLuint ebo, GLuint prog, GLuint tex) :
@@ -68,6 +70,11 @@ static const GLuint indices[] = {
 void error_callback(int error, const char* description)
 {
     cerr << "Error: " << description << endl;
+}
+
+// Scroll callback. Used to call window-specific callable object
+void uniform_scroll_callback(GLFWwindow* w, double x, double y) {
+  canvas_table[w].scroll_call(x, y);
 }
 
 // Private procudure to create a new texture object
@@ -285,12 +292,37 @@ bool gl_window_should_open(GLFWwindow* window)
   return !glfwWindowShouldClose(window);
 }
 
+// Set key-press callback
+void gl_set_key_callback(GLFWwindow* window)
+{
+
+}
+
+// Set scroll callback
+void gl_set_scroll_callback(GLFWwindow* window, ScrollFunc func)
+{
+  // Store the callable object for the window
+  if (canvas_table.find(window) == canvas_table.end()) {
+    cerr << "pixels Error: Invalid window id." << endl;
+    return;
+  }
+  canvas_table[window].scroll_call = func;
+
+  // Update glfw for this window
+  glfwSetScrollCallback(window, uniform_scroll_callback);
+}
+
 // Poll event
 void gl_poll_events()
 {
   glfwPollEvents();
 }
 
+// Wait event
+void gl_wait_events()
+{
+  glfwWaitEvents();
+}
 
 // Draw a pixel buffer
 void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
@@ -304,7 +336,7 @@ void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
     cerr << "pixels Error: Invalid window id." << endl;
     return;
   }
-  Canvas canvas = canvas_table[window];
+  Canvas& canvas = canvas_table[window];
 
   // Clear the frame buffer
   glClear(GL_COLOR_BUFFER_BIT);
@@ -338,7 +370,7 @@ int gl_close_window(GLFWwindow* window)
   if (canvas_table.find(window) == canvas_table.end())
     return -1;
 
-  Canvas canvas = canvas_table[window];
+  Canvas& canvas = canvas_table[window];
 
   // release the OpenGL resource
   glDeleteVertexArrays(1, &(canvas.VAO));

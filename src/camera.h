@@ -32,6 +32,9 @@ public:
   void set_angle(double theta); // vertical view range
   void set_ratio(double ratio); // widht / height
 
+  // Dynamic Configurations
+  void zoom(double quantity);
+
   // Get transforms
   const Mat4& get_w2c() const { return world2camera; }
   const Mat4& get_c2n() const { return camera2normalized; }

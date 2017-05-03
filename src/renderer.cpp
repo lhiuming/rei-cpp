@@ -87,6 +87,7 @@ void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 void
 SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 {
+  // TODO: add naive culling (exlucde triangles)
   // TODO: add depth buffer
   // TODO: do fast-exclude raseterization
   // TODO: add sopisticated culling

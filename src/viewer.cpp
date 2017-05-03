@@ -2,6 +2,8 @@
 #include "viewer.h"
 
 #include <cstddef>
+#include <cmath>
+
 #include <vector>
 #include <chrono>  // for waiting
 #include <thread>  // for waiting
@@ -62,6 +64,9 @@ void Viewer::run()
   renderer->set_camera(camera);
   renderer->set_draw_func(make_buffer_draw());
 
+  // update callback function
+  gl_set_scroll_callback(window, make_scroll_callback());
+
   // start the loop
   while (gl_window_should_open(window))
   {
@@ -88,9 +93,8 @@ void Viewer::run()
 
 
 // Get the buffer size of the window
-void Viewer::update_buffer_size()
+void Viewer::update_buffer_size() const
 {
-  // TODO: remove softrenderer specificiality
   size_t width, height;
   gl_get_buffer_size(this->window, width, height);
   renderer->set_buffer_size(width, height);
@@ -103,6 +107,12 @@ DrawFunc Viewer::make_buffer_draw() const
          { gl_draw(this->window, b, w, h); };
 }
 
+// Make scroll callback. See pixels.h
+ScrollFunc Viewer::make_scroll_callback() const
+{
+  return [=](double dx, double dy) -> void
+         { this->camera->zoom(dy); };
+}
 
 // Pause the loop (e.g. to maintain a low refresh rate)
 void Viewer::sleep_alittle() const

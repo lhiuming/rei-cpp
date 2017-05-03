@@ -44,6 +44,8 @@ public:
   // Start the update&render loop
   void run();
 
+  // Some call back functions. Used for setting callbacks
+
 private:
 
   WindowID window;
@@ -55,9 +57,15 @@ private:
   static int view_count; // count the number of alive window
 
   // Implementation helpers
-  void update_buffer_size();
+  void update_buffer_size() const;
   void sleep_alittle() const;
+
+  // create callable object for renderers drawing call
   DrawFunc make_buffer_draw() const;
+
+  // create callback objects for pixiels library
+  ScrollFunc make_scroll_callback() const;
+
 };
 
 } // namespace CEL
