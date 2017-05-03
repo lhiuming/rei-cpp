@@ -92,8 +92,13 @@ SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
   // TODO: do fast-exclude raseterization
   // TODO: add sopisticated culling
 
+  // Naive culling
+  if ( ! camera->visible(tri.a->coord) ) return;
+  if ( ! camera->visible(tri.b->coord) ) return;
+  if ( ! camera->visible(tri.b->coord) ) return;
+
   // transform to normalized coordinate
-  Mat4 w2n = camera->get_w2n();
+  const Mat4& w2n = camera->get_w2n();
   Vec3 v0 = w2n * tri.a->coord;
   Vec3 v1 = w2n * tri.b->coord;
   Vec3 v2 = w2n * tri.c->coord;

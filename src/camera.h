@@ -41,11 +41,15 @@ public:
   const Mat4& get_c2n() const { return camera2normalized; }
   const Mat4& get_w2n() const { return world2normalized; }
 
+  // Visibility query
+  bool visible(const Vec3& v) const;
+  bool visible(const Vec4& v) const { return visible(std::move(Vec3(v))); }
+
 private:
 
   Vec3 position = Vec3(0.0, 0.0, 0.0);
   Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis
-  double angle = 60;             // view-angle range, by degree
+  double angle = 60;             // horizontal view-angle range, by degree
   double ratio = 4.0 / 3.0;      // width / height
   double near = 5.0, far = 1000; // distance of two planes of the frustrum
 

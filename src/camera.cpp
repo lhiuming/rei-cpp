@@ -25,7 +25,7 @@ Camera::Camera() {
 
 void Camera::zoom(double q)
 {
-  angle = min(max(angle - q, 0.0), 180.0);
+  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * ratio));
   update_c2n();
   update_w2n();
 }
@@ -35,6 +35,13 @@ void Camera::move(double right, double up, double back)
   position += (right * orth_u + up * orth_v + back * orth_w);
   update_w2c();
   update_w2n();
+}
+
+// Visibility query
+bool Camera::visible(const Vec3& v) const
+{
+  double dist = (position - v).norm();
+  return ( near < dist || dist < far);
 }
 
 // Compute world to camera transform

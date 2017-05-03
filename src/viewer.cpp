@@ -100,24 +100,26 @@ void Viewer::update_buffer_size() const
 
 // Make a callable draw function for soft renderer
 DrawFunc Viewer::make_buffer_draw() const
-{ return [=](unsigned char* b, size_t w, size_t h) -> void
+{
+  return [=](unsigned char* b, size_t w, size_t h) -> void
          { gl_draw(this->window, b, w, h); };
 }
 
 // Make scroll callback. See pixels.h
 ScrollFunc Viewer::make_scroll_callback() const
-{ return [=](double dx, double dy) -> void
+{
+  return [=](double dx, double dy) -> void
          { this->camera->zoom(dy); };
 }
 
 // Make cursor position callback. See pixels.h
 CursorFunc Viewer::make_cursor_callback()
-{ return [=](double i, double j) -> void
+{
+  return [=](double i, double j) -> void
          {
            if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
-             double dx = j - this->last_j, dy = i - this->last_i;
-             this->camera->move(- dx / 50, 0.0, - dy / 50); // oppose direction
-             cout << "move dx = " << dx << ", dy = " << dy << endl;
+             double dx = this->last_j - j, dy = this->last_i - i;
+             this->camera->move(dx * 0.02, 0.0, dy * 0.02); // oppose direction
            } else { // must be RELEASR
              this->last_j = j;
              this->last_i = j;
@@ -132,7 +134,7 @@ void Viewer::sleep_alittle() const
   using namespace chrono; // nanoseconds, system_clock, seconds
 
   //sleep_for(nanoseconds(10));
-  sleep_until(system_clock::now() + milliseconds(40));
+  sleep_until(system_clock::now() + milliseconds(15));
 }
 
 } // namespace CEL
