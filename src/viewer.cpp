@@ -81,8 +81,6 @@ void Viewer::run()
     // render the scene on the buffer
     renderer->render();
 
-    // just wait
-    sleep_alittle();
   } // end while
 
   cout << "user closed window; view stop running" << endl;
@@ -125,16 +123,6 @@ CursorFunc Viewer::make_cursor_callback()
              this->last_i = j;
            } // end if
          };
-}
-
-// Pause the loop (e.g. to maintain a low refresh rate)
-void Viewer::sleep_alittle() const
-{
-  using namespace this_thread; // sleep_for, sleep_until
-  using namespace chrono; // nanoseconds, system_clock, seconds
-
-  //sleep_for(nanoseconds(10));
-  sleep_until(system_clock::now() + milliseconds(15));
 }
 
 } // namespace CEL

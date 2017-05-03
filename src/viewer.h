@@ -56,7 +56,6 @@ private:
 
   // Implementation helpers
   void update_buffer_size() const;
-  void sleep_alittle() const;
 
   // create callable object for renderers drawing call
   DrawFunc make_buffer_draw() const;
