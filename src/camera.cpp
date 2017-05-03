@@ -30,6 +30,13 @@ void Camera::zoom(double q)
   update_w2n();
 }
 
+void Camera::move(double right, double up, double back)
+{
+  position += (right * orth_u + up * orth_v + back * orth_w);
+  update_w2c();
+  update_w2n();
+}
+
 // Compute world to camera transform
 void Camera::update_w2c()
 {
@@ -40,16 +47,16 @@ void Camera::update_w2c()
   // create a orthogonal coordiante for the camera
   Vec3 up(0.0, 1.0, 0.0);
   Vec3 u = cross(direction, up);   // right direction
-  if (u.zero()) u = u_hint;
-  else u_hint = u;
-  Vec3 v = cross(u, direction);    // up direction
-  Vec3 w = -direction;             // back direction; camera look toward -w
+  if (u.zero()) u = orth_u; // old u
+  else orth_u = u;
+  orth_v = cross(u, direction);    // up direction
+  orth_w = -direction;             // back direction; camera look toward -w
 
   // rotation
   Mat4 rotate = Mat4::I();
-  rotate[0] = Vec4(u.normalized(), 0.0);
-  rotate[1] = Vec4(v.normalized(), 0.0);
-  rotate[2] = Vec4(w.normalized(), 0.0);
+  rotate[0] = Vec4(orth_u.normalized(), 0.0);
+  rotate[1] = Vec4(orth_v.normalized(), 0.0);
+  rotate[2] = Vec4(orth_w.normalized(), 0.0);
   Mat4::transpose(rotate);
 
   // compose and update

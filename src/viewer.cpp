@@ -56,9 +56,6 @@ void Viewer::set_camera(Camera* camera)
 // The update&render loop
 void Viewer::run()
 {
-  // TODO: currently only works for soft renderer; abstract thing to work for
-  // both soft and hard renderer
-
   // make sure the renderer is set corretly
   renderer->set_scene(scene);
   renderer->set_camera(camera);
@@ -66,6 +63,7 @@ void Viewer::run()
 
   // update callback function
   gl_set_scroll_callback(window, make_scroll_callback());
+  gl_set_cursor_callback(window, make_cursor_callback());
 
   // start the loop
   while (gl_window_should_open(window))
@@ -102,16 +100,28 @@ void Viewer::update_buffer_size() const
 
 // Make a callable draw function for soft renderer
 DrawFunc Viewer::make_buffer_draw() const
-{
-  return [=](unsigned char* b, size_t w, size_t h) -> void
+{ return [=](unsigned char* b, size_t w, size_t h) -> void
          { gl_draw(this->window, b, w, h); };
 }
 
 // Make scroll callback. See pixels.h
 ScrollFunc Viewer::make_scroll_callback() const
-{
-  return [=](double dx, double dy) -> void
+{ return [=](double dx, double dy) -> void
          { this->camera->zoom(dy); };
+}
+
+// Make cursor position callback. See pixels.h
+CursorFunc Viewer::make_cursor_callback()
+{ return [=](double i, double j) -> void
+         {
+           if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
+             double dx = j - this->last_j;
+             this->camera->move(- dx / 50, 0.0, 0.0); // oppose direction
+             cout << "move dx = " << dx << endl;
+           } else { // must be RELEASR
+             this->last_j = j;
+           } // end if
+         };
 }
 
 // Pause the loop (e.g. to maintain a low refresh rate)

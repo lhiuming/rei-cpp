@@ -10,6 +10,8 @@
 
 using namespace std;
 
+namespace CEL {
+
 /////////////////////////////////////////////////////////////////////////////
 // Private stuffs
 
@@ -21,6 +23,8 @@ struct Canvas {
   GLuint texture; // a unique texture object id
 
   CEL::ScrollFunc scroll_call; // a unique scroll callback function object
+  CEL::MouseFunc mouse_call; // a unique mouse button callback function object
+  CEL::CursorFunc cursor_call; // a unique cursor position callback ...
 
   // constructor
   Canvas() {}
@@ -72,9 +76,24 @@ void error_callback(int error, const char* description)
     cerr << "Error: " << description << endl;
 }
 
-// Scroll callback. Used to call window-specific callable object
+// Scroll callback. Used to find and call window-specific callable object
 void uniform_scroll_callback(GLFWwindow* w, double x, double y) {
-  canvas_table[w].scroll_call(x, y);
+  canvas_table[w].scroll_call(x, y); }
+// Mouse button callback. See above
+void uniform_mouse_callback(GLFWwindow* w, int button, int action, int mods) {
+  canvas_table[w].mouse_call(button, action, mods); }
+// Cursor position callback.
+void uniform_cursor_callback(GLFWwindow* w, double xpos, double ypos) {
+  canvas_table[w].cursor_call(ypos, xpos); /* yes, the order inversed */ }
+
+// Check is the window id is in the cancas table
+int check_canvas(GLFWwindow* window)
+{
+  if (canvas_table.find(window) == canvas_table.end()) {
+    cerr << "pixels Error: Invalid window id." << endl;
+    return -1;
+  }
+  return 0;
 }
 
 // Private procudure to create a new texture object
@@ -116,8 +135,6 @@ void resize_callback(GLFWwindow* window, int window_w, int window_h)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Define the interface
-
-namespace CEL {
 
 // Initialize GLFW and set the default context hints
 int gl_init()
@@ -310,6 +327,40 @@ void gl_set_scroll_callback(GLFWwindow* window, ScrollFunc func)
 
   // Update glfw for this window
   glfwSetScrollCallback(window, uniform_scroll_callback);
+}
+
+// Set mouse button callback
+void gl_set_mouse_callback(GLFWwindow* window, MouseFunc func)
+{
+  // Store the callable object for the window
+  if (canvas_table.find(window) == canvas_table.end()) {
+    cerr << "pixels Error: Invalid window id." << endl;
+    return;
+  }
+  canvas_table[window].mouse_call = func;
+
+  // Update glfw for this window
+  glfwSetMouseButtonCallback(window, uniform_mouse_callback);
+}
+
+// Set cursor position update callback
+void gl_set_cursor_callback(GLFWwindow* window, CursorFunc func)
+{
+  if (check_canvas(window)) return;
+  canvas_table[window].cursor_call = func;
+  glfwSetCursorPosCallback(window, uniform_cursor_callback);
+}
+
+// Get mouse button state
+int gl_get_mouse_button(GLFWwindow* window, Button mb)
+{
+  return glfwGetMouseButton(window, mb);
+}
+
+// Get mouse cursor position
+void gl_get_cursor_position(GLFWwindow* window, double& i, double& j)
+{
+  glfwGetCursorPos(window, &j, &i); // Yes, j first, then i.
 }
 
 // Poll event

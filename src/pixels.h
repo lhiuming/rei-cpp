@@ -55,6 +55,22 @@ void gl_draw(WindowID window, char unsigned *pixels,
   std::size_t buffer_w, std::size_t buffer_h);
 
 /*
+ * Some constants for writing callback function.
+ */
+enum Button : int {
+  MOUSE_LEFT = GLFW_MOUSE_BUTTON_LEFT,
+  MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE,
+  MOUSE_RIGHT = GLFW_MOUSE_BUTTON_RIGHT };
+enum Action : int {
+  PRESS = GLFW_PRESS,
+  RELEASE = GLFW_RELEASE };
+enum ModKey : int {
+  ALT = GLFW_MOD_ALT,
+  CTL = GLFW_MOD_CONTROL,
+  SHIFT = GLFW_MOD_SHIFT,
+  SUPER = GLFW_MOD_SUPER };
+
+/*
  * gl_set_key_callback -- Set the callback function when keys are pressed
  * by the user. Useful into making interaction.
  * TODO: implement me
@@ -64,8 +80,43 @@ void gl_set_key_callback(WindowID window);
 /*
  * gl_set_scroll_callback -- Similar to above. Unique for a window.
  */
-typedef std::function<void (double, double)> ScrollFunc;
+using ScrollFunc = std::function<void (double dx, double dy)>;
 void gl_set_scroll_callback(WindowID window, ScrollFunc func);
+
+/*
+ * gl_set_mouse_pos_callback -- TODO: implement me
+ */
+void gl_set_mouse_pos_callback();
+
+/*
+ * gl_set_mouse_callback -- Similar to above. Unique for a window.
+ * Use Botton, Action and ModKey value in the callable object.
+ * TODO: test me
+ */
+using MouseFunc = std::function<void (int button, int action, int modkey)>;
+void gl_set_mouse_callback(WindowID window, MouseFunc func);
+
+/*
+ * gl_set_cursor_callback -- Similar to above. Unique for a window.
+ */
+using CursorFunc = std::function<void (double i, double j)>;
+void gl_set_cursor_callback(WindowID window, CursorFunc);
+
+/*
+ * gl_get_mouse_button -- Check the press/release state.
+ * Use (MOUSE_) Button value in mouse_button argument.
+ * Use Action to compare with the returned value.
+ */
+int gl_get_mouse_button(WindowID window, Button mouse_button);
+
+/*
+ * gl_get_cursor_position -- Return the position of user cursor. Useful
+ * in writting the mouse button callback function.
+ *
+ * The result (i, j) is screen coordinate relative to the upper-left corner.
+ * Think that i is "row number", j is "column number".
+ */
+void gl_get_cursor_position(WindowID window, double& i, double& j);
 
 /*
  * gl_poll_events -- Poll the events and call the callback functions.

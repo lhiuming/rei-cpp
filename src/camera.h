@@ -34,6 +34,7 @@ public:
 
   // Dynamic Configurations
   void zoom(double quantity);
+  void move(double right, double up, double back);
 
   // Get transforms
   const Mat4& get_w2c() const { return world2camera; }
@@ -53,7 +54,7 @@ private:
   Mat4 world2normalized;   // composed from above 2
 
   // helpers to update transforms
-  Vec3 u_hint = Vec3(1.0, 0, 0); // used when camera direction is at +y
+  Vec3 orth_u, orth_v, orth_w;
   void update_w2c();
   void update_c2n();
   void update_w2n();

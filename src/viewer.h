@@ -44,8 +44,6 @@ public:
   // Start the update&render loop
   void run();
 
-  // Some call back functions. Used for setting callbacks
-
 private:
 
   WindowID window;
@@ -65,6 +63,8 @@ private:
 
   // create callback objects for pixiels library
   ScrollFunc make_scroll_callback() const;
+  CursorFunc make_cursor_callback();
+  double last_i, last_j;
 
 };
 
