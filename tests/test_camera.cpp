@@ -31,15 +31,16 @@ int main() {
 
   cout << ">> Camera points: " << endl;
   const Mat4& w2c = c.get_w2c();
-  //cout << "w2c = " << w2c << endl;
+  cout << "w2c = " << w2c << endl;
   for (int i = 0; i < world_points.size(); ++i)
     cout << "w2c * x" << i << " = " << w2c * world_points[i] << endl;
 
   cout << ">> Normalized points: " << endl;
+  cout << "c2n = " << c.get_c2n() << endl;
   const Mat4& w2n = c.get_w2n();
   cout << "w2n = " << w2n << endl;
   for (int i = 0; i < world_points.size(); ++i)
-    cout << "w2n * x" << i << " = " << w2n * world_points[i] << endl;
+    cout << "w2n * x" << i << " = " << Vec3(w2n * world_points[i]) << endl;
 
   return 0;
 }
