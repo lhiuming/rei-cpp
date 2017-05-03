@@ -21,8 +21,8 @@ namespace CEL {
 // The base class
 ////
 
-typedef std::vector<unsigned char>::size_type BufferSize;
 typedef unsigned char* Buffer;
+typedef std::size_t BufferSize;
 using DrawFunc = std::function<void (Buffer, BufferSize, BufferSize)>;
 
 class Renderer {
