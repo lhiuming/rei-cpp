@@ -17,6 +17,12 @@ Renderer::Renderer()
   cout << "A empty renderer is created. " << endl;
 }
 
+// Set draw function
+void Renderer::set_draw_func(DrawFunc lambda_object)
+{
+  this->f = lambda_object;
+}
+
 // Soft Renderer //////////////////////////////////////////////////////////////
 ////
 
@@ -29,12 +35,7 @@ void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
   this->width = width;
   this->height = height;
   buffer_maker.reserve(width * height * 4);
-}
-
-// Set draw function
-void SoftRenderer::set_draw_func(draw_func fp)
-{
-  //this->f = fp;
+  buffer = &buffer_maker[0];
 }
 
 // Render requiest
@@ -50,7 +51,7 @@ void SoftRenderer::render()
     return;
   }
 
-  // Fetch all models
+  // Fetch and render all models
   for (const auto& mi : scene->get_models() )
   {
     const Model& model = *(mi.pmodel);
@@ -65,7 +66,11 @@ void SoftRenderer::render()
     }
   } // end for
 
+  // Draw on the screen
+  cout << "trying to draw buffer of size: " << width << ", " << height << endl;
+  f(buffer, width, height);
   cout << "done rendering" << endl;
+
 }
 
 // Rasterize a mesh
@@ -77,12 +82,18 @@ void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 }
 
 // Rasterize a triangle
-void SoftRenderer::rasterize_triangle(
-  const Mesh::Triangle& tri, const Mat4& trans)
+void
+SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 {
   // TODO: do brute-force rasterization
+  // TODO: add culling 
   // TODO: add depth buffer
   // TODO: do fast-exclude raseterization
+
+  cout << "Inputed triangle is: " << endl;
+  cout << tri.a->coord << endl;
+  cout << tri.b->coord << endl;
+  cout << tri.c->coord << endl;
 
   // transform to normalized coordinate
   Mat4 w2n = camera->get_w2n();
@@ -115,6 +126,8 @@ void SoftRenderer::rasterize_triangle(
   int l = floor(min(x0, min(x1, x2))), r = ceil(max(x0, max(x1, x2)));
   int b = floor(min(y0, min(y1, y2))), t = ceil(max(y0, max(y1, y2)));
 
+  cout << "triangle block is " << Vec4(l, r, b, t) << endl;
+
   for (float y = b + 0.5f; y < t; ++y)
     for (float x = l + 0.5f; x < r; ++x) {
       if ( E0(x, y) && E1(x, y) && E2(x, y) )
@@ -126,7 +139,7 @@ void SoftRenderer::rasterize_triangle(
 inline void SoftRenderer::put_sample(int x, int y)
 {
   if (x < 0 || x >= width) return;
-  if (y < 0 || x >= height) return;
+  if (y < 0 || y >= height) return;
 
   BufferSize offset = (y * width + x) * 4;
   buffer[offset    ] = (unsigned char) 255;

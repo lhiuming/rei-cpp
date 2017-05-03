@@ -13,10 +13,10 @@ using namespace std;
 namespace CEL {
 
 // a default model (a big plane) //
-Vertex a(Vec3( 100, 0,  100));
-Vertex b(Vec3(-100, 0,  100));
-Vertex c(Vec3(-100, 0, -100));
-Vertex d(Vec3( 100, 0, -100));
+Vertex a(Vec3( 10, -5, -30));
+Vertex b(Vec3(-10, -5, -30));
+Vertex c(Vec3(-10, -5, -50));
+Vertex d(Vec3( 10, -5, -50));
 vector<Vertex> va{a, b, c, d};
 ModelInstance plane_inst{
   ModelPtr(new Mesh(va, {2, 1, 0, 3, 2, 0})),

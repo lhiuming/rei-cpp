@@ -60,7 +60,7 @@ void Viewer::run()
   // make sure the renderer is set corretly
   renderer->set_scene(scene);
   renderer->set_camera(camera);
-  //renderer->set_draw_func(draw);
+  renderer->set_draw_func(make_buffer_draw());
 
   // start the loop
   while (gl_window_should_open(window))
@@ -97,7 +97,12 @@ void Viewer::update_buffer_size()
 }
 
 // Make a callable draw function for soft renderer
-// TODO
+DrawFunc Viewer::make_buffer_draw() const
+{
+  return [=](unsigned char* b, size_t w, size_t h) -> void
+         { gl_draw(this->window, b, w, h); };
+}
+
 
 // Pause the loop (e.g. to maintain a low refresh rate)
 void Viewer::sleep_alittle() const

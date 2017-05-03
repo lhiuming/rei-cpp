@@ -57,8 +57,7 @@ private:
   // Implementation helpers
   void update_buffer_size();
   void sleep_alittle() const;
-  auto buffer_draw() -> void (*)(unsigned char*, std::size_t, std::size_t);
-
+  DrawFunc make_buffer_draw() const;
 };
 
 } // namespace CEL

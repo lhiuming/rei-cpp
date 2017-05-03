@@ -22,6 +22,8 @@ namespace CEL {
 ////
 
 typedef std::vector<unsigned char>::size_type BufferSize;
+typedef unsigned char* Buffer;
+using DrawFunc = std::function<void (Buffer, BufferSize, BufferSize)>;
 
 class Renderer {
 public:
@@ -36,6 +38,9 @@ public:
   void set_scene(const Scene* scene) { this->scene = scene; }
   void set_camera(const Camera* camera) { this->camera = camera; }
 
+  // Configuration
+  void set_draw_func(DrawFunc fp);
+
   // Basic interface
   virtual void set_buffer_size(BufferSize width, BufferSize height) = 0;
   virtual void render() = 0;
@@ -43,6 +48,7 @@ public:
 protected:
 
   BufferSize width, height;
+  DrawFunc f;
 
   const Scene* scene = nullptr;
   const Camera* camera = nullptr;
@@ -63,11 +69,6 @@ public:
   // Destructor
   ~SoftRenderer() override {};
 
-  // Configuration
-  typedef unsigned char* Buffer;
-  typedef void draw_func(Buffer, BufferSize, BufferSize);
-  void set_draw_func(draw_func fp);
-
   // Render request
   void set_buffer_size(BufferSize width, BufferSize height) override;
   void render() override;
@@ -76,7 +77,6 @@ private:
 
   std::vector<unsigned char> buffer_maker;
   Buffer buffer;
-  draw_func f;
 
   // Implementation helpers
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
