@@ -4,7 +4,8 @@ Project under construction
 ## todos
 
 - Rendering
-  - add culling for triangle (see RTR)
   - support vertex color
   - support depth buffer
-  - support mesh and material
+  - add model loading, and support general mesh and material
+    - skip texture currently 
+  - add sophisticated culling for better performance
