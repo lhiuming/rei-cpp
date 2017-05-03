@@ -10,14 +10,13 @@ find_package(OpenGL REQUIRED)
 
 # Built dependence in deps directory
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
-#include_directories(GLEW_INCLUDE_DIR)
 
 #--------------------
 # Add subdirectories
 #--------------------
 
 # Include idrectory
-#include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Set compile flags
 set(CMAKE_CXX_FLAGS "-g -O3 -Wall -std=c++11")
