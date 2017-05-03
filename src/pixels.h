@@ -50,6 +50,8 @@ void gl_get_buffer_size(WindowID window,
 
 /*
  * gl_draw -- Render the pixel buffer on the OpenGL windows and display it.
+ * Currently the buffer is assumed to be using RGBA8 format (a pixel sample is
+ * composed of 4 consecutive 'unsigned char' value).
  *
  * NOTE: The buffer is draw on the screen from the bottom-left corner, so
  * screen coordinate (0, 0) should be map to the first slot of the buffer.
