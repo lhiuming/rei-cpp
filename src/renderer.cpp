@@ -1,6 +1,7 @@
 // source of renderer.h
 #include "renderer.h"
 
+#include <cstring>
 #include <iostream>
 #include <typeinfo>
 
@@ -20,7 +21,7 @@ Renderer::Renderer()
 // Set draw function
 void Renderer::set_draw_func(DrawFunc lambda_object)
 {
-  this->f = lambda_object;
+  this->draw = lambda_object;
 }
 
 // Soft Renderer //////////////////////////////////////////////////////////////
@@ -51,6 +52,9 @@ void SoftRenderer::render()
     return;
   }
 
+  // clear the buffer
+  memset(buffer, 0, width * height * 4 * sizeof(unsigned char));
+
   // Fetch and render all models
   for (const auto& mi : scene->get_models() )
   {
@@ -67,9 +71,7 @@ void SoftRenderer::render()
   } // end for
 
   // Draw on the screen
-  cout << "trying to draw buffer of size: " << width << ", " << height << endl;
-  f(buffer, width, height);
-  cout << "done rendering" << endl;
+  draw(buffer, width, height);
 
 }
 
@@ -85,9 +87,9 @@ void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 void
 SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 {
-  // TODO: add culling
   // TODO: add depth buffer
   // TODO: do fast-exclude raseterization
+  // TODO: add sopisticated culling
 
   // transform to normalized coordinate
   Mat4 w2n = camera->get_w2n();
@@ -96,7 +98,6 @@ SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
   Vec3 v2 = w2n * tri.c->coord;
 
   // make screen coordinates
-  // TODO: we might need to invert x or y axis
   float x0 = (v0.x + 1.0) / 2 * width, y0 = (v0.y + 1.0) / 2 * height;
   float x1 = (v1.x + 1.0) / 2 * width, y1 = (v1.y + 1.0) / 2 * height;
   float x2 = (v2.x + 1.0) / 2 * width, y2 = (v2.y + 1.0) / 2 * height;
@@ -109,7 +110,7 @@ SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
   float c0 = - x0 * dy0 + y0 * dx0;
   float c1 = - x1 * dy1 + y1 * dx1;
   float c2 = - x2 * dy2 + y2 * dx2;
-  #define E0(x, y) ( dy0 * x - dx0 * y + c0 <= 0.0f )
+  auto E0 = [=](float x, float y) -> bool { return dy0 * x - dx0 * y + c0 <= 0.0f; };
   #define E1(x, y) ( dy1 * x - dx1 * y + c1 <= 0.0f )
   #define E2(x, y) ( dy2 * x - dx2 * y + c2 <= 0.0f )
 

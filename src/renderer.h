@@ -48,7 +48,7 @@ public:
 protected:
 
   BufferSize width, height;
-  DrawFunc f;
+  DrawFunc draw;
 
   const Scene* scene = nullptr;
   const Camera* camera = nullptr;
