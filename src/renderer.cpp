@@ -85,24 +85,15 @@ void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 void
 SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 {
-  // TODO: do brute-force rasterization
-  // TODO: add culling 
+  // TODO: add culling
   // TODO: add depth buffer
   // TODO: do fast-exclude raseterization
-
-  cout << "Inputed triangle is: " << endl;
-  cout << tri.a->coord << endl;
-  cout << tri.b->coord << endl;
-  cout << tri.c->coord << endl;
 
   // transform to normalized coordinate
   Mat4 w2n = camera->get_w2n();
   Vec3 v0 = w2n * tri.a->coord;
   Vec3 v1 = w2n * tri.b->coord;
   Vec3 v2 = w2n * tri.c->coord;
-
-  cout << "draw triangle (normalized): " << endl;
-  cout << v0 << ", " << v1 << ", " << v2 << endl;
 
   // make screen coordinates
   // TODO: we might need to invert x or y axis
@@ -126,8 +117,6 @@ SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
   int l = floor(min(x0, min(x1, x2))), r = ceil(max(x0, max(x1, x2)));
   int b = floor(min(y0, min(y1, y2))), t = ceil(max(y0, max(y1, y2)));
 
-  cout << "triangle block is " << Vec4(l, r, b, t) << endl;
-
   for (float y = b + 0.5f; y < t; ++y)
     for (float x = l + 0.5f; x < r; ++x) {
       if ( E0(x, y) && E1(x, y) && E2(x, y) )
@@ -138,6 +127,7 @@ SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 
 inline void SoftRenderer::put_sample(int x, int y)
 {
+  // TODO: we may discard this if we have culling
   if (x < 0 || x >= width) return;
   if (y < 0 || y >= height) return;
 

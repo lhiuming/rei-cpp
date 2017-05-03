@@ -4,6 +4,7 @@ Project under construction
 ## todos
 
 - Rendering
-  - implement 3D triangle rasterization
-    - implement triangle rasterization
+  - add culling for triangle (see RTR)
+  - support vertex color
+  - support depth buffer 
   - support mesh and material
