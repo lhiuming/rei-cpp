@@ -50,6 +50,11 @@ void gl_get_buffer_size(WindowID window,
 
 /*
  * gl_draw -- Render the pixel buffer on the OpenGL windows and display it.
+ *
+ * NOTE: The buffer is draw on the screen from the bottom-left corner, so
+ * screen coordinate (0, 0) should be map to the first slot of the buffer.
+ * For example, you should map (x, y) to the buffer index doing like:
+ *     pixels[y * width + x] = a_pixel_color_data
  */
 void gl_draw(WindowID window, char unsigned *pixels,
   std::size_t buffer_w, std::size_t buffer_h);
