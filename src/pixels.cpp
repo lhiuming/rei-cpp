@@ -54,9 +54,9 @@ static const char* fragment_shader_text =  // fragment shader source
 static const GLfloat vertices[] = {
   // positions      // tex-coords
   -1.0f, -1.0f,     0.0f, 0.0f,   // Bottom Left
-   1.0f, -1.0f,     0.0f, 1.0f,   // Top Left
+  -1.0f,  1.0f,     0.0f, 1.0f,   // Top Left
    1.0f,  1.0f,     1.0f, 1.0f,   // Top Right
-  -1.0f,  1.0f,     1.0f, 0.0f    // Bottom Right
+   1.0f, -1.0f,     1.0f, 0.0f    // Bottom Right
 };
 
 static const GLuint indices[] = {
