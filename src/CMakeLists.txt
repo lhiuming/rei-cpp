@@ -7,6 +7,9 @@ target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
 # algebra (used to call algebra ... )
 add_library(algebra algebra.cpp algebra.h)
 
+# color
+add_library(color color.cpp color.h)
+
 # model
 add_library(model model.cpp model.h)
 target_link_libraries(model algebra)

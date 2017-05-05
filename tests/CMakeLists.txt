@@ -24,13 +24,17 @@ include_directories(${CELENGINE_SOURCE_DIR}/src)
 add_executable(test_pixels test_pixels.cpp)
 target_link_libraries(test_pixels pixels)
 
-# Test model
-add_executable(test_model test_model.cpp)
-target_link_libraries(test_model model)
-
 # Test algebra
 add_executable(test_algebra test_algebra.cpp)
 target_link_libraries(test_algebra algebra)
+
+# Test color
+add_executable(test_color test_color.cpp)
+target_link_libraries(test_color color)
+
+# Test model
+add_executable(test_model test_model.cpp)
+target_link_libraries(test_model model)
 
 # Test camera
 add_executable(test_camera test_camera.cpp)
