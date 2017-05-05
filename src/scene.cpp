@@ -19,7 +19,7 @@ Vertex c(Vec3(-10, -5, -50));
 Vertex d(Vec3( 10, -5, -50));
 vector<Vertex> va{a, b, c, d};
 ModelInstance plane_inst{
-  ModelPtr(new Mesh(va, {2, 1, 0, 3, 2, 0})),
+  ModelPtr(new Mesh(std::move(va), {2, 1, 0, 3, 2, 0})),
   Mat4::I() };
 vector<ModelInstance> default_models{plane_inst};
 
@@ -27,13 +27,7 @@ vector<ModelInstance> default_models{plane_inst};
 ////
 
 // Add a model
-void StaticScene::add_model(ModelPtr& mp, Mat4& trans)
-{
-  models.push_back(ModelInstance{mp, trans});
-  no_models = false;
-}
-
-void StaticScene::add_model(ModelPtr& mp, Mat4&& trans)
+void StaticScene::add_model(const ModelPtr& mp, const Mat4& trans)
 {
   models.push_back(ModelInstance{mp, trans});
   no_models = false;

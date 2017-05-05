@@ -23,7 +23,7 @@ namespace CEL {
 // Simple Vertex class
 struct Vertex {
   Vec4 coord; // Vertex position
-  Vertex(Vec3 pos3) : coord(pos3, 1.0) {};
+  Vertex(const Vec3& pos3) : coord(pos3, 1.0) {};
 };
 
 // Triangle template class, details depend on implementation of mesh
@@ -59,8 +59,12 @@ public:
   // Dont allow empty mesh
   Mesh() = delete;
 
+  // Copy and Move
+  Mesh(const Mesh& rhs) = default;
+  Mesh(Mesh&& rhs) = default;
+
   // Constructor with both vertices and triangles of vertex indices
-  Mesh(std::vector<Vertex> va, std::vector<size_type> ta);
+  Mesh(std::vector<Vertex>&& va, const std::vector<size_type>& ta);
 
   // Destructor; we have only standard containers
   ~Mesh() override = default;

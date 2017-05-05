@@ -16,7 +16,7 @@ int main()
   vector<Mesh::size_type> vbo{0, 1, 2};
 
   // make the mesh
-  Mesh mesh(vao, vbo);
+  Mesh mesh(std::move(vao), vbo);
 
   cout << "Created a Mesh" << endl;
 

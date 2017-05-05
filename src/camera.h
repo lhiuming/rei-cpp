@@ -23,7 +23,7 @@ public:
   Camera();
 
   // Initialize with position and direction
-  Camera(Vec3 pos, Vec3 dir);
+  Camera(const Vec3& pos, const Vec3& dir);
 
   // Configurations
   void set_position(const Vec3& pos);

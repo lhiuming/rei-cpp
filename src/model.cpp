@@ -8,7 +8,7 @@ namespace CEL {
 // Mesh
 
 // Constructor with both vertices and triangles
-Mesh::Mesh(vector<Vertex> va, vector<size_type> ta)
+Mesh::Mesh(vector<Vertex>&& va, const vector<size_type>& ta)
  : vertices(va)
 {
   // TODO check the size of va ta

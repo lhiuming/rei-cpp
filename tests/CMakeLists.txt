@@ -39,3 +39,11 @@ target_link_libraries(test_camera camera)
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
 target_link_libraries(test_viewer viewer camera scene renderer)
+
+#-----------------------------
+# Testing modules integration
+#-----------------------------
+
+# Three triangle test (for color and z-buffer)
+add_executable(three_triangle three_triangle.cpp)
+target_link_libraries(three_triangle model scene camera viewer renderer)

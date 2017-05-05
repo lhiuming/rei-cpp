@@ -11,14 +11,30 @@ const double PI = 3.141592653589793238463; // copied from web
 namespace CEL {
 
 // Default constructor
-Camera::Camera() {
+Camera::Camera()
+{
   update_w2c();
   update_c2n();
   update_w2n();
 };
 
+// Initialize with pos and dir
+Camera::Camera(const Vec3& pos, const Vec3& dir)
+ : position(pos), direction(dir.normalized())
+{
+  update_w2c();
+  update_c2n();
+  update_w2n();
+}
+
+
 // Configurations //
-// TODO: set them
+
+// update ratio
+void Camera::set_ratio(double ratio)
+{
+  this->ratio = ratio;
+}
 
 
 // Dynamics Configurations //

@@ -61,8 +61,7 @@ public:
   virtual ~StaticScene() override = default;
 
   // Add elements
-  void add_model(ModelPtr& mp, Mat4& trans);
-  void add_model(ModelPtr& mp, Mat4&& trans);
+  void add_model(const ModelPtr& mp, const Mat4& trans);
 
   // Get models
   const ModelContainer& get_models() const override;
