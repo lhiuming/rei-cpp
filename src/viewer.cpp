@@ -95,7 +95,8 @@ DrawFunc Viewer::make_buffer_draw() const
 BufferFunc Viewer::make_buffer_callback() const
 {
   return [=](int width, int height) -> void
-         { this->renderer->set_buffer_size(width, height); };
+         { this->renderer->set_buffer_size(width, height);
+           this->camera->set_ratio((double)width / height); };
 }
 
 // Make scroll callback. See pixels.h
@@ -112,11 +113,11 @@ CursorFunc Viewer::make_cursor_callback() const
          {
            if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
              double dx = this->last_j - j;
-             this->camera->move(dx * 0.01, 0.0, 0.0); // oppose direction
-           } else { // must be RELEASR
-             this->last_j = j;
-             this->last_i = j;
+             this->camera->move(dx * 0.05, 0.0, 0.0); // oppose direction
            } // end if
+           // update any way
+           this->last_j = j;
+           this->last_i = j;
          };
 }
 
