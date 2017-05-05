@@ -34,6 +34,8 @@ Camera::Camera(const Vec3& pos, const Vec3& dir)
 void Camera::set_ratio(double ratio)
 {
   this->ratio = ratio;
+  update_c2n();
+  update_w2n();
 }
 
 
