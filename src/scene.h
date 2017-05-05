@@ -55,7 +55,7 @@ class StaticScene : public Scene {
 public:
 
   // Default constructor; an empty scene
-  StaticScene() : no_models(true) {}
+  StaticScene() {}
 
   // Destructor
   virtual ~StaticScene() override = default;
@@ -69,7 +69,6 @@ public:
 private:
 
   std::vector<ModelInstance> models;
-  bool no_models;
 
 };
 
