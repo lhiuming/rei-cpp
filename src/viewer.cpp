@@ -87,6 +87,7 @@ void Viewer::run()
 // Make a callable draw function for soft renderer
 DrawFunc Viewer::make_buffer_draw() const
 {
+  // captures the pointer `this`
   return [=](unsigned char* b, size_t w, size_t h) -> void
          { gl_draw(this->window, b, w, h); };
 }
@@ -94,6 +95,7 @@ DrawFunc Viewer::make_buffer_draw() const
 // Make a buffer resize callback. See pixels.h
 BufferFunc Viewer::make_buffer_callback() const
 {
+  // captures the pointer `this`
   return [=](int width, int height) -> void
          { this->renderer->set_buffer_size(width, height);
            this->camera->set_ratio((double)width / height); };
@@ -102,6 +104,7 @@ BufferFunc Viewer::make_buffer_callback() const
 // Make scroll callback. See pixels.h
 ScrollFunc Viewer::make_scroll_callback() const
 {
+  // captures the pointer `this`
   return [=](double dx, double dy) -> void
          { this->camera->zoom(dy); };
 }
@@ -109,6 +112,7 @@ ScrollFunc Viewer::make_scroll_callback() const
 // Make cursor position callback. See pixels.h
 CursorFunc Viewer::make_cursor_callback() const
 {
+  // captures the pointer `this`
   return [=](double i, double j) -> void
          {
            if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
