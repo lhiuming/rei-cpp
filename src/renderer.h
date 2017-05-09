@@ -11,6 +11,7 @@
  * renderer.h
  * Define the Renderer interface and a soft renderer.
  *
+ * TODO: design some internal model format for rendering (see RTR)
  * TODO: implement fantastic CEL shading
  * TODO: implement a hard renderer
  */
@@ -55,6 +56,17 @@ protected:
 ////
 
 class SoftRenderer : public Renderer {
+
+  // a private Vertex class
+  class Vertex {
+
+  };
+
+  // a private Triangle class; represent a primitive
+  class Triangle {
+
+  };
+
 public:
 
   // Type Alias

@@ -40,13 +40,16 @@ void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
   pixels = &buffer_maker[0];
 }
 
-// Render requiest
+// Render request
 void SoftRenderer::render()
 {
   // TODO: devide this into stages like a hardware pipeline
   // 1. transform the model into camera space (need some memory)
   //   - may be every data should be converted to "render vertex" now,
   //     or any data that is good for renderering.
+  //   - may be some shared accelerating helpers, like a BVH tree for global
+  //     illuminating. (but how many stuffs are shared among models, really?)
+  // (different models should be passed to different handling function now)
   // 2. do vertex shading on the scene (result stored in vertex)
   // 3. project by Mat4 (perspective of orthographic)
   // 4. clipping (or naive clipping) againt the normalized unit cube
@@ -64,6 +67,26 @@ void SoftRenderer::render()
     cerr << "SoftRenderer Error: no camera! " << endl;
     return;
   }
+
+  // TODO
+  // Transform the scene into internal format (ready for shading)
+
+  // TODO
+  // Do vertex shading on the scene (internal format)
+
+  // TODO
+  // Project primitives by camera transforms
+  // May be use a per-triangle function from this step.
+
+  // TODO
+  // Clipping against unit cube
+
+  // TODO
+  // screen mapping
+
+  // TODO
+  // pritimive(triangle) tasterizing (triangle traversal)
+  // must write a helper function for this
 
   // clear the buffer
   memset(pixels, 0, width * height * 3 * sizeof(unsigned char));
