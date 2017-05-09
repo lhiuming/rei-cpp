@@ -4,9 +4,6 @@ Project under construction
 ## todos
 
 - Issues
-  - remove ALPHA channel in the pixels lib: we don't need that. alpha channel
-    is useful before putting into color buffer; it have no use in the final
-    image !
 
 - Rendering
   - build a three-overlapping triangle test case (test color and z-buffer)

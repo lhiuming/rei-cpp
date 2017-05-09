@@ -35,7 +35,7 @@ void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
   this->width = width;
   this->height = height;
-  buffer_maker.reserve(width * height * 4);
+  buffer_maker.reserve(width * height * 3);
   buffer = &buffer_maker[0];
 }
 
@@ -53,7 +53,7 @@ void SoftRenderer::render()
   }
 
   // clear the buffer
-  memset(buffer, 0, width * height * 4 * sizeof(unsigned char));
+  memset(buffer, 0, width * height * 3 * sizeof(unsigned char));
 
   // Fetch and render all models
   for (const auto& mi : scene->get_models() )
@@ -138,11 +138,10 @@ inline void SoftRenderer::put_sample(int x, int y)
   if (x < 0 || x >= width) return;
   if (y < 0 || y >= height) return;
 
-  BufferSize offset = (y * width + x) * 4;
+  BufferSize offset = (y * width + x) * 3;
   buffer[offset    ] = (unsigned char) 255;
   buffer[offset + 1] = (unsigned char) 128;
   buffer[offset + 2] = (unsigned char) 128;
-  buffer[offset + 3] = (unsigned char) 255;
 }
 
 
