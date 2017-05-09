@@ -4,8 +4,6 @@ Project under construction
 ## todos
 
 - Issues
-  - using conversion operator in Vec4, rather than conversion constructor in
-    Vec3 : Vec4 knows more about how to become a Vec3!
   - remove ALPHA channel in the pixels lib: we don't need that. alpha channel
     is useful before putting into color buffer; it have no use in the final
     image !
