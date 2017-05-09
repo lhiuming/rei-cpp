@@ -58,7 +58,12 @@ void Viewer::run()
   renderer->set_buffer_size(w, h);
   renderer->set_scene(scene);
   renderer->set_camera(camera);
-  renderer->set_draw_func(make_buffer_draw());
+
+  // soft renderer special
+  if (typeid(*renderer) == typeid(SoftRenderer))
+    dynamic_cast<SoftRenderer*>(renderer)->set_draw_func(make_buffer_draw());
+  else
+    cout << "Viewer Error: Unkown renderer " << typeid(*renderer).name() << endl;
 
   // update callback function
   gl_set_buffer_callback(window, make_buffer_callback());
@@ -85,7 +90,7 @@ void Viewer::run()
 
 
 // Make a callable draw function for soft renderer
-DrawFunc Viewer::make_buffer_draw() const
+Viewer::DrawFunc Viewer::make_buffer_draw() const
 {
   // captures the pointer `this`
   return [=](unsigned char* b, size_t w, size_t h) -> void

@@ -21,9 +21,7 @@ namespace CEL {
 // The base class
 ////
 
-typedef unsigned char* Buffer;
-typedef std::size_t BufferSize;
-using DrawFunc = std::function<void (Buffer, BufferSize, BufferSize)>;
+using BufferSize = std::size_t;
 
 class Renderer {
 public:
@@ -38,9 +36,6 @@ public:
   void set_scene(const Scene* scene) { this->scene = scene; }
   void set_camera(const Camera* camera) { this->camera = camera; }
 
-  // Configuration
-  void set_draw_func(DrawFunc fp);
-
   // Basic interface
   virtual void set_buffer_size(BufferSize width, BufferSize height) = 0;
   virtual void render() = 0;
@@ -48,7 +43,6 @@ public:
 protected:
 
   BufferSize width, height;
-  DrawFunc draw;
 
   const Scene* scene = nullptr;
   const Camera* camera = nullptr;
@@ -63,11 +57,18 @@ protected:
 class SoftRenderer : public Renderer {
 public:
 
+  // Type Alias
+  using Buffer = unsigned char*;
+  using DrawFunc = std::function<void (Buffer, BufferSize, BufferSize)>;
+
   // Default constructor
   SoftRenderer();
 
   // Destructor
   ~SoftRenderer() override {};
+
+  // Configuration
+  void set_draw_func(DrawFunc fp);
 
   // Render request
   void set_buffer_size(BufferSize width, BufferSize height) override;
@@ -76,7 +77,8 @@ public:
 private:
 
   std::vector<unsigned char> buffer_maker;
-  Buffer buffer;
+  Buffer pixels; // the pixel color to store the final image in RGB
+  DrawFunc draw;
 
   // Implementation helpers
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);

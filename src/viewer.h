@@ -58,6 +58,7 @@ private:
   void update_buffer_size() const;
 
   // create callable object for renderers drawing call
+  using DrawFunc = SoftRenderer::DrawFunc;
   DrawFunc make_buffer_draw() const;
 
   // create callback objects for pixiels library

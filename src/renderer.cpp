@@ -18,11 +18,6 @@ Renderer::Renderer()
   cout << "A empty renderer is created. " << endl;
 }
 
-// Set draw function
-void Renderer::set_draw_func(DrawFunc lambda_object)
-{
-  this->draw = lambda_object;
-}
 
 // Soft Renderer //////////////////////////////////////////////////////////////
 ////
@@ -30,13 +25,19 @@ void Renderer::set_draw_func(DrawFunc lambda_object)
 // Default constructor
 SoftRenderer::SoftRenderer() : Renderer() {}
 
+// Set draw function
+void SoftRenderer::set_draw_func(DrawFunc lambda_object)
+{
+  this->draw = lambda_object;
+}
+
 // Set buffer size
 void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
   this->width = width;
   this->height = height;
   buffer_maker.reserve(width * height * 3);
-  buffer = &buffer_maker[0];
+  pixels = &buffer_maker[0];
 }
 
 // Render requiest
@@ -65,7 +66,7 @@ void SoftRenderer::render()
   }
 
   // clear the buffer
-  memset(buffer, 0, width * height * 3 * sizeof(unsigned char));
+  memset(pixels, 0, width * height * 3 * sizeof(unsigned char));
 
   // Fetch and render all models
   for (const auto& mi : scene->get_models() )
@@ -83,7 +84,7 @@ void SoftRenderer::render()
   } // end for
 
   // Draw on the screen
-  draw(buffer, width, height);
+  draw(pixels, width, height);
 
 }
 
@@ -151,9 +152,9 @@ inline void SoftRenderer::put_sample(int x, int y)
   if (y < 0 || y >= height) return;
 
   BufferSize offset = (y * width + x) * 3;
-  buffer[offset    ] = (unsigned char) 255;
-  buffer[offset + 1] = (unsigned char) 128;
-  buffer[offset + 2] = (unsigned char) 128;
+  pixels[offset    ] = (unsigned char) 255;
+  pixels[offset + 1] = (unsigned char) 128;
+  pixels[offset + 2] = (unsigned char) 128;
 }
 
 
