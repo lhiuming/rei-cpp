@@ -43,7 +43,6 @@ public:
 
   // Visibility query
   bool visible(const Vec3& v) const;
-  bool visible(const Vec4& v) const { return visible(std::move(Vec3(v))); }
 
 private:
 
