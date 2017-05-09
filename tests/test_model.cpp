@@ -9,8 +9,8 @@ using namespace CEL;
 int main()
 {
   // set vertices
-  Vertex a(Vec3(0, 0, 0)), b(Vec3(1, 0, 0)), c(Vec3(1, 1, 0));
-  vector<Vertex> vao({a, b, c});
+  Mesh::Vertex a(Vec3(0, 0, 0)), b(Vec3(1, 0, 0)), c(Vec3(1, 1, 0));
+  vector<Mesh::Vertex> vao({a, b, c});
 
   // set triangle
   vector<Mesh::size_type> vbo{0, 1, 2};

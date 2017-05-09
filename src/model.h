@@ -21,23 +21,6 @@
 
 namespace CEL {
 
-// Simple Vertex class
-struct Vertex {
-  Vec4 coord; // Vertex position
-  Color color; // Vertec color
-  Vertex(const Vec3& pos3) : coord(pos3, 1.0) {};
-  Vertex(const Vec3& pos3, const Color& c) : coord(pos3, 1.0), color(c) {};
-};
-
-// Triangle template class, details depend on implementation of mesh
-template<typename VertexId>
-struct TriangleImp {
-  VertexId a;  // Iterator to vertices
-  VertexId b;
-  VertexId c;
-  TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
-};
-
 
 // Model classes //////////////////////////////////////////////////////////////
 
@@ -55,6 +38,24 @@ public:
 class Mesh : public Model {
 public:
 
+  // Simple Vertex class
+  struct Vertex {
+    Vec4 coord; // Vertex position
+    Color color; // Vertec color
+    Vertex(const Vec3& pos3) : coord(pos3, 1.0) {};
+    Vertex(const Vec3& pos3, const Color& c) : coord(pos3, 1.0), color(c) {};
+  };
+
+  // Triangle template class, details depend on implementation of mesh
+  template<typename VertexId>
+  struct TriangleImp {
+    VertexId a;  // Iterator to vertices
+    VertexId b;
+    VertexId c;
+    TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
+  };
+
+  // Type alias
   using size_type = std::vector<Vertex>::size_type;
   using VertexIt = std::vector<Vertex>::iterator;
   using Triangle = TriangleImp<VertexIt>;

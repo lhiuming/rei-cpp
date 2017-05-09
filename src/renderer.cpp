@@ -42,6 +42,15 @@ void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Render requiest
 void SoftRenderer::render()
 {
+  // TODO: devide this into stages like a hardware pipeline
+  // 1. transform the model into camera space (need some memory)
+  //   - may be every data should be converted to "render vertex" now,
+  //     or any data that is good for renderering.
+  // 2. do vertex shading on the scene (result stored in vertex)
+  // 3. project by Mat4 (perspective of orthographic)
+  // 4. clipping (or naive clipping) againt the normalized unit cube
+  // 5. screen mapping ([0, width-1] x [0, height-1])
+
   // Make sure the scene and camera is set
   if (scene == nullptr) {
     cerr << "SoftRenderer Error: no scene! " << endl;

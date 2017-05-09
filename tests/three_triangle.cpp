@@ -13,6 +13,8 @@ using namespace CEL;
 
 int main()
 {
+  using Vertex = typename Mesh::Vertex;
+
   // Create the triangles
   Vertex v1({10, 0, 0}), v2({10, 10, 0}), v3({-10, 0, 0});
   Vertex v4({0, 10, 0}), v5({-10, 10, 0}), v6({0, -10, 0});
