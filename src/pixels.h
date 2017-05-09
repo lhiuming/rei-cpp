@@ -13,8 +13,7 @@
  * buffer to the window context (stored in the Grapihcs Card memory), and
  * then render the pixiels as-it-is on the screen.
  *
- * TODO: implement usefull call-back function setting api, and remove
- *    gl_window_should_open.
+ * TODO: implement complete call-back function setting api
  * TODO: make this thread-safe
  */
 
