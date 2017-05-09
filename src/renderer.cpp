@@ -49,7 +49,10 @@ void SoftRenderer::render()
   // 2. do vertex shading on the scene (result stored in vertex)
   // 3. project by Mat4 (perspective of orthographic)
   // 4. clipping (or naive clipping) againt the normalized unit cube
-  // 5. screen mapping ([0, width-1] x [0, height-1])
+  // 5. screen mapping ( (0, width) x (0, height) )
+  // 6. rasterrize by primitives (interpolating, color merging into pixels)
+  //   - maybe support some fragment shader things.
+  //   - see RTR notes for detials
 
   // Make sure the scene and camera is set
   if (scene == nullptr) {
