@@ -4,3 +4,6 @@
 [submodule "deps/glew"]
 	path = deps/glew
 	url = https://github.com/nigels-com/glew.git
+[submodule "deps/assimp"]
+	path = deps/assimp
+	url = https://github.com/assimp/assimp.git
