@@ -6,7 +6,9 @@ Project under construction
 - Issues
 
 - Rendering
-  - Use hardware rendering directory 
+  - Use hardware rendering directory
+    - Build the hardware-based rendering framework with OpenGL
+    - move to Windows10 and Direct3D 11. 
   - build a three-overlapping triangle test case (test color and z-buffer)
     - design an efficient rendering data format for soft renderer.
     - support vertex color
