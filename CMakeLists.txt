@@ -16,7 +16,7 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
 #--------------------
 
 # Include idrectory
-include_directories(${PROJECT_SOURCE_DIR}/include)
+#include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # Set compile flags
 set(CMAKE_CXX_FLAGS "-g -O3 -Wall -std=c++11")

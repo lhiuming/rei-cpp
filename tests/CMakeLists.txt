@@ -14,6 +14,15 @@ foreach(program ${GL_lib_test})
   target_link_libraries(${program} ${GL_LIBS})
 endforeach(program)
 
+#-----------------------------
+# Test some utility libraries
+#-----------------------------
+
+# assimp (I don't know how to set up the include directory gracefully...)
+add_executable(try_assimp try_assimp.cpp)
+target_link_libraries(try_assimp assimp)
+target_include_directories(try_assimp PUBLIC ${Assimp_SOURCE_DIR}/include)
+
 #----------------------
 # Test the CEL modules
 #----------------------
