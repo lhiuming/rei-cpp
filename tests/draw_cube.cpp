@@ -3,11 +3,12 @@
 #include <iostream>
 
 #include <model.h>
+#include <asset_loader.h>
 #include <scene.h>
 #include <camera.h>
+
 #include <renderer.h>
 #include <viewer.h>
-#include <asset_loader.h>
 
 using namespace std;
 using namespace CEL;

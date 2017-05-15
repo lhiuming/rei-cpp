@@ -9,11 +9,8 @@
 
 /*
  * renderer.h
- * Define the Renderer interface and a soft renderer.
- *
- * TODO: design some internal model format for rendering (see RTR)
- * TODO: implement fantastic CEL shading
- * TODO: implement a hard renderer
+ * Define the Renderer interface. Implementation is platform-specific.
+ * (see opengl/renderer.h and d3d/renderer.h)
  */
 
 namespace CEL {
@@ -47,64 +44,6 @@ protected:
 
   const Scene* scene = nullptr;
   const Camera* camera = nullptr;
-
-};
-
-
-// SoftRenderer ///////////////////////////////////////////////////////////////
-// The software renderering; everything is done on CPU and main memory.
-////
-
-class SoftRenderer : public Renderer {
-
-  // a private Vertex class
-  class Vertex {
-
-  };
-
-  // a private Triangle class; represent a primitive
-  class Triangle {
-
-  };
-
-public:
-
-  // Type Alias
-  using Buffer = unsigned char*;
-  using DrawFunc = std::function<void (Buffer, BufferSize, BufferSize)>;
-
-  // Default constructor
-  SoftRenderer();
-
-  // Destructor
-  ~SoftRenderer() override {};
-
-  // Configuration
-  void set_draw_func(DrawFunc fp);
-
-  // Render request
-  void set_buffer_size(BufferSize width, BufferSize height) override;
-  void render() override;
-
-private:
-
-  std::vector<unsigned char> buffer_maker;
-  Buffer pixels; // the pixel color to store the final image in RGB
-  DrawFunc draw;
-
-  // Implementation helpers
-  void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
-  void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
-
-  void put_sample(int x, int y);
-
-};
-
-
-// HardRenderer ///////////////////////////////////////////////////////////////
-// This render will need access to the OpenGL API
-////
-class HardRenerer : public Renderer {
 
 };
 

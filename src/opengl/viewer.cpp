@@ -14,10 +14,10 @@ using namespace std;
 namespace CEL {
 
 // Static variable initialization
-int Viewer::view_count = 0;
+int GLViewer::view_count = 0;
 
 // Initialize with window size and title
-Viewer::Viewer(size_t window_w, size_t window_h, string title)
+GLViewer::GLViewer(size_t window_w, size_t window_h, string title)
 {
   // open a window
   gl_init();
@@ -28,7 +28,7 @@ Viewer::Viewer(size_t window_w, size_t window_h, string title)
 }
 
 // Deconstructor; a little bit work
-Viewer::~Viewer()
+GLViewer::~GLViewer()
 {
   gl_close_window(window);  // close the window anyway
   if (--view_count == 0) gl_terminate();
@@ -37,20 +37,20 @@ Viewer::~Viewer()
 
 
 // Set a renderer
-void Viewer::set_renderer(Renderer* renderer)
+void GLViewer::set_renderer(Renderer* renderer)
 { this->renderer = renderer; }
 
 // Set a scene (will be passed to renderer)
-void Viewer::set_scene(Scene* scene)
+void GLViewer::set_scene(Scene* scene)
 { this->scene = scene; }
 
 // Set a camera (will be passed to renderer)
-void Viewer::set_camera(Camera* camera)
+void GLViewer::set_camera(Camera* camera)
 { this->camera = camera; }
 
 
 // The update&render loop
-void Viewer::run()
+void GLViewer::run()
 {
   // make sure the renderer is set corretly
   size_t w, h;
@@ -60,10 +60,7 @@ void Viewer::run()
   renderer->set_camera(camera);
 
   // soft renderer special
-  if (typeid(*renderer) == typeid(SoftRenderer))
-    dynamic_cast<SoftRenderer*>(renderer)->set_draw_func(make_buffer_draw());
-  else
-    cout << "Viewer Error: Unkown renderer " << typeid(*renderer).name() << endl;
+  dynamic_cast<GLRenderer*>(renderer)->set_draw_func(make_buffer_draw());
 
   // update callback function
   gl_set_buffer_callback(window, make_buffer_callback());
@@ -91,7 +88,8 @@ void Viewer::run()
 
 
 // Make a callable draw function for soft renderer
-Viewer::DrawFunc Viewer::make_buffer_draw() const
+GLViewer::DrawFunc
+GLViewer::make_buffer_draw() const
 {
   // captures the pointer `this`
   return [=](unsigned char* b, size_t w, size_t h) -> void
@@ -99,7 +97,8 @@ Viewer::DrawFunc Viewer::make_buffer_draw() const
 }
 
 // Make a buffer resize callback. See pixels.h
-BufferFunc Viewer::make_buffer_callback() const
+BufferFunc
+GLViewer::make_buffer_callback() const
 {
   // captures the pointer `this`
   return [=](int width, int height) -> void
@@ -108,7 +107,8 @@ BufferFunc Viewer::make_buffer_callback() const
 }
 
 // Make scroll callback. See pixels.h
-ScrollFunc Viewer::make_scroll_callback() const
+ScrollFunc
+GLViewer::make_scroll_callback() const
 {
   // captures the pointer `this`
   return [=](double dx, double dy) -> void
@@ -116,7 +116,8 @@ ScrollFunc Viewer::make_scroll_callback() const
 }
 
 // Make cursor position callback. See pixels.h
-CursorFunc Viewer::make_cursor_callback() const
+CursorFunc
+GLViewer::make_cursor_callback() const
 {
   // captures the pointer `this`
   return [=](double i, double j) -> void
