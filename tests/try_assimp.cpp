@@ -11,9 +11,29 @@ using namespace std;
 
 const aiScene* as;
 
+void print_face(const aiFace& face)
+{
+  cout << "face has vertices ";
+  for (int i = 0; i < face.mNumIndices; ++i)
+    cout << face.mIndices[i] << " ";
+  cout << endl;
+}
+
 void print_mesh(const aiMesh& mesh)
 {
-  cout << "mesh has " << mesh.mNumFaces << " faces" << endl;
+  cout << "mesh has ";
+  cout << mesh.mNumFaces << " faces, ";
+  cout << mesh.mNumBones << " bones, ";
+  cout << mesh.mNumUVComponents[0] << " texture uv componets, ";
+  cout << mesh.mNumVertices << " vertices, ";
+  cout << mesh.mPrimitiveTypes << " primitive types";
+  cout << endl;
+
+  // print each face
+  for (int i = 0; i < mesh.mNumFaces; ++i) {
+    cout << "        ";
+    print_face(mesh.mFaces[i]);
+  }
 }
 
 void check_model(const aiNode& node)
