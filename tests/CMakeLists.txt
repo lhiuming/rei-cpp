@@ -63,3 +63,8 @@ target_link_libraries(test_viewer viewer camera scene renderer)
 # Three triangle test (for color and z-buffer)
 add_executable(three_triangle three_triangle.cpp)
 target_link_libraries(three_triangle model scene camera viewer renderer)
+
+
+# Three triangle test (for color and z-buffer)
+add_executable(draw_cube draw_cube.cpp)
+target_link_libraries(draw_cube model scene camera viewer renderer asset_loader)
