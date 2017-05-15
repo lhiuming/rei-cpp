@@ -77,7 +77,8 @@ static map<GLFWwindow*, Canvas> canvas_table;
 // Check is the window id is in the cancas table
 int check_canvas(GLFWwindow* window)
 {
-  if (canvas_table.find(window) == canvas_table.end()) {
+  if (canvas_table.find(window) == canvas_table.end())
+  {
     cerr << "pixels Error: Invalid window id." << endl;
     return -1;
   }
@@ -91,7 +92,7 @@ void create_texture(GLuint* texture_p, int buffer_w, int buffer_h)
   // Get a new texture object id
   glGenTextures(1, texture_p);
   glBindTexture(GL_TEXTURE_2D, *texture_p);
-  glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGB8, buffer_w, buffer_h);
+  glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, buffer_w, buffer_h);
 
   // Set the sampling method. Default method is mipmap filering, which
   // we dont need (and will causes rendering error if no mipmap generated)
@@ -123,7 +124,6 @@ void default_buffer_resize_callback(GLFWwindow* w, int buffer_w, int buffer_h)
   GLuint* tex_p = &(canvas_table[w].texture);
   glDeleteTextures(1, tex_p); // release the old one
   create_texture(tex_p, buffer_w, buffer_h);  // get a new one with new size
-
 } // end resize_callback
 
 
@@ -416,7 +416,7 @@ void gl_draw(GLFWwindow* window, char unsigned *pixels, size_t w, size_t h)
 
   // Load the input buffer into texture
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
-    GL_RGB, GL_UNSIGNED_BYTE, pixels);
+    GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
   // Render on the rectangle canvas
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);

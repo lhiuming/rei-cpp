@@ -32,14 +32,18 @@ int main(int argc, char** argv)
   s.add_model(meshes[0], Mat4::I()); // push it as it-is
   cout << "Scene set up. " << endl;
 
+  // window size
+  const int width = 1280;
+  const int height = 720;
+
   // Set up the camera
   Camera c({0, 0, 20}, {0, 0, -1});
-  c.set_ratio(720.0 / 480.0);
+  c.set_ratio((float)width / height);
   cout << "Camera set up." << endl;
 
   // Set up the Viewer and Renderer
   SoftRenderer r;  // no much setting necessary
-  Viewer v(720, 480, "Three Triangle (testing color and z-buffer)");
+  Viewer v(width, height, "Three Triangle (testing color and z-buffer)");
   v.set_camera(&c);
   v.set_scene(&s);
   v.set_renderer(&r);

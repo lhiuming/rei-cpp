@@ -36,8 +36,8 @@ void SoftRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
   this->width = width;
   this->height = height;
-  buffer_maker.reserve(width * height * 3);
-  pixels = &buffer_maker[0];
+  buffer_maker.reserve(width * height * 4);
+  this->pixels = &(buffer_maker[0]);
 }
 
 // Render request
@@ -89,7 +89,7 @@ void SoftRenderer::render()
   // must write a helper function for this
 
   // clear the buffer
-  memset(pixels, 0, width * height * 3 * sizeof(unsigned char));
+  memset(pixels, 0, width * height * 4 * sizeof(unsigned char));
 
   // Fetch and render all models
   for (const auto& mi : scene->get_models() )
@@ -123,7 +123,6 @@ void SoftRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 void
 SoftRenderer::rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans)
 {
-  // TODO: add naive culling (exlucde triangles)
   // TODO: add depth buffer
   // TODO: do fast-exclude raseterization
   // TODO: add sopisticated culling
@@ -174,7 +173,7 @@ inline void SoftRenderer::put_sample(int x, int y)
   if (x < 0 || x >= width) return;
   if (y < 0 || y >= height) return;
 
-  BufferSize offset = (y * width + x) * 3;
+  BufferSize offset = (y * width + x) * 4;
   pixels[offset    ] = (unsigned char) 255;
   pixels[offset + 1] = (unsigned char) 128;
   pixels[offset + 2] = (unsigned char) 128;
