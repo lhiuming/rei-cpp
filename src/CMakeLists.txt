@@ -22,6 +22,10 @@ target_link_libraries(scene algebra model)
 add_library(camera camera.cpp camera.h)
 target_link_libraries(camera algebra)
 
+# assert loader
+add_library(asset_loader asset_loader.cpp asset_loader.h)
+target_link_libraries(asset_loader assimp)
+
 # renderer
 add_library(renderer renderer.cpp renderer.h)
 target_link_libraries(renderer algebra scene)

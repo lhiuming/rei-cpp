@@ -60,7 +60,7 @@ public:
   using VertexIt = std::vector<Vertex>::iterator;
   using Triangle = TriangleImp<VertexIt>;
 
-  // Dont allow empty mesh
+  // Default Constructor : Dont allow empty mesh
   Mesh() = delete;
 
   // Copy and Move
