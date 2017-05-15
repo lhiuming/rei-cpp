@@ -59,19 +59,22 @@ public:
   using size_type = std::vector<Vertex>::size_type;
   using VertexIt = std::vector<Vertex>::iterator;
   using Triangle = TriangleImp<VertexIt>;
+  using IndexTriangle = TriangleImp<size_type>;
 
   // Default Constructor : Dont allow empty mesh
   Mesh() = delete;
 
-  // Copy and Move
+  // Copy controls : all defaults
+  ~Mesh() override = default;
   Mesh(const Mesh& rhs) = default;
   Mesh(Mesh&& rhs) = default;
 
   // Constructor with both vertices and triangles of vertex indices
-  Mesh(std::vector<Vertex>&& va, const std::vector<size_type>& ta);
+  Mesh(const std::vector<Vertex>& va, const std::vector<size_type>& ta);
+  Mesh(std::vector<Vertex>&& va, std::vector<size_type>&& ta);
 
-  // Destructor; we have only standard containers
-  ~Mesh() override = default;
+  // Constructor alternatives
+  Mesh(std::vector<Vertex>&& va, std::vector<IndexTriangle>&& ta);
 
   // Primitives queries
   const std::vector<Vertex>& get_vertices() const { return vertices; }

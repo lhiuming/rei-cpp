@@ -48,6 +48,10 @@ target_link_libraries(test_model model)
 add_executable(test_camera test_camera.cpp)
 target_link_libraries(test_camera camera)
 
+# Test asset_loader
+add_executable(test_asset_loader test_asset_loader.cpp)
+target_link_libraries(test_asset_loader asset_loader model)
+
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
 target_link_libraries(test_viewer viewer camera scene renderer)
