@@ -54,6 +54,7 @@ public:
 private:
 
   WindowID window; // set by GLViewer
+  GLuint program; // object id for a unified pass-through shader
 
   // Implementation helpers
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);

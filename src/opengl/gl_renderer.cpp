@@ -7,11 +7,74 @@
 
 using namespace std;
 
+static const char* gl_vertex_shader_text =  // vertiex shader source
+"#version 410 core\n"
+"layout (location = 0) in vec4 coord;\n"
+"layout (location = 1) in vec4 color_in;\n"
+"out vec4 vertex_color_out;\n"
+"void main() {\n"
+"  gl_Position = coord;\n"
+"  vertex_color_out = color_in;\n"
+"}\n";
+
+static const char* gl_fragment_shader_text =  // fragment shader source
+"#version 410 core\n"
+"in vec4 vertex_color_out;\n"
+"out vec4 color;\n"
+"void main() {\n"
+"  color = vertex_color_out;\n"
+"}\n";
+
 namespace CEL {
 
 // Default constructor
-GLRenderer::GLRenderer() : Renderer() {
-  // TODO initializde the shader programs
+GLRenderer::GLRenderer() : Renderer()
+{
+  // Prepare a shared pass-through style shaders //////////////////////////////
+
+  // Variables for compile error check
+  GLint success;
+  GLchar infoLog[512];
+
+  // Compile the vertex shader
+  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);
+  glCompileShader(vertexShader);
+  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+  if (!success) // check if compile pass
+  {
+    glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
+    cerr << "Error: vertex shader compile failed:\n" << infoLog << endl;
+  }
+
+  // Compile the fragment shader. Similar above.
+  GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fragmentShader, 1, &gl_fragment_shader_text, nullptr);
+  glCompileShader(fragmentShader);
+  glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+  if (!success)
+  {
+    glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
+    cerr << "Error: fragment shader compile failed:\n" << infoLog << endl;
+  }
+
+  // Link the compiled shader into a program;
+  program = glCreateProgram();
+  glAttachShader(program, vertexShader);  // attach shader
+  glAttachShader(program, fragmentShader);
+  glLinkProgram(program);
+  // test the result as usual
+  glGetProgramiv(program, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(program, 512, nullptr, infoLog);
+    std::cerr << "Error: shader linking failed:\n"
+              << infoLog << std::endl;
+  }
+
+  // Do not need them after set up the shader program
+  glDeleteShader(vertexShader);
+  glDeleteShader(fragmentShader);
+
 }
 
 // Set buffer size
@@ -49,16 +112,16 @@ void GLRenderer::render()
     return;
   }
 
-  // TODO
-  // Transform the scene into internal format (ready for shading)
+  // make the window current (activate)
+  glfwMakeContextCurrent(this->window);
 
-  // TODO Do vertex shading on the scene (internal format)
-  // 1. create vertex array object
-  // 2. pass coordinate and colors by creating and linking buffer objects
-  // 3. pass triangle vertices index by Element Buffer object
+  // Clear the frame buffer
+  glClear(GL_COLOR_BUFFER_BIT);
 
+  // Activate shader programs
+  glUseProgram(this->program);
 
-  // Fetch and render all models
+  // Fetch and render all models (set vao, ebo, etc and draw)
   for (const auto& mi : scene->get_models() )
   {
     const Model& model = *(mi.pmodel);
@@ -67,17 +130,77 @@ void GLRenderer::render()
     // choose a rendering procedure
     const auto& model_type = typeid(model);
     if (model_type == typeid(Mesh)) {
-      //rasterize_mesh(dynamic_cast<const Mesh&>(model), trans);
+      rasterize_mesh(dynamic_cast<const Mesh&>(model), trans);
     } else {
       cerr << "Error: Unkown model type: "<< model_type.name() << endl;
     }
   } // end for
 
+  // Display !
+  glfwSwapBuffers(window);
 }
 
 void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 {
-  
+  // 1. create vertex array object
+  GLuint vao;
+  glGenVertexArrays(1, &vao); // get an vao id
+  glBindVertexArray(vao); // activate it
+
+  // 2. pass triangle vertices index by Element Buffer object
+  vector<GLuint> triangle_indixes;
+  auto offset = mesh.get_vertices().begin();
+  for (const auto& t : mesh.get_triangles())
+  {
+    // We should possibly use id in mesh.triangles ... instead of iterator
+    triangle_indixes.push_back(t.a - offset);
+    triangle_indixes.push_back(t.b - offset);
+    triangle_indixes.push_back(t.c - offset);
+  }
+  unsigned int element_count = triangle_indixes.size();
+  GLuint ebo;
+  glGenBuffers(1, &ebo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+    sizeof(GLuint) * element_count,
+    &(triangle_indixes[0]),
+    GL_STATIC_DRAW);
+
+  // 3. pass coordinate and colors by creating and linking buffer objects
+  vector<GLfloat> mesh_prop;
+  for (const auto& v : mesh.get_vertices())
+  {
+    // coordinate (transformed by model and camera)
+    // TODO push it at GPU
+    Vec4 coord = camera->get_w2n() * trans * v.coord;
+    mesh_prop.push_back(coord.x);
+    mesh_prop.push_back(coord.y);
+    mesh_prop.push_back(coord.z);
+    mesh_prop.push_back(coord.h);
+    // color
+    mesh_prop.push_back(v.color.r);
+    mesh_prop.push_back(v.color.g);
+    mesh_prop.push_back(v.color.b);
+    mesh_prop.push_back(v.color.a);
+  }
+  GLuint vbo;
+  glGenBuffers(1, &vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * mesh_prop.size(),
+    &(mesh_prop[0]), GL_STATIC_DRAW);
+  // link to attribute location
+  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
+    4 * sizeof(GLfloat), (GLvoid *)0);
+  glEnableVertexAttribArray(0); // coordinate
+  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
+    4 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
+  glEnableVertexAttribArray(1); // color
+
+  // TODO
+  // pass a uniform transform matrix
+
+  // Draw them
+  glDrawElements(GL_TRIANGLES, element_count, GL_UNSIGNED_INT, 0);
 }
 
 

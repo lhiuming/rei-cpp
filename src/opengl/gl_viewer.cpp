@@ -63,7 +63,6 @@ void GLViewer::run()
 
     // render the scene on the buffer
     renderer->render();
-    gl_poll_events();
 
   } // end while
 

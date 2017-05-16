@@ -43,9 +43,9 @@ int main(int argc, char** argv)
   cout << "Camera set up." << endl;
 
   // Set up the Viewer and Renderer
-  auto r = makeRenderer();
   auto v = makeViewer(width, height,
     "Three Triangle (testing color and z-buffer)");
+  auto r = makeRenderer(); // must put after Viewer construction ! 
   v->set_camera(c);
   v->set_scene(s);
   v->set_renderer(r);
