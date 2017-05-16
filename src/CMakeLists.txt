@@ -16,7 +16,7 @@ target_link_libraries(viewer_imp pixels renderer scene)
 
 # renderer : OpenGL
 add_library(renderer_imp opengl/gl_renderer.cpp opengl/gl_renderer.h)
-target_link_libraries(renderer_imp algebra scene)
+target_link_libraries(renderer_imp pixels algebra scene)
 
 
 # Direct3D

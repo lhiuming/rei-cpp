@@ -45,9 +45,7 @@ void GLViewer::run()
   renderer->set_buffer_size(w, h);
   renderer->set_scene(scene);
   renderer->set_camera(camera);
-
-  // soft renderer special
-  dynamic_pointer_cast<GLRenderer>(renderer)->set_draw_func(make_buffer_draw());
+  dynamic_pointer_cast<GLRenderer>(renderer)->set_window(window);
 
   // update callback function
   gl_set_buffer_callback(window, make_buffer_callback());
@@ -73,15 +71,6 @@ void GLViewer::run()
 
 } // end run()
 
-
-// Make a callable draw function for soft renderer
-GLViewer::DrawFunc
-GLViewer::make_buffer_draw() const
-{
-  // captures the pointer `this`
-  return [=](unsigned char* b, size_t w, size_t h) -> void
-         { gl_draw(this->window, b, w, h); };
-}
 
 // Make a buffer resize callback. See pixels.h
 BufferFunc

@@ -19,10 +19,11 @@ namespace CEL {
 // The base class
 ////
 
-using BufferSize = std::size_t;
-
 class Renderer {
 public:
+
+  // Type Alias
+  using BufferSize = std::size_t;
 
   // Default constructor
   Renderer();

@@ -46,15 +46,10 @@ private:
 
   WindowID window;
 
-
   static int view_count; // count the number of alive window
 
   // Implementation helpers
   void update_buffer_size() const;
-
-  // create callable object for renderers drawing call
-  using DrawFunc = GLRenderer::DrawFunc;
-  DrawFunc make_buffer_draw() const;
 
   // create callback objects for pixiels library
   BufferFunc make_buffer_callback() const;
