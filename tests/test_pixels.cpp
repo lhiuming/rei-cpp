@@ -7,7 +7,7 @@
 #include <iostream>
 #include <vector>
 
-#include <pixels.h>
+#include <opengl/pixels.h>
 
 //#define DEBUG_PRINT
 

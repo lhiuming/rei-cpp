@@ -31,8 +31,10 @@ public:
   virtual ~Renderer() {};
 
   // Change content
-  void set_scene(const Scene* scene) { this->scene = scene; }
-  void set_camera(const Camera* camera) { this->camera = camera; }
+  void set_scene(std::shared_ptr<const Scene> scene) {
+    this->scene = scene; }
+  void set_camera(std::shared_ptr<const Camera> camera) {
+    this->camera = camera; }
 
   // Basic interface
   virtual void set_buffer_size(BufferSize width, BufferSize height) = 0;
@@ -42,10 +44,13 @@ protected:
 
   BufferSize width, height;
 
-  const Scene* scene = nullptr;
-  const Camera* camera = nullptr;
+  std::shared_ptr<const Scene> scene;
+  std::shared_ptr<const Camera> camera;
 
 };
+
+// A cross-platform renderer factory
+std::shared_ptr<Renderer> makeRenderer();
 
 } // namespace CEL
 

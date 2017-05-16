@@ -1,5 +1,5 @@
-#ifndef CEL_OPENGL_RENDERER_H
-#define CEL_OPENGL_RENDERER_H
+#ifndef CEL_OPENGL_GL_RENDERER_H
+#define CEL_OPENGL_GL_RENDERER_H
 
 #include <cstddef>
 
@@ -69,7 +69,6 @@ private:
   void put_sample(int x, int y);
 
 };
-
 
 } // namespace CEL
 

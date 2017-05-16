@@ -1,16 +1,25 @@
 # Build the Cel project library
 
 #------------------
-# OpenGL dependent
+# Platform dependent
 #------------------
 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/opengl")
+# OpenGL ----
 
-#--------------------
-# Direct3D dependent
-#--------------------
+# pixels: the wrapper with GL libraries
+add_library(pixels opengl/pixels.cpp opengl/pixels.h)
+target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
 
-# Not done, yet.
+# viewer
+add_library(viewer_imp opengl/gl_viewer.cpp opengl/gl_viewer.h)
+target_link_libraries(viewer_imp pixels renderer scene)
+
+# renderer : OpenGL
+add_library(renderer_imp opengl/gl_renderer.cpp opengl/gl_renderer.h)
+target_link_libraries(renderer_imp algebra scene)
+
+
+# Direct3D
 
 #----------------
 # Cross platform
@@ -33,6 +42,14 @@ target_link_libraries(scene algebra model)
 # camera
 add_library(camera camera.cpp camera.h)
 target_link_libraries(camera algebra)
+
+# renderer
+add_library(renderer renderer.cpp renderer.h)
+target_link_libraries(renderer renderer_imp)
+
+# viewer
+add_library(viewer viewer.cpp viewer.h)
+target_link_libraries(viewer viewer_imp)
 
 # assert loader
 add_library(asset_loader asset_loader.cpp asset_loader.h)

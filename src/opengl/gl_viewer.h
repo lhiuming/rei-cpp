@@ -1,12 +1,13 @@
-#ifndef CEL_OPENGL_VIEWER_H
-#define CEL_OPENGL_VIEWER_H
+#ifndef CEL_OPENGL_GL_VIEWER_H
+#define CEL_OPENGL_GL_VIEWER_H
 
 #include <cstddef>
 #include <string>
 #include <vector>
 
 #include "pixels.h"
-#include "renderer.h"
+#include "gl_renderer.h"
+
 #include "../scene.h"
 #include "../camera.h"
 
@@ -38,21 +39,13 @@ public:
   // Destructor
   ~GLViewer();
 
-  // Configuration
-  void set_renderer(Renderer* renderer);
-  void set_scene(Scene* scene);
-  void set_camera(Camera* cam);
-
   // Start the update&render loop
-  void run();
+  void run() override;
 
 private:
 
   WindowID window;
 
-  Renderer* renderer = nullptr; // a pointer to a renderer
-  Scene* scene = nullptr; // a pointer to a scene
-  Camera* camera = nullptr; // a pointer to a camera
 
   static int view_count; // count the number of alive window
 

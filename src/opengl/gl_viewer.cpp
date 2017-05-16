@@ -1,5 +1,5 @@
-// source of viewer.h
-#include "viewer.h"
+// source of gl_viewer.h
+#include "gl_viewer.h"
 
 #include <cstddef>
 #include <cmath>
@@ -36,19 +36,6 @@ GLViewer::~GLViewer()
 }
 
 
-// Set a renderer
-void GLViewer::set_renderer(Renderer* renderer)
-{ this->renderer = renderer; }
-
-// Set a scene (will be passed to renderer)
-void GLViewer::set_scene(Scene* scene)
-{ this->scene = scene; }
-
-// Set a camera (will be passed to renderer)
-void GLViewer::set_camera(Camera* camera)
-{ this->camera = camera; }
-
-
 // The update&render loop
 void GLViewer::run()
 {
@@ -60,7 +47,7 @@ void GLViewer::run()
   renderer->set_camera(camera);
 
   // soft renderer special
-  dynamic_cast<GLRenderer*>(renderer)->set_draw_func(make_buffer_draw());
+  dynamic_pointer_cast<GLRenderer>(renderer)->set_draw_func(make_buffer_draw());
 
   // update callback function
   gl_set_buffer_callback(window, make_buffer_callback());

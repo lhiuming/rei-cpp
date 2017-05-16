@@ -1,5 +1,5 @@
 // source of renderer.h (in opengl/)
-#include "renderer.h"
+#include "gl_renderer.h"
 
 #include <cstring>
 #include <iostream>
