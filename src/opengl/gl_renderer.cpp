@@ -9,20 +9,20 @@ using namespace std;
 
 static const char* gl_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
-"layout (location = 0) in vec4 coord;\n"
-"layout (location = 1) in vec4 color_in;\n"
-"out vec4 vertex_color_out;\n"
+"layout (location = 0) in vec4 vPosition;\n"
+"layout (location = 1) in vec4 vColor;\n"
+"out vec4 color;\n"
 "void main() {\n"
-"  gl_Position = coord;\n"
-"  vertex_color_out = color_in;\n"
+"  gl_Position = vPosition;\n"
+"  color = vColor;\n"
 "}\n";
 
 static const char* gl_fragment_shader_text =  // fragment shader source
 "#version 410 core\n"
-"in vec4 vertex_color_out;\n"
-"out vec4 color;\n"
+"in vec4 color;\n"
+"out vec4 fcolor;\n"
 "void main() {\n"
-"  color = vertex_color_out;\n"
+"  fcolor = color;\n"
 "}\n";
 
 namespace CEL {
@@ -84,6 +84,7 @@ void GLRenderer::set_buffer_size(BufferSize width, BufferSize height)
   // use GL api
 }
 
+
 // Render request
 void GLRenderer::render()
 {
@@ -115,8 +116,13 @@ void GLRenderer::render()
   // make the window current (activate)
   glfwMakeContextCurrent(this->window);
 
+  // Set the rendering methos
+  glEnable(GL_DEPTH_TEST); // yes, we need to enable it manually !
+  glDepthRangef(0.0, 1.0); // reversed; we looks at -z axis
+  glDepthFunc(GL_LESS); // it is default :)
+
   // Clear the frame buffer
-  glClear(GL_COLOR_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Activate shader programs
   glUseProgram(this->program);
@@ -140,6 +146,7 @@ void GLRenderer::render()
   glfwSwapBuffers(window);
 }
 
+
 void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
 {
   // 1. create vertex array object
@@ -150,7 +157,7 @@ void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
   // 2. pass triangle vertices index by Element Buffer object
   vector<GLuint> triangle_indixes;
   auto offset = mesh.get_vertices().begin();
-  for (const auto& t : mesh.get_triangles())
+  for (const Mesh::Triangle& t : mesh.get_triangles())
   {
     // We should possibly use id in mesh.triangles ... instead of iterator
     triangle_indixes.push_back(t.a - offset);
@@ -161,9 +168,9 @@ void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
   GLuint ebo;
   glGenBuffers(1, &ebo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-    sizeof(GLuint) * element_count,
-    &(triangle_indixes[0]),
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, // target
+    element_count * sizeof(GLuint), // size of the buffer
+    &(triangle_indixes[0]), // array to Initialize
     GL_STATIC_DRAW);
 
   // 3. pass coordinate and colors by creating and linking buffer objects
@@ -190,17 +197,22 @@ void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
     &(mesh_prop[0]), GL_STATIC_DRAW);
   // link to attribute location
   glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
-    4 * sizeof(GLfloat), (GLvoid *)0);
+    8 * sizeof(GLfloat), (GLvoid *)0);
   glEnableVertexAttribArray(0); // coordinate
   glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-    4 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
+    8 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
   glEnableVertexAttribArray(1); // color
 
   // TODO
   // pass a uniform transform matrix
 
   // Draw them
-  glDrawElements(GL_TRIANGLES, element_count, GL_UNSIGNED_INT, 0);
+  glDrawElements(GL_TRIANGLES, element_count, GL_UNSIGNED_INT, nullptr);
+
+  // Delete after using
+  glDeleteVertexArrays(1, &vao);
+  glDeleteBuffers(1, &vbo);
+  glDeleteBuffers(1, &ebo);
 }
 
 

@@ -42,7 +42,7 @@ public:
   struct Vertex {
     Vec4 coord; // Vertex position
     Color color; // Vertec color
-    Vertex(const Vec3& pos3) : coord(pos3, 1.0) {};
+    Vertex(const Vec3& pos3) : coord(pos3, 1.0), color(0.0, 0.0, 1.0 , 1.0) {};
     Vertex(const Vec3& pos3, const Color& c) : coord(pos3, 1.0), color(c) {};
   };
 
@@ -64,9 +64,9 @@ public:
   // Default Constructor : Dont allow empty mesh
   Mesh() = delete;
 
-  // Copy controls : all defaults
+  // Copy controls
   ~Mesh() override = default;
-  Mesh(const Mesh& rhs) = default;
+  Mesh(const Mesh& rhs) = delete; // TODO do the extra work
   Mesh(Mesh&& rhs) = default;
 
   // Constructor with both vertices and triangles of vertex indices

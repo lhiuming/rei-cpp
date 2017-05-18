@@ -20,7 +20,7 @@ int main(int argc, char** argv)
   if (argc > 1) {
     fn = string(argv[1]);
   } else {
-    fn = string("../tests/cube.dae");
+    fn = string("../tests/color_cube.dae");
     cout << "using default input file: " << fn << endl;
   }
 
@@ -28,6 +28,14 @@ int main(int argc, char** argv)
   auto meshes = loader.load_mesh(fn);
   cout << "Model read. Get " << meshes.size() << " meshes. " << endl;
 
+  // Check the model
+  for(const auto& t : meshes[0]->get_triangles())
+  {
+    cout << "triangle: " << endl;
+    cout << "  " << t.a->coord << ", " << t.a->color << endl;
+    cout << "  " << t.b->coord << ", " << t.b->color << endl;
+    cout << "  " << t.c->coord << ", " << t.c->color << endl;
+  }
   // Set up the scene
   auto s = make_shared<StaticScene>();
   s->add_model(meshes[0], Mat4::I()); // push it as it-is
@@ -45,7 +53,7 @@ int main(int argc, char** argv)
   // Set up the Viewer and Renderer
   auto v = makeViewer(width, height,
     "Three Triangle (testing color and z-buffer)");
-  auto r = makeRenderer(); // must put after Viewer construction ! 
+  auto r = makeRenderer(); // must put after Viewer construction !
   v->set_camera(c);
   v->set_scene(s);
   v->set_renderer(r);

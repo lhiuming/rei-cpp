@@ -99,11 +99,12 @@ GLViewer::make_cursor_callback() const
          {
            if (gl_get_mouse_button(this->window, MOUSE_LEFT) == PRESS) {
              double dx = this->last_j - j;
-             this->camera->move(dx * 0.05, 0.0, 0.0); // oppose direction
+             double dy = this->last_i - i;
+             this->camera->move(dx * 0.05, 0.0, dy * 0.05); // oppose direction
            } // end if
            // update any way
            this->last_j = j;
-           this->last_i = j;
+           this->last_i = i;
          };
 }
 

@@ -17,15 +17,14 @@ int main()
   using Vertex = typename Mesh::Vertex;
 
   // Create the triangles
-  Vertex v1({10, 0, 0}), v2({10, 10, 0}), v3({-10, 0, 0});
-  Vertex v4({0, 10, 0}), v5({-10, 10, 0}), v6({0, -10, 0});
-  vector<Vertex> va;
+  Vertex v1({10, 0, 0}), v2({8, 7, 0}), v3({-5, 0, 0});
+  Vertex v4({0, 6, 0}), v5({-3, 0, 0}), v6({0, -10, 0});
   Mesh mesh{{v1, v2, v3, v4, v5, v6}, {0, 1, 2, 3, 4, 5}};
   cout << "Mesh model set up." << endl;
 
   // Set up the scene
   auto s = make_shared<StaticScene>();
-  s->add_model(ModelPtr(new Mesh(mesh)), Mat4::I());
+  s->add_model(make_shared<Mesh>(std::move(mesh)), Mat4::I());
   cout << "Scene set up. " << endl;
 
   // Set up the camera
