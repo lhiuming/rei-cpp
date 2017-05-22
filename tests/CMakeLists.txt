@@ -14,11 +14,28 @@ foreach(program ${GL_lib_test})
   target_link_libraries(${program} ${GL_LIBS})
 endforeach(program)
 
+
 #-----------------------
 # Test the D3D libraries
 #-----------------------
 
-# Yes, we dont have any yet.
+find_path(WIN_SDK_DIR
+	NAMES Include/um/d3d11.h
+	HINTS "$ENV{ProgramFiles(x86)}/Windows Kits/8.1/" 
+	)
+
+set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib dxgi.lib dxguid.lib) 
+
+file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug
+	 )
+file(COPY ${CMAKE_CURRENT_ROOT_DIR}effects.hlsl
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/Debug
+	 )
+
+add_executable(test_d3d11 WIN32 test_d3d11.cpp)
+target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
+
 
 #-----------------------------
 # Test some utility libraries
