@@ -152,7 +152,7 @@ bool InitializeWindow(HINSTANCE hInstance,  // program instance
   hwnd = CreateWindowEx(  // extended window class, based on the basic class 
     NULL,
     WndClassName,
-    "Lesson 4 - Begin Drawing",
+    "ex window title, you can set !!!",
     WS_OVERLAPPEDWINDOW,
     CW_USEDEFAULT, CW_USEDEFAULT,
     width, height,
@@ -175,6 +175,8 @@ bool InitializeWindow(HINSTANCE hInstance,  // program instance
   return true;
 }
 
+
+// Initialize D3D interfaces 
 bool InitializeDirect3d11App(HINSTANCE hInstance)
 {
   // Describe our Buffer (drawing on the window) 
@@ -218,6 +220,7 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
   return true;
 }
 
+// Release those global objects
 void CleanUp()
 {
   //Release the COM Objects we created
@@ -235,6 +238,8 @@ void CleanUp()
   vertLayout->Release();
 }
 
+
+// Initialize the Scene&rendering related stuffs 
 bool InitScene()
 {
   // Compile Shaders from shader file
@@ -271,17 +276,18 @@ bool InitScene()
 
   // the data we will use
   Vertex v[] =
-  { // A triangle 
-    Vertex(0.0f, 0.5f, 0.5f),
-    Vertex(0.5f, -0.5f, 0.5f),
-    Vertex(-0.5f, -0.5f, 0.5f),
+  { // A triangle (NOTE: D3D camera looks toward +z axis) 
+    Vertex(-0.5f,  0.5f, 0.9f),
+    Vertex( 0.5f,  0.5f, 0.9f),
+    Vertex( 0.5f, -0.5f, 0.9f),
+    Vertex(-0.5f, -0.5f, 0.9f),
   };
 
   // Create a buffer description 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
-  vertexBufferDesc.ByteWidth = sizeof(Vertex) * 3;  // size of the buffer 
+  vertexBufferDesc.ByteWidth = sizeof(Vertex) * sizeof(v);  // size of the buffer 
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  // used as vertex buffer 
   vertexBufferDesc.CPUAccessFlags = 0; // how it will be used by the CPU; we don't use it 
   vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
@@ -335,7 +341,10 @@ bool InitScene()
   viewport.Height = Height;
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
-  d3d11DevCon->RSSetViewports(1, &viewport);
+  d3d11DevCon->RSSetViewports(
+    1, // TODO: what are these
+    &viewport
+  );
 
   return true;
 }
@@ -351,7 +360,7 @@ void UpdateScene()
 void DrawScene()
 {
   // Clear our backbuffer
-  float bgColor[4] = { (0.0f, 0.0f, 0.0f, 0.0f) };
+  float bgColor[4] = { 0.3f, 0.6f, 0.7f, 1.0f };
   d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
   // Draw the triangle
@@ -359,6 +368,7 @@ void DrawScene()
     3, // number of vertices to draw  
     0  // offset in the vertices array to start 
   );
+  d3d11DevCon->Draw(3, 1); // draw another triangles 
 
   // Present the backbuffer to the screen
   SwapChain->Present(0, 0);   // TODO: what are there parameters 
