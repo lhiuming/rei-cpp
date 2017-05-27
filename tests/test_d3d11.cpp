@@ -1,5 +1,4 @@
-// D3D11 tutorial from www.braynzarsoft.net
-// with modification and additional comments 
+// D3D11 tutorial from www.braynzarsoft.net, with modification and additional comments 
 
 // Include and link appropriate libraries and headers //
 
@@ -8,22 +7,23 @@
 #include <d3dcompiler.h>  // new shader compiler from d3d11; D3DX is deprecated since windows 8
 #include <DirectXMath.h>  // new math lib from d3d11 
 
-//Global Declarations - Interfaces//
+// D3D Interfaces
 IDXGISwapChain* SwapChain;
 ID3D11Device* d3d11Device;
 ID3D11DeviceContext* d3d11DevCon;
 ID3D11RenderTargetView* renderTargetView;
 
-///////////////**************new**************////////////////////
+
+// Rendering objects 
 ID3D11Buffer* triangleVertBuffer;
 ID3D11VertexShader* VS;
 ID3D11PixelShader* PS;
 ID3DBlob* VS_Buffer; // not using ID3D10Blob; new from d3dcompiler
 ID3DBlob* PS_Buffer;
 ID3D11InputLayout* vertLayout;
-///////////////**************new**************////////////////////
 
-//Global Declarations - Others//
+
+// window management 
 LPCTSTR WndClassName = "firstwindow";
 HWND hwnd = NULL;
 HRESULT hr;
@@ -31,27 +31,22 @@ HRESULT hr;
 const int Width = 300;
 const int Height = 300;
 
-//Function Prototypes//
+// Function Prototypes //
+
 bool InitializeDirect3d11App(HINSTANCE hInstance);
 void CleanUp();
 bool InitScene();
 void UpdateScene();
 void DrawScene();
 
-bool InitializeWindow(HINSTANCE hInstance,
-  int ShowWnd,
-  int width, int height,
-  bool windowed);
+bool InitializeWindow(HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed);
 int messageloop();
 
-LRESULT CALLBACK WndProc(HWND hWnd,
-  UINT msg,
-  WPARAM wParam,
-  LPARAM lParam);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-///////////////**************new**************////////////////////
-//Vertex Structure and Vertex Layout (Input Layout)//
-struct Vertex    //Overloaded Vertex Structure
+
+// Vertex Structure and Input Data Layout
+struct Vertex
 {
   Vertex() {}
   Vertex(float x, float y, float z)
@@ -60,14 +55,24 @@ struct Vertex    //Overloaded Vertex Structure
   DirectX::XMFLOAT3 pos;  // DirectXMath use DirectX namespace 
 };
 
-D3D11_INPUT_ELEMENT_DESC layout[] =
+D3D11_INPUT_ELEMENT_DESC layout[] = // actually have only one element 
 {
-  { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+  { "POSITION", 0,  // a Name and an Index to map elements in the shader 
+    DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
+    0, // input slot; kind of a flexible and optional configuration 
+    0, // byte offset 
+    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
+    0 // ADVANCED; also for instancing 
+  },
 };
-UINT numElements = ARRAYSIZE(layout);
-///////////////**************new**************////////////////////
+UINT numElements = ARRAYSIZE(layout); // = 1
 
-int WINAPI WinMain(HINSTANCE hInstance,    //Main windows function
+
+// Function Definitions // 
+
+
+// Windows main function 
+int WINAPI WinMain(HINSTANCE hInstance, // program instance 
   HINSTANCE hPrevInstance,
   LPSTR lpCmdLine,
   int nShowCmd)
@@ -101,12 +106,14 @@ int WINAPI WinMain(HINSTANCE hInstance,    //Main windows function
   return 0;
 }
 
-bool InitializeWindow(HINSTANCE hInstance,
-  int ShowWnd,
-  int width, int height,
-  bool windowed)
+
+// window initialization (used in Windows main function) 
+bool InitializeWindow(HINSTANCE hInstance,  // program instance 
+  int ShowWnd,  // whther to show the window ? 
+  int width, int height, // size of the window 
+  bool windowed) // 
 {
-  typedef struct _WNDCLASS {
+  typedef struct _WNDCLASS {  // basic window class 
     UINT cbSize;
     UINT style;
     WNDPROC lpfnWndProc;
@@ -142,7 +149,7 @@ bool InitializeWindow(HINSTANCE hInstance,
     return 1;
   }
 
-  hwnd = CreateWindowEx(
+  hwnd = CreateWindowEx(  // extended window class, based on the basic class 
     NULL,
     WndClassName,
     "Lesson 4 - Begin Drawing",
@@ -170,11 +177,9 @@ bool InitializeWindow(HINSTANCE hInstance,
 
 bool InitializeDirect3d11App(HINSTANCE hInstance)
 {
-  //Describe our Buffer
+  // Describe our Buffer (drawing on the window) 
   DXGI_MODE_DESC bufferDesc;
-
   ZeroMemory(&bufferDesc, sizeof(DXGI_MODE_DESC));
-
   bufferDesc.Width = Width;
   bufferDesc.Height = Height;
   bufferDesc.RefreshRate.Numerator = 60;
@@ -183,13 +188,11 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
   bufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
   bufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
 
-  //Describe our SwapChain
+  // Describe our SwapChain (multiple window buffer; usually for double-buffering) 
   DXGI_SWAP_CHAIN_DESC swapChainDesc;
-
   ZeroMemory(&swapChainDesc, sizeof(DXGI_SWAP_CHAIN_DESC));
-
   swapChainDesc.BufferDesc = bufferDesc;
-  swapChainDesc.SampleDesc.Count = 1;
+  swapChainDesc.SampleDesc.Count = 1; // 1 for double buffer; 2 for triple buffer 
   swapChainDesc.SampleDesc.Quality = 0;
   swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   swapChainDesc.BufferCount = 1;
@@ -197,20 +200,19 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
   swapChainDesc.Windowed = TRUE;
   swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-
-  //Create our SwapChain
+  // Create our SwapChain
   hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, NULL, NULL, NULL,
     D3D11_SDK_VERSION, &swapChainDesc, &SwapChain, &d3d11Device, NULL, &d3d11DevCon);
 
-  //Create our BackBuffer
+  // Create our BackBuffer
   ID3D11Texture2D* BackBuffer;
   hr = SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer);
 
-  //Create our Render Target
+  // Create our Render Target
   hr = d3d11Device->CreateRenderTargetView(BackBuffer, NULL, &renderTargetView);
   BackBuffer->Release();
 
-  //Set our Render Target
+  // Set our Render Target
   d3d11DevCon->OMSetRenderTargets(1, &renderTargetView, NULL);
 
   return true;
@@ -223,20 +225,19 @@ void CleanUp()
   d3d11Device->Release();
   d3d11DevCon->Release();
   renderTargetView->Release();
-  ///////////////**************new**************////////////////////
+
+  // Release the rendering-related object
   triangleVertBuffer->Release();
   VS->Release();
   PS->Release();
   VS_Buffer->Release();
   PS_Buffer->Release();
   vertLayout->Release();
-  ///////////////**************new**************////////////////////
 }
 
-///////////////**************new**************////////////////////
 bool InitScene()
 {
-  //Compile Shaders from shader file
+  // Compile Shaders from shader file
   // NOTE: new interface for D3DCompiler; different from the original tutorial  
   hr = D3DCompileFromFile(
     L"effects.hlsl",  // shader file name 
@@ -250,87 +251,119 @@ bool InitScene()
   );
   hr = D3DCompileFromFile(L"effects.hlsl", 0, 0, "PS", "ps_4_0", 0, 0, &PS_Buffer, 0);
 
-  //Create the Shader Objects
-  hr = d3d11Device->CreateVertexShader(VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), NULL, &VS);
+  // Create the Shader Objects
+  hr = d3d11Device->CreateVertexShader(
+    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(),  // specific the shader data 
+    NULL, // pointer to a class linkage interface; no using now 
+    &VS // receive the returned vertex shader object 
+  );
   hr = d3d11Device->CreatePixelShader(PS_Buffer->GetBufferPointer(), PS_Buffer->GetBufferSize(), NULL, &PS);
 
-  //Set Vertex and Pixel Shaders
-  d3d11DevCon->VSSetShader(VS, 0, 0);
+  // Set Vertex and Pixel Shaders (to be used on the pipeline)
+  d3d11DevCon->VSSetShader(
+    VS, // compiled shader object 
+    0, // set the used interface (related to the class linkage interface?); not using currently 
+    0 // the number of class-instance (related to above); not using currently 
+  );
   d3d11DevCon->PSSetShader(PS, 0, 0);
 
-  //Create the vertex buffer
+  // Create the vertex buffer // 
+
+  // the data we will use
   Vertex v[] =
-  {
+  { // A triangle 
     Vertex(0.0f, 0.5f, 0.5f),
     Vertex(0.5f, -0.5f, 0.5f),
     Vertex(-0.5f, -0.5f, 0.5f),
   };
 
+  // Create a buffer description 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+  vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
+  vertexBufferDesc.ByteWidth = sizeof(Vertex) * 3;  // size of the buffer 
+  vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  // used as vertex buffer 
+  vertexBufferDesc.CPUAccessFlags = 0; // how it will be used by the CPU; we don't use it 
+  vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
+  vertexBufferDesc.StructureByteStride = NULL; // not using 
 
-  vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-  vertexBufferDesc.ByteWidth = sizeof(Vertex) * 3;
-  vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-  vertexBufferDesc.CPUAccessFlags = 0;
-  vertexBufferDesc.MiscFlags = 0;
-
+  // Create the vertex buffer object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;
-
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-  vertexBufferData.pSysMem = v;
-  hr = d3d11Device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &triangleVertBuffer);
+  vertexBufferData.pSysMem = v; // the data to be put (defined above) 
+  //vertexBufferData.SysMemPitch; // width of a line in the data; used in 2D/3D texture 
+  //vertexBufferData.SysMemSlicePitch; // size of a depth-level; used in 3D texture 
+  hr = d3d11Device->CreateBuffer(
+    &vertexBufferDesc, // buffer description 
+    &vertexBufferData, // parameter set above 
+    &triangleVertBuffer // receive the returned ID3D11Buffer object 
+  );
 
-  //Set the vertex buffer
+  // Set the vertex buffer (bind it to the Input Assembler) 
   UINT stride = sizeof(Vertex);
   UINT offset = 0;
-  d3d11DevCon->IASetVertexBuffers(0, 1, &triangleVertBuffer, &stride, &offset);
+  d3d11DevCon->IASetVertexBuffers(
+    0, // the input slot we use
+    1, // number of buffer to bind; we bind one buffer 
+    &triangleVertBuffer, // pointer to the buffer object 
+    &stride, // pStrides; data size for each vertex 
+    &offset // staring offset of the data (didn't we set it above???) 
+  );
 
-  //Create the Input Layout
-  d3d11Device->CreateInputLayout(layout, numElements, VS_Buffer->GetBufferPointer(),
-    VS_Buffer->GetBufferSize(), &vertLayout);
+  // Create the Input Layout
+  d3d11Device->CreateInputLayout(
+    layout, // element layout description (defined above at global scope)
+    numElements, // number of elements; (also defined at global scope) 
+    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader byte code 
+    &vertLayout // received the returned Input Layout  
+  );
 
-  //Set the Input Layout
+  // Set the Input Layout (bind to Input Assembler) 
   d3d11DevCon->IASetInputLayout(vertLayout);
 
-  //Set Primitive Topology
+  // Set Primitive Topology (tell InputAssemble what type of primitives we are sending) 
+  // alternatives: point list, line strip, line list, triangle strip, triangle ist, 
+  // primitives with adjacency (only for geometry shader)
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-  //Create the Viewport
+  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
   D3D11_VIEWPORT viewport;
   ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-
-  viewport.TopLeftX = 0;
-  viewport.TopLeftY = 0;
+  viewport.TopLeftX = 0;  // position of 
+  viewport.TopLeftY = 0;  //  the top-left corner in the window.
   viewport.Width = Width;
   viewport.Height = Height;
 
-  //Set the Viewport
+  // Set the Viewport (bind to the Raster Stage of he pipeline) 
   d3d11DevCon->RSSetViewports(1, &viewport);
 
   return true;
 }
-///////////////**************new**************////////////////////
+
 
 void UpdateScene()
 {
 
 }
 
-///////////////**************new**************////////////////////
+
+// Render the scene 
 void DrawScene()
 {
-  //Clear our backbuffer
+  // Clear our backbuffer
   float bgColor[4] = { (0.0f, 0.0f, 0.0f, 0.0f) };
   d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
-  //Draw the triangle
-  d3d11DevCon->Draw(3, 0);
+  // Draw the triangle
+  d3d11DevCon->Draw(
+    3, // number of vertices to draw  
+    0  // offset in the vertices array to start 
+  );
 
-  //Present the backbuffer to the screen
-  SwapChain->Present(0, 0);
+  // Present the backbuffer to the screen
+  SwapChain->Present(0, 0);   // TODO: what are there parameters 
 }
-///////////////**************new**************////////////////////
+
 
 int messageloop() {
   MSG msg;
