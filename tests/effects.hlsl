@@ -1,9 +1,21 @@
-float4 VS(float4 inPos : POSITION) : SV_POSITION
+// Yes, you actually need to define this truct 
+struct VS_OUTPUT
 {
-  return inPos;
+    float4 Pos : SV_POSITION; // TODO: what re these two modifier?
+    float4 Color : COLOR;
+};
+
+VS_OUTPUT VS(float4 inPos : POSITION, float4 inColor : COLOR)
+{
+  VS_OUTPUT output;
+
+  output.Pos = inPos;
+  output.Color = inColor;
+
+  return output;
 }
 
-float4 PS() : SV_TARGET
+float4 PS(VS_OUTPUT input) : SV_TARGET
 {
-  return float4(0.9f, 0.4f, 0.1f, 1.0f);
+  return input.Color;
 }

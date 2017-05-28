@@ -25,7 +25,7 @@ ID3D11InputLayout* vertLayout;
 
 // window management 
 LPCTSTR WndClassName = "firstwindow";
-HWND hwnd = NULL;
+HWND hwnd = nullptr;
 HRESULT hr;
 
 const int Width = 300;
@@ -49,13 +49,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 struct Vertex
 {
   Vertex() {}
-  Vertex(float x, float y, float z)
-    : pos(x, y, z) {}
+  Vertex(float x, float y, float z, float r, float g, float b, float a)
+    : pos(x, y, z), color(r, g, b, a) {}
 
   DirectX::XMFLOAT3 pos;  // DirectXMath use DirectX namespace 
+  DirectX::XMFLOAT4 color; 
 };
 
-D3D11_INPUT_ELEMENT_DESC layout[] = // actually have only one element 
+D3D11_INPUT_ELEMENT_DESC layout[] = 
 {
   { "POSITION", 0,  // a Name and an Index to map elements in the shader 
     DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
@@ -64,8 +65,14 @@ D3D11_INPUT_ELEMENT_DESC layout[] = // actually have only one element
     D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
     0 // ADVANCED; also for instancing 
   },
+  { "COLOR", 0, 
+    DXGI_FORMAT_R32G32B32A32_FLOAT, 
+    0, 
+    12, // skip the first 3 coordinate data 
+    D3D11_INPUT_PER_VERTEX_DATA, 0
+  },
 };
-UINT numElements = ARRAYSIZE(layout); // = 1
+UINT numElements = ARRAYSIZE(layout); // = 2
 
 
 // Function Definitions // 
@@ -277,17 +284,22 @@ bool InitScene()
   // the data we will use
   Vertex v[] =
   { // A triangle (NOTE: D3D camera looks toward +z axis) 
-    Vertex(-0.5f,  0.5f, 0.9f),
-    Vertex( 0.5f,  0.5f, 0.9f),
-    Vertex( 0.5f, -0.5f, 0.9f),
-    Vertex(-0.5f, -0.5f, 0.9f),
+    //     Position              Color 
+    Vertex(-0.5f,  0.5f, 0.4f,   1.0f, 0.0f, 0.0f, 1.0f),
+    Vertex( 0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f, 1.0f),
+    Vertex( 0.5f, -0.5f, 0.6f,   0.0f, 1.0f, 0.0f, 1.0f),
+
+    Vertex( 0.5f, -0.5f, 0.7f,   0.0f, 1.0f, 0.0f, 1.0f),
+    Vertex(-0.5f, -0.5f, 0.8f,   0.0f, 1.0f, 1.0f, 1.0f),
+    Vertex(-0.5f,  0.5f, 0.9f,   1.0f, 0.0f, 0.0f, 1.0f),
+
   };
 
   // Create a buffer description 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
-  vertexBufferDesc.ByteWidth = sizeof(Vertex) * sizeof(v);  // size of the buffer 
+  vertexBufferDesc.ByteWidth = sizeof(Vertex) * ARRAYSIZE(v);  // size of the buffer 
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  // used as vertex buffer 
   vertexBufferDesc.CPUAccessFlags = 0; // how it will be used by the CPU; we don't use it 
   vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
@@ -368,7 +380,7 @@ void DrawScene()
     3, // number of vertices to draw  
     0  // offset in the vertices array to start 
   );
-  d3d11DevCon->Draw(3, 1); // draw another triangles 
+  d3d11DevCon->Draw(3, 3); // draw another triangles 
 
   // Present the backbuffer to the screen
   SwapChain->Present(0, 0);   // TODO: what are there parameters 
