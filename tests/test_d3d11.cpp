@@ -17,14 +17,33 @@ ID3D11Texture2D* depthStencilBuffer;        // 2D texture object to store the de
 
 
 // Rendering objects 
-ID3D11Buffer* pentaIndexBuffer; // buffuer to hold index (for drawing primitives based on vertec
-ID3D11Buffer* pentaVertBuffer;
+ID3D11Buffer* cubeIndexBuffer; // buffuer to hold index (for drawing primitives based on vertec
+ID3D11Buffer* cubeVertBuffer;
 ID3D11VertexShader* VS;
 ID3D11PixelShader* PS;
 ID3DBlob* VS_Buffer; // not using ID3D10Blob; new from d3dcompiler
 ID3DBlob* PS_Buffer;
 ID3D11InputLayout* vertLayout;
 
+ID3D11Buffer* cbPerObjectBuffer; // buffer to store per-object tramsform matrix 
+
+
+// Some math data for transform
+DirectX::XMMATRIX WVP;
+DirectX::XMMATRIX World;
+DirectX::XMMATRIX camView;
+DirectX::XMMATRIX camProjection;
+DirectX::XMVECTOR camPosition;
+DirectX::XMVECTOR camTarget;
+DirectX::XMVECTOR camUp;
+
+// Some math for object transformation 
+DirectX::XMMATRIX cube1world;
+DirectX::XMMATRIX cube2world;
+DirectX::XMMATRIX Roration;
+DirectX::XMMATRIX Scale;
+DirectX::XMMATRIX TRanslation;
+float rot = 0.01f;
 
 // window management 
 LPCTSTR WndClassName = "firstwindow";
@@ -47,6 +66,15 @@ int messageloop();
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+
+// effect constant buffer structure; 
+// memory layout must match those in the cbuffer struct in Shader 
+struct cbPerObject
+{
+  DirectX::XMMATRIX WVP;
+};
+
+cbPerObject g_cbPerObj;
 
 // Vertex Structure and Input Data Layout
 struct Vertex
@@ -269,13 +297,15 @@ void CleanUp()
   depthStencilBuffer->Release();
 
   // Release the rendering-related object
-  pentaIndexBuffer->Release();
-  pentaVertBuffer->Release();
+  cubeIndexBuffer->Release();
+  cubeVertBuffer->Release();
   VS->Release();
   PS->Release();
   VS_Buffer->Release();
   PS_Buffer->Release();
   vertLayout->Release();
+
+  cbPerObjectBuffer->Release();
 }
 
 
@@ -316,27 +346,40 @@ bool InitScene()
 
   // the data we will use
   Vertex v[] =
-  { // A triangle (NOTE: D3D camera looks toward +z axis) 
-    //     Position              Color 
-    Vertex( 0.0f,  0.0f, 0.8f,   0.0f, 0.0f, 0.0f, 0.0f),  // center of pentagon 
-
-    Vertex( 0.0f,  0.8f, 0.4f,   1.0f, 0.0f, 0.0f, 1.0f),
-    Vertex( 0.7f,  0.2f, 0.5f,   0.0f, 0.0f, 1.0f, 1.0f),
-    Vertex( 0.6f, -0.6f, 0.7f,   0.0f, 1.0f, 0.0f, 1.0f),
-    Vertex(-0.6f, -0.6f, 0.8f,   0.0f, 1.0f, 1.0f, 1.0f),
-    Vertex(-0.7f,  0.2f, 0.9f,   1.0f, 0.0f, 0.0f, 1.0f),
-
-    Vertex( 0.0f,  1.0f, 0.95f,   1.0f, 1.0f, 1.0f, 1.0f),
-    Vertex( 0.9f, -0.9f, 0.95f,   1.0f, 0.0f, 0.0f, 1.0f),
-    Vertex(-0.9f, -0.9f, 0.95f,   0.0f, 1.0f, 1.0f, 1.0f)
+  {
+    Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
+    Vertex(-1.0f, +1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f),
+    Vertex(+1.0f, +1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f),
+    Vertex(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 1.0f),
+    Vertex(-1.0f, -1.0f, +1.0f, 0.0f, 1.0f, 1.0f, 1.0f),
+    Vertex(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f),
+    Vertex(+1.0f, +1.0f, +1.0f, 1.0f, 0.0f, 1.0f, 1.0f),
+    Vertex(+1.0f, -1.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
   };
-  DWORD indices[] = { // TODO: what is DWORD
-    0, 1, 2, 
-    0, 2, 3, 
-    0, 3, 4, 
-    0, 4, 5, 
-    0, 5, 1,
-    6, 7, 8,
+  DWORD indices[] = {
+    // front face
+    0, 1, 2,
+    0, 2, 3,
+
+    // back face
+    4, 6, 5,
+    4, 7, 6,
+
+    // left face
+    4, 5, 1,
+    4, 1, 0,
+
+    // right face
+    3, 2, 6,
+    3, 6, 7,
+
+    // top face
+    1, 5, 6,
+    1, 6, 2,
+
+    // bottom face
+    4, 0, 3,
+    4, 3, 7
   };
 
   // Create a buffer description for vertex data 
@@ -368,14 +411,14 @@ bool InitScene()
   hr = d3d11Device->CreateBuffer(
     &vertexBufferDesc, // buffer description 
     &vertexBufferData, // parameter set above 
-    &pentaVertBuffer // receive the returned ID3D11Buffer object 
+    &cubeVertBuffer // receive the returned ID3D11Buffer object 
   );
 
   // Create the index buffer data object 
   D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
   ZeroMemory(&indexBufferData, sizeof(indexBufferData));
   indexBufferData.pSysMem = indices;
-  d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &pentaIndexBuffer);
+  d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &cubeIndexBuffer);
 
   // Set the vertex buffer (bind it to the Input Assembler) 
   UINT stride = sizeof(Vertex);
@@ -383,14 +426,14 @@ bool InitScene()
   d3d11DevCon->IASetVertexBuffers(
     0, // the input slot we use as start 
     1, // number of buffer to bind; we bind one buffer 
-    &pentaVertBuffer, // pointer to the buffer object 
+    &cubeVertBuffer, // pointer to the buffer object 
     &stride, // pStrides; data size for each vertex 
     &offset // starting offset in the data 
   );
 
   // Set the index buffer (bind to IA)
   d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
-    pentaIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
+    cubeIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
     DXGI_FORMAT_R32_UINT,  // data format 
     0 // UINT; starting offset in the data 
   );
@@ -427,13 +470,44 @@ bool InitScene()
     &viewport
   );
 
+
+  // Camera data
+  camPosition = DirectX::XMVectorSet (0.0f, 2.0f, -10.0f, 0.0f); 
+  camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+  camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);  // directX Math function to created camera view transform 
+  camProjection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)Width / Height, 1.0f, 1000.0f);  // directX Math function 
+
+  // Create a constant buffer for transform 
+  D3D11_BUFFER_DESC cbbd;
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  cbbd.CPUAccessFlags = 0;
+  cbbd.MiscFlags = 0;
+  
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+
   return true;
 }
 
 
 void UpdateScene()
 {
+  // Keep rotating the cube 
+  if ((rot += 0.0005f) > 6.28f) rot = 0.0f; // the rorate angle 
 
+  // Reset cube world each frame //
+
+  DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  Roration = DirectX::XMMatrixRotationAxis(rotaxis, rot);
+  TRanslation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f); // alway away from origin by 4.0 
+  cube1world = TRanslation * Roration;
+
+  Roration = DirectX::XMMatrixRotationAxis(rotaxis, -rot); // reversed direction 
+  Scale = DirectX::XMMatrixScaling(1.3f, 3.0f, 1.3f); // little bit bigger than cube 1
+  cube2world = Roration * Scale;
 }
 
 
@@ -452,19 +526,38 @@ void DrawScene()
     0 // clear value for stencil; we actually not using stencil currently 
   );
 
-  // Draw the triangle
-  // d3d11DevCon->Draw(
-  //  3, // number of vertices to draw  
-  //  0  // offset in the vertices buffer to start 
-  // );
 
-  // Draw the triangles by index 
-  d3d11DevCon->DrawIndexed(3, 15, 0); // a background triangle 
-  d3d11DevCon->DrawIndexed(
-    15, // number of indices to draw
-    0,  // offset in the indices buffer to start 
-    0  // offset in the vertex buffer to start; usefull when you put multiple object in one vertex buffer 
-  );
+  // Calculate the WVP matrix and send it (set to VS constant buffer in the pipeline)
+  //World = DirectX::XMMatrixIdentity();
+  //WVP = World * camView * camProjection;
+  //g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);
+  //d3d11DevCon->UpdateSubresource( 
+  //  cbPerObjectBuffer,  // pointer to the destination buffer 
+  //  0, // index for the destination (of array above)
+  //  NULL,  // optional pointer to a D3D11_BOX
+  //  &g_cbPerObj, // pointer to source data in memory 
+  //  0,  // size of a row (used for 2D/3D buffer?)
+  //  0  // size of a depth slice  (used for 3D buffer?)
+  //);
+  //d3d11DevCon->VSSetConstantBuffers(
+  //  0,  // start slot in the constant buffer to be set 
+  //  1,  // number of buffers to set (start from the slot above) 
+  //  &cbPerObjectBuffer // array of constant buffer to send
+  //);
+
+  // Draw cube 1 
+  WVP = cube1world * camView * camProjection;
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
+  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+  d3d11DevCon->DrawIndexed(36, 0, 0);
+
+  // Draw cube 2 
+  WVP = cube2world * camView * camProjection;
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
+  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+  d3d11DevCon->DrawIndexed(36, 0, 0);
 
   // Present the backbuffer to the screen
   SwapChain->Present(0, 0);   // TODO: what are there parameters 
