@@ -1,12 +1,9 @@
 cmake_minimum_required (VERSION 3.0)
 project (CELENGINE)
 
-#------------------
-# Get dependencies
-#------------------
-
-# Required OpenGL
-find_package(OpenGL REQUIRED)
+#-------------------
+# Solve dependencies
+#-------------------
 
 # Built dependence in deps directory
 add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
