@@ -45,6 +45,12 @@ DirectX::XMMATRIX Scale;
 DirectX::XMMATRIX TRanslation;
 float rot = 0.01f;
 
+
+// Pipeline stage states object (used to customized some fixed stage)
+ID3D11RasterizerState* WireFrame;
+ID3D11RasterizerState* SolidRender;
+
+
 // window management 
 LPCTSTR WndClassName = "firstwindow";
 HWND hwnd = nullptr;
@@ -306,6 +312,9 @@ void CleanUp()
   vertLayout->Release();
 
   cbPerObjectBuffer->Release();
+
+  // Render states
+  WireFrame->Release();
 }
 
 
@@ -489,6 +498,31 @@ bool InitScene()
   
   d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
 
+
+  // Create and set Render States
+
+  // WireFrame rendering 
+  D3D11_RASTERIZER_DESC wfdesc;
+  ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+  wfdesc.FillMode = D3D11_FILL_WIREFRAME;  // alternative: D3D11_FILL_SOLID, which is the default mode 
+  wfdesc.CullMode = D3D11_CULL_NONE; // alternative: D3D11_CULL_FRONT, D3D11_CULL_BACK (default)
+  wfdesc.FrontCounterClockwise = false; // default false. I would set it to be true in my own application ...  
+  wfdesc.DepthBias = 0; // default 0; basic depth bias added to each pixel (NOTE: might be usefull for rendering cel-line) 
+  wfdesc.DepthBiasClamp = 1.0f; // default 0.0; maximum depth bias of a pixel. (clamping on the actual bias) 
+  wfdesc.SlopeScaledDepthBias = 0.0f; // default 0.0; see MSDN.
+  wfdesc.DepthClipEnable = false; // default false; clipping based on distance from the `camera`
+  wfdesc.ScissorEnable = false; // default false; scissor-rectangle culling, to create cutting-view?
+  wfdesc.MultisampleEnable = false; // default false. Antialiasing multiplesampling
+  wfdesc.AntialiasedLineEnable = false; // default false; MultiplesampleEnable must be false. Used on line drawing. 
+  d3d11Device->CreateRasterizerState(&wfdesc, &WireFrame);
+
+  // Normal solid rendering 
+  D3D11_RASTERIZER_DESC normaldesc;
+  d3d11Device->CreateRasterizerState(&normaldesc, &SolidRender);
+
+
+  d3d11DevCon->RSSetState(SolidRender);
+
   return true;
 }
 
@@ -545,18 +579,32 @@ void DrawScene()
   //  &cbPerObjectBuffer // array of constant buffer to send
   //);
 
-  // Draw cube 1 
+  // Draw cube 1  //
+
+  // Use solid rendeing 
+  d3d11DevCon->RSSetState(SolidRender);
+
+  // Set transform 
   WVP = cube1world * camView * camProjection;
   g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+  // Draw
   d3d11DevCon->DrawIndexed(36, 0, 0);
 
-  // Draw cube 2 
+  // Draw cube 2  //
+
+  // Use wireframe rendering
+  d3d11DevCon->RSSetState(WireFrame);
+
+  // Set transform 
   WVP = cube2world * camView * camProjection;
   g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+  // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);
 
   // Present the backbuffer to the screen
