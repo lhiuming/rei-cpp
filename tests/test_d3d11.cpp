@@ -15,7 +15,8 @@ ID3D11RenderTargetView* renderTargetView;
 
 
 // Rendering objects 
-ID3D11Buffer* triangleVertBuffer;
+ID3D11Buffer* pentaIndexBuffer; // buffuer to hold index (for drawing primitives based on vertec
+ID3D11Buffer* pentaVertBuffer;
 ID3D11VertexShader* VS;
 ID3D11PixelShader* PS;
 ID3DBlob* VS_Buffer; // not using ID3D10Blob; new from d3dcompiler
@@ -237,7 +238,8 @@ void CleanUp()
   renderTargetView->Release();
 
   // Release the rendering-related object
-  triangleVertBuffer->Release();
+  pentaIndexBuffer->Release();
+  pentaVertBuffer->Release();
   VS->Release();
   PS->Release();
   VS_Buffer->Release();
@@ -279,23 +281,29 @@ bool InitScene()
   );
   d3d11DevCon->PSSetShader(PS, 0, 0);
 
-  // Create the vertex buffer // 
+  // Create the vertex & index buffer // 
 
   // the data we will use
   Vertex v[] =
   { // A triangle (NOTE: D3D camera looks toward +z axis) 
     //     Position              Color 
-    Vertex(-0.5f,  0.5f, 0.4f,   1.0f, 0.0f, 0.0f, 1.0f),
-    Vertex( 0.5f,  0.5f, 0.5f,   0.0f, 0.0f, 1.0f, 1.0f),
-    Vertex( 0.5f, -0.5f, 0.6f,   0.0f, 1.0f, 0.0f, 1.0f),
+    Vertex( 0.0f,  0.0f, 0.3f,   0.0f, 0.0f, 0.0f, 1.0f),  // center oof pentagon 
 
-    Vertex( 0.5f, -0.5f, 0.7f,   0.0f, 1.0f, 0.0f, 1.0f),
-    Vertex(-0.5f, -0.5f, 0.8f,   0.0f, 1.0f, 1.0f, 1.0f),
-    Vertex(-0.5f,  0.5f, 0.9f,   1.0f, 0.0f, 0.0f, 1.0f),
-
+    Vertex( 0.0f,  0.8f, 0.4f,   1.0f, 0.0f, 0.0f, 1.0f),
+    Vertex( 0.7f,  0.2f, 0.5f,   0.0f, 0.0f, 1.0f, 1.0f),
+    Vertex( 0.6f, -0.6f, 0.7f,   0.0f, 1.0f, 0.0f, 1.0f),
+    Vertex(-0.6f, -0.6f, 0.8f,   0.0f, 1.0f, 1.0f, 1.0f),
+    Vertex(-0.7f,  0.2f, 0.9f,   1.0f, 0.0f, 0.0f, 1.0f),
+  };
+  DWORD indices[] = { // TODO: what is DWORD
+    0, 1, 2, 
+    0, 2, 3, 
+    0, 3, 4, 
+    0, 4, 5, 
+    0, 5, 1,
   };
 
-  // Create a buffer description 
+  // Create a buffer description for vertex data 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
@@ -305,8 +313,18 @@ bool InitScene()
   vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
   vertexBufferDesc.StructureByteStride = NULL; // not using 
 
-  // Create the vertex buffer object 
-  D3D11_SUBRESOURCE_DATA vertexBufferData;
+  // Create a buffer description for indices data 
+  D3D11_BUFFER_DESC indexBufferDesc;
+  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // I guess this is for DRAM type 
+  indexBufferDesc.ByteWidth = sizeof(DWORD) * ARRAYSIZE(indices);
+  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;  // different flags from vertex buffer; must be set 
+  indexBufferDesc.CPUAccessFlags = 0;
+  indexBufferDesc.MiscFlags = 0;
+  indexBufferDesc.StructureByteStride = NULL;
+
+  // Create the vertex buffer data object 
+  D3D11_SUBRESOURCE_DATA vertexBufferData; // parameter struct ?
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
   vertexBufferData.pSysMem = v; // the data to be put (defined above) 
   //vertexBufferData.SysMemPitch; // width of a line in the data; used in 2D/3D texture 
@@ -314,8 +332,14 @@ bool InitScene()
   hr = d3d11Device->CreateBuffer(
     &vertexBufferDesc, // buffer description 
     &vertexBufferData, // parameter set above 
-    &triangleVertBuffer // receive the returned ID3D11Buffer object 
+    &pentaVertBuffer // receive the returned ID3D11Buffer object 
   );
+
+  // Create the index buffer data object 
+  D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
+  ZeroMemory(&indexBufferData, sizeof(indexBufferData));
+  indexBufferData.pSysMem = indices;
+  d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &pentaIndexBuffer);
 
   // Set the vertex buffer (bind it to the Input Assembler) 
   UINT stride = sizeof(Vertex);
@@ -323,9 +347,16 @@ bool InitScene()
   d3d11DevCon->IASetVertexBuffers(
     0, // the input slot we use
     1, // number of buffer to bind; we bind one buffer 
-    &triangleVertBuffer, // pointer to the buffer object 
+    &pentaVertBuffer, // pointer to the buffer object 
     &stride, // pStrides; data size for each vertex 
-    &offset // staring offset of the data (didn't we set it above???) 
+    &offset // starting offset in the data 
+  );
+
+  // Set the index buffer (bind to IA)
+  d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
+    pentaIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
+    DXGI_FORMAT_R32_UINT,  // data format 
+    0 // UINT; atarting offset in the data 
   );
 
   // Create the Input Layout
@@ -376,11 +407,17 @@ void DrawScene()
   d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
   // Draw the triangle
-  d3d11DevCon->Draw(
-    3, // number of vertices to draw  
-    0  // offset in the vertices array to start 
+  // d3d11DevCon->Draw(
+  //  3, // number of vertices to draw  
+  //  0  // offset in the vertices buffer to start 
+  // );
+
+  // Draw the triangles by index 
+  d3d11DevCon->DrawIndexed(
+    15, // number of indices to draw
+    0,  // offset in the indices buffer to start 
+    0  // offset in the vertex buffer to start; usefull when you put multiple object in one vertex buffer 
   );
-  d3d11DevCon->Draw(3, 3); // draw another triangles 
 
   // Present the backbuffer to the screen
   SwapChain->Present(0, 0);   // TODO: what are there parameters 
