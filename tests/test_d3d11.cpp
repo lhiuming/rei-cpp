@@ -26,6 +26,7 @@ ID3DBlob* PS_Buffer;
 ID3D11InputLayout* vertLayout;
 
 ID3D11Buffer* cbPerObjectBuffer; // buffer to store per-object tramsform matrix 
+ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide constant data 
 
 
 // Some math data for transform
@@ -59,6 +60,7 @@ HRESULT hr;
 const int Width = 300;
 const int Height = 300;
 
+
 // Function Prototypes //
 
 bool InitializeDirect3d11App(HINSTANCE hInstance);
@@ -73,24 +75,31 @@ int messageloop();
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 
-// effect constant buffer structure; 
-// memory layout must match those in the cbuffer struct in Shader 
-struct cbPerObject
+// Light structure used in the cbPerFrame 
+struct Light
 {
-  DirectX::XMMATRIX WVP;
-};
+  DirectX::XMFLOAT3 dir;
+  float pad; // padding to match with shader's constant buffer packing scheme 
+  DirectX::XMFLOAT4 ambient;
+  DirectX::XMFLOAT4 diffuse;
 
-cbPerObject g_cbPerObj;
+  Light() { ZeroMemory(this, sizeof(Light)); }
+};
+Light g_light;
+
 
 // Vertex Structure and Input Data Layout
 struct Vertex
 {
   Vertex() {}
-  Vertex(float x, float y, float z, float r, float g, float b, float a)
-    : pos(x, y, z), color(r, g, b, a) {}
+  Vertex(float x, float y, float z, 
+         float r, float g, float b, float a,
+         float nx, float ny, float nz
+  ) : pos(x, y, z), color(r, g, b, a), normal(nx, ny, nz) {}
 
   DirectX::XMFLOAT3 pos;  // DirectXMath use DirectX namespace 
   DirectX::XMFLOAT4 color; 
+  DirectX::XMFLOAT3 normal;
 };
 
 D3D11_INPUT_ELEMENT_DESC layout[] = 
@@ -108,12 +117,34 @@ D3D11_INPUT_ELEMENT_DESC layout[] =
     12, // skip the first 3 coordinate data 
     D3D11_INPUT_PER_VERTEX_DATA, 0
   },
+  { "NORMAL", 0, 
+    DXGI_FORMAT_R32G32B32_FLOAT, 
+    0, 
+    28, // skip the fisrt 3 coordinnate and 4 colors ata 
+    D3D11_INPUT_PER_VERTEX_DATA , 0 
+  }
 };
-UINT numElements = ARRAYSIZE(layout); // = 2
+UINT numElements = ARRAYSIZE(layout); // = 3
+
+
+// effect constant buffer structure; 
+// memory layout must match those in the cbuffer struct in Shader 
+struct cbPerObject
+{
+  DirectX::XMMATRIX WVP;
+  DirectX::XMMATRIX World; // used for world-space lighting 
+};
+cbPerObject g_cbPerObj;
+
+
+struct cbPerFrame
+{
+  Light light;
+};
+cbPerFrame g_cbPerFrm;
 
 
 // Function Definitions // 
-
 
 // Windows main function 
 int WINAPI WinMain(HINSTANCE hInstance, // program instance 
@@ -312,9 +343,11 @@ void CleanUp()
   vertLayout->Release();
 
   cbPerObjectBuffer->Release();
+  cbPerFrameBuffer->Release();
 
   // Render states
   WireFrame->Release();
+  SolidRender->Release();
 }
 
 
@@ -356,14 +389,15 @@ bool InitScene()
   // the data we will use
   Vertex v[] =
   {
-    Vertex(-1.0f, -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
-    Vertex(-1.0f, +1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 1.0f),
-    Vertex(+1.0f, +1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 1.0f),
-    Vertex(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 0.0f, 1.0f),
-    Vertex(-1.0f, -1.0f, +1.0f, 0.0f, 1.0f, 1.0f, 1.0f),
-    Vertex(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f),
-    Vertex(+1.0f, +1.0f, +1.0f, 1.0f, 0.0f, 1.0f, 1.0f),
-    Vertex(+1.0f, -1.0f, +1.0f, 1.0f, 0.0f, 0.0f, 1.0f),
+    //     Position               Color                     Normal
+    Vertex(-1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, -1.0f),
+    Vertex(-1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, -1.0f),
+    Vertex(+1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, -1.0f),
+    Vertex(+1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, -1.0f),
+    Vertex(-1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, +1.0f),
+    Vertex(-1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, +1.0f),
+    Vertex(+1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, +1.0f),
+    Vertex(+1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, +1.0f),
   };
   DWORD indices[] = {
     // front face
@@ -499,6 +533,22 @@ bool InitScene()
   d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
 
 
+  // Light data 
+  g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
+  g_light.ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+  g_light.diffuse = DirectX::XMFLOAT4(1.0f, 0.9f, 0.4f, 1.0f);
+
+  // Create a constant buffer for light 
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerFrame);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  cbbd.CPUAccessFlags = 0;
+  cbbd.MiscFlags = 0;
+
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+
+
   // Create and set Render States
 
   // WireFrame rendering 
@@ -508,7 +558,7 @@ bool InitScene()
   wfdesc.CullMode = D3D11_CULL_NONE; // alternative: D3D11_CULL_FRONT, D3D11_CULL_BACK (default)
   wfdesc.FrontCounterClockwise = false; // default false. I would set it to be true in my own application ...  
   wfdesc.DepthBias = 0; // default 0; basic depth bias added to each pixel (NOTE: might be usefull for rendering cel-line) 
-  wfdesc.DepthBiasClamp = 1.0f; // default 0.0; maximum depth bias of a pixel. (clamping on the actual bias) 
+  wfdesc.DepthBiasClamp = 0.0f; // default 0.0; maximum depth bias of a pixel. (clamping on the actual bias) 
   wfdesc.SlopeScaledDepthBias = 0.0f; // default 0.0; see MSDN.
   wfdesc.DepthClipEnable = false; // default false; clipping based on distance from the `camera`
   wfdesc.ScissorEnable = false; // default false; scissor-rectangle culling, to create cutting-view?
@@ -518,8 +568,10 @@ bool InitScene()
 
   // Normal solid rendering 
   D3D11_RASTERIZER_DESC normaldesc;
+  ZeroMemory(&normaldesc, sizeof(D3D11_RASTERIZER_DESC));
+  normaldesc.FillMode = D3D11_FILL_SOLID;
+  normaldesc.CullMode = D3D11_CULL_BACK;
   d3d11Device->CreateRasterizerState(&normaldesc, &SolidRender);
-
 
   d3d11DevCon->RSSetState(SolidRender);
 
@@ -535,6 +587,7 @@ void UpdateScene()
   // Reset cube world each frame //
 
   DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
   Roration = DirectX::XMMatrixRotationAxis(rotaxis, rot);
   TRanslation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f); // alway away from origin by 4.0 
   cube1world = TRanslation * Roration;
@@ -579,33 +632,48 @@ void DrawScene()
   //  &cbPerObjectBuffer // array of constant buffer to send
   //);
 
-  // Draw cube 1  //
 
-  // Use solid rendeing 
-  d3d11DevCon->RSSetState(SolidRender);
+  // Set the light for the scene 
+  g_cbPerFrm.light = g_light;
+  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &g_cbPerFrm, 0, 0);  // update into buffer object 
+  d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);  // send to the Pixel Stage 
+
+  // Reset the Vertex and Pixel shaders (because we just update the constant data in the shader code?) 
+  d3d11DevCon->VSSetShader(VS, 0, 0); 
+  d3d11DevCon->PSSetShader(PS, 0, 0);
+
+  // Draw cube 1  //
 
   // Set transform 
   WVP = cube1world * camView * camProjection;
   g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube1world);
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+  // Use solid rendeing 
+  d3d11DevCon->RSSetState(SolidRender);
 
   // Draw
   d3d11DevCon->DrawIndexed(36, 0, 0);
 
+
   // Draw cube 2  //
 
-  // Use wireframe rendering
-  d3d11DevCon->RSSetState(WireFrame);
 
   // Set transform 
   WVP = cube2world * camView * camProjection;
   g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube2world);
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+  // Use wireframe rendering
+  d3d11DevCon->RSSetState(SolidRender);
+
   // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);
+
 
   // Present the backbuffer to the screen
   SwapChain->Present(0, 0);   // TODO: what are there parameters 
