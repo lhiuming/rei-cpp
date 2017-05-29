@@ -2,7 +2,7 @@
 #include "camera.h"
 
 #include <iostream> // debug
-#include <cmath>
+#include <algorithm>
 
 using namespace std;
 

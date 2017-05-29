@@ -6,20 +6,40 @@
 
 # OpenGL ----
 
+IF (UNIX)
+
+add_definitions(-DUSE_OPENGL)
+
 # pixels: the wrapper with GL libraries
 add_library(pixels opengl/pixels.cpp opengl/pixels.h)
-target_link_libraries(pixels glew glfw ${OPENGL_gl_LIBRARY})
-
-# viewer
-add_library(viewer_imp opengl/gl_viewer.cpp opengl/gl_viewer.h)
-target_link_libraries(viewer_imp pixels renderer scene)
+target_link_libraries(pixels ${GL_LIBRARY})
 
 # renderer : OpenGL
 add_library(renderer_imp opengl/gl_renderer.cpp opengl/gl_renderer.h)
 target_link_libraries(renderer_imp pixels algebra scene model color)
 
+# viewer
+add_library(viewer_imp opengl/gl_viewer.cpp opengl/gl_viewer.h)
+target_link_libraries(viewer_imp pixels renderer scene)
 
-# Direct3D
+ENDIF()
+
+
+# Direct3D ----
+
+IF (WIN32)
+
+add_definitions(-DUSE_DIRECT3D)
+
+# renderer : DIrect3D 
+add_library(renderer_imp direct3d/d3d_renderer.cpp direct3d/d3d_renderer.h)
+target_link_libraries(renderer_imp algebra scene model color)
+
+# viewer
+add_library(viewer_imp direct3d/d3d_viewer.cpp direct3d/d3d_viewer.h)
+target_link_libraries(viewer_imp renderer scene)
+
+ENDIF()
 
 #----------------
 # Cross platform

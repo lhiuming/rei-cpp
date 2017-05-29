@@ -4,10 +4,12 @@
 #include <iostream>
 #include <memory>
 
-// #ifdef __USE_OPENGL__
+#ifdef USE_OPENGL
 #include "opengl/gl_renderer.h"
-// #else
-// #endif
+#endif
+#ifdef USE_DIRECT3D
+#include "direct3d/d3d_renderer.h"
+#endif
 
 using namespace std;
 
@@ -22,10 +24,12 @@ Renderer::Renderer()
 // A cross-platform renderer factory
 shared_ptr<Renderer> makeRenderer()
 {
-  // #ifdefine __USE_OPENGL__
+  #ifdef USE_OPENGL
   return make_shared<GLRenderer>();
-  // #else
-  // #endif
+  #endif
+  #ifdef USE_DIRECT3D
+  return make_shared<D3DRenderer>();
+  #endif
 }
 
 } // namespace CEL

@@ -22,6 +22,8 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
 
+set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "") 
+
 ENDIF()
 
 
@@ -32,18 +34,16 @@ IF (WIN32)
 
 # find the window sdk path
 # TODO: support more version
-find_path(WIN_SDK_DIR
-	NAMES Include/um/d3d11.h
-	HINTS "$ENV{ProgramFiles(x86)}/Windows Kits/8.1/" 
+find_path(WIN_SDK_DIR NAMES Include/um/d3d11.h
+	HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/" 
 	)
 
 # copy the d3dcompiler dll
-file(
-	COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
+file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll 
 	DESTINATION  ${PROJECT_BINARY_DIR}/lib
 	)	
 
-set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE INTERNAL "") 
+set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE STRING "") 
 
 ENDIF()
 
