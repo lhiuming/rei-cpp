@@ -12,6 +12,8 @@ IDXGISwapChain* SwapChain;
 ID3D11Device* d3d11Device;
 ID3D11DeviceContext* d3d11DevCon;
 ID3D11RenderTargetView* renderTargetView;
+ID3D11DepthStencilView* depthSentcilView;   // store the depth/stencil view 
+ID3D11Texture2D* depthStencilBuffer;        // 2D texture object to store the depth/stentil buffer
 
 
 // Rendering objects 
@@ -222,11 +224,38 @@ bool InitializeDirect3d11App(HINSTANCE hInstance)
   hr = d3d11Device->CreateRenderTargetView(BackBuffer, NULL, &renderTargetView);
   BackBuffer->Release();
 
-  // Set our Render Target
-  d3d11DevCon->OMSetRenderTargets(1, &renderTargetView, NULL);
+
+  // Describe the depth/stencil buffer (it is a texture buffer)
+  D3D11_TEXTURE2D_DESC depthStencilDesc;
+  depthStencilDesc.Width = Width;
+  depthStencilDesc.Height = Height;
+  depthStencilDesc.MipLevels = 1;  // max number of mipmap level; = 0 let d3d to generate a full set of mipmap 
+  depthStencilDesc.ArraySize = 1;  // number of textures 
+  depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;  // 24 bit (depth) + 8 bit (stencil) 
+  depthStencilDesc.SampleDesc.Count = 1;  // multisampling parameters 
+  depthStencilDesc.SampleDesc.Quality = 0;
+  depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+  depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL; // used as depth/stencil buffer 
+  depthStencilDesc.CPUAccessFlags = 0;
+  depthStencilDesc.MiscFlags = 0;
+
+  // Create the depth/stencil buffer 
+  d3d11Device->CreateTexture2D(&depthStencilDesc, NULL, &depthStencilBuffer);
+
+  // Create the depth/stencil view object 
+  d3d11Device->CreateDepthStencilView(depthStencilBuffer, NULL, &depthSentcilView);
+
+
+  // Set our Render Target (with a depth/sentil ciew) 
+  d3d11DevCon->OMSetRenderTargets(
+    1, // number of render targets to bind 
+    &renderTargetView, // render target view object pointer 
+    depthSentcilView  // depth/stencil view object
+  );
 
   return true;
 }
+
 
 // Release those global objects
 void CleanUp()
@@ -236,6 +265,8 @@ void CleanUp()
   d3d11Device->Release();
   d3d11DevCon->Release();
   renderTargetView->Release();
+  depthSentcilView->Release();
+  depthStencilBuffer->Release();
 
   // Release the rendering-related object
   pentaIndexBuffer->Release();
@@ -287,13 +318,17 @@ bool InitScene()
   Vertex v[] =
   { // A triangle (NOTE: D3D camera looks toward +z axis) 
     //     Position              Color 
-    Vertex( 0.0f,  0.0f, 0.3f,   0.0f, 0.0f, 0.0f, 1.0f),  // center oof pentagon 
+    Vertex( 0.0f,  0.0f, 0.8f,   0.0f, 0.0f, 0.0f, 0.0f),  // center of pentagon 
 
     Vertex( 0.0f,  0.8f, 0.4f,   1.0f, 0.0f, 0.0f, 1.0f),
     Vertex( 0.7f,  0.2f, 0.5f,   0.0f, 0.0f, 1.0f, 1.0f),
     Vertex( 0.6f, -0.6f, 0.7f,   0.0f, 1.0f, 0.0f, 1.0f),
     Vertex(-0.6f, -0.6f, 0.8f,   0.0f, 1.0f, 1.0f, 1.0f),
     Vertex(-0.7f,  0.2f, 0.9f,   1.0f, 0.0f, 0.0f, 1.0f),
+
+    Vertex( 0.0f,  1.0f, 0.95f,   1.0f, 1.0f, 1.0f, 1.0f),
+    Vertex( 0.9f, -0.9f, 0.95f,   1.0f, 0.0f, 0.0f, 1.0f),
+    Vertex(-0.9f, -0.9f, 0.95f,   0.0f, 1.0f, 1.0f, 1.0f)
   };
   DWORD indices[] = { // TODO: what is DWORD
     0, 1, 2, 
@@ -301,6 +336,7 @@ bool InitScene()
     0, 3, 4, 
     0, 4, 5, 
     0, 5, 1,
+    6, 7, 8,
   };
 
   // Create a buffer description for vertex data 
@@ -345,7 +381,7 @@ bool InitScene()
   UINT stride = sizeof(Vertex);
   UINT offset = 0;
   d3d11DevCon->IASetVertexBuffers(
-    0, // the input slot we use
+    0, // the input slot we use as start 
     1, // number of buffer to bind; we bind one buffer 
     &pentaVertBuffer, // pointer to the buffer object 
     &stride, // pStrides; data size for each vertex 
@@ -356,7 +392,7 @@ bool InitScene()
   d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
     pentaIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
     DXGI_FORMAT_R32_UINT,  // data format 
-    0 // UINT; atarting offset in the data 
+    0 // UINT; starting offset in the data 
   );
 
   // Create the Input Layout
@@ -382,6 +418,8 @@ bool InitScene()
   viewport.TopLeftY = 0;  //  the top-left corner in the window.
   viewport.Width = Width;
   viewport.Height = Height;
+  viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
+  viewport.MaxDepth = 1.0f; // furthest value 
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
   d3d11DevCon->RSSetViewports(
@@ -406,6 +444,14 @@ void DrawScene()
   float bgColor[4] = { 0.3f, 0.6f, 0.7f, 1.0f };
   d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
+  // Also clear the depth/stencil view each frame 
+  d3d11DevCon->ClearDepthStencilView(
+    depthSentcilView,  // the view to clear 
+    D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, // specify the part of the depth/stencil view to clear 
+    1.0f, // clear value for depth; should set to the furtheast value (we use 1.0 as furthest) 
+    0 // clear value for stencil; we actually not using stencil currently 
+  );
+
   // Draw the triangle
   // d3d11DevCon->Draw(
   //  3, // number of vertices to draw  
@@ -413,6 +459,7 @@ void DrawScene()
   // );
 
   // Draw the triangles by index 
+  d3d11DevCon->DrawIndexed(3, 15, 0); // a background triangle 
   d3d11DevCon->DrawIndexed(
     15, // number of indices to draw
     0,  // offset in the indices buffer to start 
