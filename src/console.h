@@ -4,7 +4,7 @@
 #include <iostream>
 
 #ifdef USE_MSVC
-#include "win32/safe_windows.h"
+#include <windows.h>
 #endif 
 
 /*

@@ -39,6 +39,13 @@ target_link_libraries(renderer_imp algebra scene model color ${DirectX11_LIBRARY
 add_library(viewer_imp direct3d/d3d_viewer.cpp direct3d/d3d_viewer.h)
 target_link_libraries(viewer_imp renderer scene ${DirectX11_LIBRARY})
 
+# copy the shader file
+configure_file(
+	${CMAKE_CURRENT_ROOT_DIR}direct3d/effects.hlsl 
+	${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE} 
+	COPYONLY)
+
+
 ENDIF()
 
 #----------------

@@ -181,6 +181,8 @@ D3DViewer::~D3DViewer()
   renderTargetView->Release();
   depthStencilView->Release();
   depthStencilBuffer->Release();
+
+  console << "D3DViewer is destructed." << endl;
 }
 
 
@@ -188,7 +190,8 @@ D3DViewer::~D3DViewer()
 void D3DViewer::run()
 {
   // Make sure the renderer is set properly 
-  // TODO
+  D3DRenderer& d3dRenderer = dynamic_cast<D3DRenderer&>(*renderer);
+  d3dRenderer.set_d3d_interface(d3d11Device, d3d11DevCon);
 
   // Check event and do update&render
   MSG msg;

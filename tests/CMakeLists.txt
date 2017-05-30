@@ -23,7 +23,9 @@ add_executable(test_d3d11 WIN32 test_d3d11.cpp)
 target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
 
 # copy the shader file
-configure_file(${CMAKE_CURRENT_ROOT_DIR}effects.hlsl ${CMAKE_CURRENT_BINARY_DIR}/Debug COPYONLY)
+configure_file(
+	${CMAKE_CURRENT_ROOT_DIR}effects.hlsl 
+	${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_BUILD_TYPE} COPYONLY)
 
 
 #-----------------------------

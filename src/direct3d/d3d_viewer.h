@@ -6,14 +6,13 @@
 #include <string>
 #include <vector>
 
-#include <d3d11.h>
-#include "../win32/safe_windows.h"
-
 #include "../scene.h"
 #include "../camera.h"
 #include "../viewer.h" // the base class
 #include "d3d_renderer.h" // win32 renderer 
 
+#include <windows.h>
+#include <d3d11.h>
 
 /*
 * d3d_viewer.h
