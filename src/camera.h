@@ -50,7 +50,7 @@ private:
   Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis
   double angle = 60;             // horizontal view-angle range, by degree
   double ratio = 4.0 / 3.0;      // width / height
-  double near = 5.0, far = 1000; // distance of two planes of the frustrum
+  double near = 5.0, far = 1000.0; // distance of two planes of the frustrum
 
   Mat4 world2camera;       // defined by position and direction
   Mat4 camera2normalized;  // defined by view angle and ration
