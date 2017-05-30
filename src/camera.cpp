@@ -59,7 +59,7 @@ void Camera::move(double right, double up, double back)
 bool Camera::visible(const Vec3& v) const
 {
   double dist = (position - v).norm();
-  return ( near < dist || dist < far);
+  return ( znear < dist || dist < zfar);
 }
 
 // Compute world to camera transform
@@ -103,12 +103,12 @@ void Camera::update_c2n()
 
   // 2. move the pillar along z axis, making it center at origin
   Mat4 M = Mat4::I();
-  M(2, 3) = - (1.0 / far + 1.0 / near) / 2;
+  M(2, 3) = - (1.0 / zfar + 1.0 / znear) / 2;
 
   // 3. normalize each dimension (x, y, z)
   double pillar_half_width = tan(angle / 2 * (PI / 180.0)); // use radian
   double pillar_half_height = pillar_half_width / ratio;
-  double pillar_half_length = (1.0 / near - 1.0 / far) / 2;
+  double pillar_half_length = (1.0 / znear - 1.0 / zfar) / 2;
   Mat4 C(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height,
               1.0 / pillar_half_length, 1.0));
 
