@@ -19,7 +19,7 @@ class DebugStreambuf : public std::streambuf {
 public:
   virtual int_type overflow(int_type c = EOF) {
     if (c != EOF) {
-      char buf[] = { c, '\0' };
+      char_type buf[] = { traits_type::to_char_type(c), '\0' };
     #ifdef USE_MSVC
       OutputDebugString(buf);
     #else

@@ -33,11 +33,11 @@ add_definitions(-DUSE_DIRECT3D)
 
 # renderer : DIrect3D 
 add_library(renderer_imp direct3d/d3d_renderer.cpp direct3d/d3d_renderer.h)
-target_link_libraries(renderer_imp algebra scene model color)
+target_link_libraries(renderer_imp algebra scene model color ${DirectX11_LIBRARY})
 
 # viewer
 add_library(viewer_imp direct3d/d3d_viewer.cpp direct3d/d3d_viewer.h)
-target_link_libraries(viewer_imp renderer scene)
+target_link_libraries(viewer_imp renderer scene ${DirectX11_LIBRARY})
 
 ENDIF()
 

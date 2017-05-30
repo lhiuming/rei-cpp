@@ -6,11 +6,13 @@
 #include <string>
 #include <vector>
 
+#include <d3d11.h>
+#include "../win32/safe_windows.h"
+
 #include "../scene.h"
 #include "../camera.h"
 #include "../viewer.h" // the base class
 #include "d3d_renderer.h" // win32 renderer 
-#include "../win32/safe_windows.h"
 
 
 /*
@@ -40,8 +42,20 @@ public:
 
 private:
 
+  // View resources 
+
+  // Windows interface object
   LPCTSTR WndClassName = "CEL_Viewer_Window";
   HWND hwnd = nullptr;
+
+  // D3D interface object 
+  IDXGISwapChain* SwapChain;  // double-buffering 
+  ID3D11Device* d3d11Device;  // the device abstraction 
+  ID3D11DeviceContext* d3d11DevCon;  // the device context 
+  ID3D11RenderTargetView* renderTargetView;  // render target interface 
+  ID3D11DepthStencilView* depthStencilView;  // depth-testing interface
+  ID3D11Texture2D* depthStencilBuffer;       // texture buffer for depth test
+
 
   // Implement Helpers // 
 
