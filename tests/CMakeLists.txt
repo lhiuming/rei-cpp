@@ -66,7 +66,7 @@ target_link_libraries(test_asset_loader asset_loader model)
 
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
-target_link_libraries(test_viewer viewer camera scene renderer)
+target_link_libraries(test_viewer viewer camera scene renderer console)
 
 #-----------------------------
 # Testing modules integration

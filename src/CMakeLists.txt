@@ -48,6 +48,9 @@ ENDIF()
 # algebra (used to call math ... )
 add_library(algebra algebra.cpp algebra.h)
 
+# console (very naive)
+add_library(console console.cpp console.h)
+
 # color
 add_library(color color.cpp color.h)
 
