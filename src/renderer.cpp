@@ -18,7 +18,7 @@ namespace CEL {
 // Default constructor
 Renderer::Renderer()
 {
-  cout << "A empty base renderer is created. " << endl;
+
 }
 
 // A cross-platform renderer factory

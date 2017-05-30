@@ -47,10 +47,10 @@ namespace CEL {
 
   private:
 
-    //WindowID window; // set by GLViewer
-    //GLuint program; // object id for a unified pass-through shader
 
-                    // Implementation helpers
+    // Implementation helpers
+
+    // 
     void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
     void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
 

@@ -14,16 +14,17 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
 #----------------
 
 # Use C++11 
-set (CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set compile-specific stuffs
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
-  set(CMAKE_CXX_FLAGS "-g -O3 -Wall")
+	set(CMAKE_CXX_FLAGS "-g -O3 -Wall")
 
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 
+	add_definitions(-DUSE_MSVC)
 
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 

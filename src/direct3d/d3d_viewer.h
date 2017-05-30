@@ -2,14 +2,16 @@
 #define CEL_DIRECT3D_D3D_VIEWER_H
 
 #include <cstddef>
+
 #include <string>
 #include <vector>
-
-#include "d3d_renderer.h"
 
 #include "../scene.h"
 #include "../camera.h"
 #include "../viewer.h" // the base class
+#include "d3d_renderer.h" // win32 renderer 
+#include "../win32/safe_windows.h"
+
 
 /*
 * d3d_viewer.h
@@ -38,9 +40,14 @@ public:
 
 private:
 
-  //WindowID window;
+  LPCTSTR WndClassName = "CEL_Viewer_Window";
+  HWND hwnd = nullptr;
 
-  static int view_count; // count the number of alive window
+  // Implement Helpers // 
+
+  // Window callback; useful for setting key-binding
+  static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
+    LPARAM lParam);
 
 };
 

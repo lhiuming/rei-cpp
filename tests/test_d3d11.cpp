@@ -188,22 +188,8 @@ bool InitializeWindow(HINSTANCE hInstance,  // program instance
   int width, int height, // size of the window 
   bool windowed) // 
 {
-  typedef struct _WNDCLASS {  // basic window class 
-    UINT cbSize;
-    UINT style;
-    WNDPROC lpfnWndProc;
-    int cbClsExtra;
-    int cbWndExtra;
-    HANDLE hInstance;
-    HICON hIcon;
-    HCURSOR hCursor;
-    HBRUSH hbrBackground;
-    LPCTSTR lpszMenuName;
-    LPCTSTR lpszClassName;
-  } WNDCLASS;
 
   WNDCLASSEX wc;
-
   wc.cbSize = sizeof(WNDCLASSEX);
   wc.style = CS_HREDRAW | CS_VREDRAW;
   wc.lpfnWndProc = WndProc;
