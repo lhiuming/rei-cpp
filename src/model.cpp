@@ -1,7 +1,7 @@
 // source of model.h
 #include "model.h"
 
-#include <iostream>
+#include "console.h"
 
 using namespace std;
 
@@ -24,7 +24,8 @@ Mesh::Mesh(vector<Vertex>&& va, vector<size_type>&& ta)
     triangles.push_back(Triangle(offset + ta[i    ],
                                  offset + ta[i + 1],
                                  offset + ta[i + 2]));
-    cout << "Put triangles from vertex " <<triangles[i/3].a - offset << endl;
+    console << "Put triangles from vertex " <<triangles[i/3].a - offset 
+      << endl;
   }
 }
 

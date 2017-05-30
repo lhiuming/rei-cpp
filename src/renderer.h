@@ -32,9 +32,9 @@ public:
   virtual ~Renderer() {};
 
   // Change content
-  void set_scene(std::shared_ptr<const Scene> scene) {
+  virtual void set_scene(std::shared_ptr<const Scene> scene) {
     this->scene = scene; }
-  void set_camera(std::shared_ptr<const Camera> camera) {
+  virtual void set_camera(std::shared_ptr<const Camera> camera) {
     this->camera = camera; }
 
   // Basic interface

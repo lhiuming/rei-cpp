@@ -3,6 +3,7 @@
 
 #include <cstddef>
 
+#include "../algebra.h"
 #include "../camera.h"
 #include "../scene.h"
 #include "../model.h"
@@ -20,13 +21,30 @@ namespace CEL {
 
 class D3DRenderer : public Renderer {
 
-  // a private Vertex class
-  class Vertex {
+  // a private Vertex class; packing data for shader 
+  class VertexElement {
+  public:
+    Vec4 pos;     // 4 float 
+    Color color;  // 4 float 
+    Vec3 normal;  // 3 float 
 
+    VertexElement(Vec4 p, Color c, Vec4 n) : pos(p), color(c), normal(n) {}
   };
 
-  // a private Triangle class; represent a primitive
-  class Triangle {
+  // a private Triangle calss; pakcing D3D data
+  struct TriangleIndices {
+    DWORD a, b, c;
+  };
+
+  // a private Mesh class, ready for D3D rendering 
+  class MeshBuffer {
+  public:
+
+    // D3D buffers 
+    ID3D11Buffer* meshIndexBuffer;
+    ID3D11Buffer* meshVertBuffer;
+    ID3D11InputLayout* vertLayout;
+    ID3D11Buffer* cbPerObjectBuffer;
 
   };
 
@@ -37,6 +55,9 @@ public:
 
   // Destructor
   ~D3DRenderer() override;
+
+  // Loading datas
+  void set_scene(std::shared_ptr<const Scene> scene) override;
 
   // Render request
   void set_buffer_size(BufferSize width, BufferSize height) override;
@@ -67,14 +88,12 @@ private:
   ID3D11RasterizerState* LineRender;  // with depth bias (to draw cel-line) 
 
   // Rendering objects 
-  ID3D11Buffer* meshIndexBuffer;
-  ID3D11Buffer* meshVertBuffer;
-  ID3D11InputLayout* vertLayout;
-
-  ID3D11Buffer* cbPerObjectBuffer; // buffer to store per-object data 
+  std::vector<MeshBuffer> mesh_buffers;
   ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide data 
 
   // Implementation helpers //
+
+  void add_mesh_buffer(const ModelInstance& modelIns);
 
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
   void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);

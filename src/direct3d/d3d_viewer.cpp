@@ -192,6 +192,8 @@ void D3DViewer::run()
   // Make sure the renderer is set properly 
   D3DRenderer& d3dRenderer = dynamic_cast<D3DRenderer&>(*renderer);
   d3dRenderer.set_d3d_interface(d3d11Device, d3d11DevCon);
+  d3dRenderer.set_scene(scene);
+  d3dRenderer.set_camera(camera);
 
   // Check event and do update&render
   MSG msg;
@@ -213,6 +215,8 @@ void D3DViewer::run()
     }
   }  // end while 
 
+  // Flip the buffer 
+  SwapChain->Present(0, 0);
 }
 
 

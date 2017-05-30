@@ -8,6 +8,7 @@
 #include <camera.h>
 #include <renderer.h>
 #include <viewer.h>
+#include <console.h>
 
 using namespace std;
 using namespace CEL;
@@ -20,30 +21,31 @@ int main()
   Vertex v1({10, 0, 0}), v2({8, 7, 0}), v3({-5, 0, 0});
   Vertex v4({0, 6, 0}), v5({-3, 0, 0}), v6({0, -10, 0});
   Mesh mesh{{v1, v2, v3, v4, v5, v6}, {0, 1, 2, 3, 4, 5}};
-  cout << "Mesh model set up." << endl;
+  console << "Mesh model set up." << endl;
 
   // Set up the scene
   auto s = make_shared<StaticScene>();
   s->add_model(make_shared<Mesh>(std::move(mesh)), Mat4::I());
-  cout << "Scene set up. " << endl;
+  console << "Scene set up. " << endl;
 
   // Set up the camera
   auto c = make_shared<Camera>(Vec3{0, 0, 20}, Vec3{0, 0, -1});
   c->set_ratio(720.0 / 480.0);
-  cout << "Camera set up." << endl;
+  console << "Camera set up." << endl;
 
   // Set up the Viewer and Renderer
-  auto viewer = makeViewer(720, 480, "Three Triangle (testing color and z-buffer)");
-    auto renderer = makeRenderer();  // no much setting necessary
+  auto viewer = makeViewer(720, 480, 
+    "Three Triangle (testing color and z-buffer)");
+  auto renderer = makeRenderer();  // no much setting necessary
   viewer->set_camera(c);
   viewer->set_scene(s);
   viewer->set_renderer(renderer);
-  cout << "Viewer and Renderer set up." << endl;
+  console << "Viewer and Renderer set up." << endl;
 
   // run
   viewer->run();
 
-  cout << "Viewer stopped. Program ends." << endl;
+  console << "Viewer stopped. Program ends." << endl;
 
   return 0;
 }
