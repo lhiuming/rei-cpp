@@ -34,18 +34,40 @@ class D3DRenderer : public Renderer {
   // a private Triangle calss; pakcing D3D data
   struct TriangleIndices {
     DWORD a, b, c;
+    TriangleIndices(DWORD v1, DWORD v2, DWORD v3) : a(v1), b(v2), c(v3) {}
+  };
+
+  // per-object constant-buffer layout 
+  struct cbPerObject
+  {
+    Mat4 WVP;  // NOTE: Mat4 is column major 
+    Mat4 World; // used for world-space lighting 
   };
 
   // a private Mesh class, ready for D3D rendering 
   class MeshBuffer {
   public:
 
-    // D3D buffers 
+    // Bound Mesh 
+    const Mesh& model;
+
+    // D3D buffers and related objects 
     ID3D11Buffer* meshIndexBuffer;
     ID3D11Buffer* meshVertBuffer;
     ID3D11InputLayout* vertLayout;
     ID3D11Buffer* cbPerObjectBuffer;
 
+    MeshBuffer(const Mesh& mesh) : model(mesh) {};
+
+    Mesh::size_type indices_num() const { 
+      return model.get_triangles().size() * 3; }
+
+  };
+
+  // per-frame constant-buffer layout 
+  struct cbPerFrame
+  {
+    // Light light;
   };
 
 public:
@@ -95,7 +117,7 @@ private:
 
   void add_mesh_buffer(const ModelInstance& modelIns);
 
-  void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
+  void render_meshes();
   void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
 
 };

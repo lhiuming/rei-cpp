@@ -79,6 +79,7 @@ public:
   // Primitives queries
   const std::vector<Vertex>& get_vertices() const { return vertices; }
   const std::vector<Triangle>& get_triangles() const { return triangles; }
+  const std::vector<IndexTriangle> get_indices() const;
 
 private:
   std::vector<Vertex> vertices;

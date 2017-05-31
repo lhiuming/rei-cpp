@@ -10,25 +10,35 @@ namespace CEL {
 // Default Constructor 
 D3DRenderer::D3DRenderer()
 {
-  // TODO : actually have nothing todo currently 
+  // actually have nothing todo currently 
 }
 
 // Destructor 
 D3DRenderer::~D3DRenderer()
 {
-  // TODO : check all private objects before running 
-
   // Shader objects
   VS->Release();
   PS->Release();
   VS_Buffer->Release();
   PS_Buffer->Release();
 
+  // Pipeline states 
+  //FaceRender
+  //LineRender
+
   // Mesh buffers 
-  // TODO 
+  for (auto& mb : mesh_buffers)
+  {
+    mb.meshIndexBuffer->Release();
+    mb.meshVertBuffer->Release();
+    mb.vertLayout->Release();
+    mb.cbPerObjectBuffer->Release();
+  }
+
+  // scene-wide constant buffer
+  //cbPerFrameBuffer
 
   console << "D3DRenderer is destructed." << endl;
-  console << "Mesh buffers are not released." << endl;
 }
 
 
@@ -102,7 +112,7 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // Reset the shaders (why?) 
 
-  // TODO : turn the scene into internal format, ready for D3D rendering 
+  // turn the scene into internal format, ready for D3D rendering 
   for (auto& modelIns : scene->get_models())
   {
     add_mesh_buffer(modelIns);
@@ -114,7 +124,9 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   const Mat4& model_trans = modelIns.transform;
   const Mesh& mesh = dynamic_cast<Mesh&>(*(modelIns.pmodel));
 
-  MeshBuffer mb;
+  // Take control of the creation of MeshBuffer 
+
+  MeshBuffer mb(mesh);
 
   // Collect the source data 
   vector<VertexElement> vertices;
@@ -122,7 +134,7 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   Vec3 default_normal{ 1.0, 1.0, 1.0 };
   for (const auto& v : mesh.get_vertices())
     vertices.emplace_back(v.coord, v.color, default_normal);
-  for (const auto& t : mesh.get_triangles())
+  for (const auto& t : mesh.get_indices())
     indices.emplace_back(t.a, t.b, t.c);
 
   // Create a buffer description for vertex data 
@@ -160,8 +172,43 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   );
 
   // Create a Input layout for the mesh 
+  D3D11_INPUT_ELEMENT_DESC layout[] =
+  {
+    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
+    DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
+    0, // input slot; kind of a flexible and optional configuration 
+    0, // byte offset 
+    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
+    0 // ADVANCED; also for instancing 
+    },
+    { "COLOR", 0,
+    DXGI_FORMAT_R32G32B32A32_FLOAT,
+    0,
+    sizeof(VertexElement::pos), // skip the first 3 coordinate data 
+    D3D11_INPUT_PER_VERTEX_DATA, 0
+    },
+    { "NORMAL", 0,
+    DXGI_FORMAT_R32G32B32_FLOAT,
+    0,
+    sizeof(VertexElement::pos) + sizeof(VertexElement::color), 
+    D3D11_INPUT_PER_VERTEX_DATA , 0
+    }
+  };
+  d3d11Device->CreateInputLayout(
+    layout, // element layout description (defined above at global scope)
+    ARRAYSIZE(layout), // number of elements; (also defined at global scope) 
+    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader 
+    &(mb.vertLayout) // received the returned Input Layout  
+  );
 
   // Create a perObject Buffer
+  D3D11_BUFFER_DESC cbbd;
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+  d3d11Device->CreateBuffer(&cbbd, NULL, &(mb.cbPerObjectBuffer));
+
 }
 
 
@@ -170,55 +217,76 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 // Change buffer size 
 void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
-  // TODO 
+  // Update storage 
   this->width = width;
   this->height = height;
 
-  // TODO : set the view port 
-  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
+  // Update the view port (used in the Rasterizer Stage) 
   D3D11_VIEWPORT viewport;
   ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
   viewport.TopLeftX = 0;  // position of 
   viewport.TopLeftY = 0;  //  the top-left corner in the window.
-  viewport.Width = width;
-  viewport.Height = height;
+  viewport.Width = static_cast<float>(width);
+  viewport.Height = static_cast<float>(height);
   viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
   viewport.MaxDepth = 1.0f; // furthest value 
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
-  this->d3d11DevCon->RSSetViewports(
-    1, // TODO: what are these
-    &viewport
-  );
+  d3d11DevCon->RSSetViewports(1, &viewport);
 }
 
 // Do rendering 
 void D3DRenderer::render() {
-  // TODO 
-
-  // TODO : clearRenderTargetView
-  // TODO : clear depthBuffer 
 
   // TODO : update perFramebuffers : light, 
 
-  // render_meshes();
+  // render all buffered meshes 
+  render_meshes();
 }
 
 // Render the meshes 
 void D3DRenderer::render_meshes() {
   // TODO 
 
-  // overall : IASetPrimitiveTopology
+  // Use TRIANGLELIST mode 
+  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // for each meshBuffer
-  // 1. IASetVertexBuffers
-  // 2. IASetIndexBuffer
-  // 3. IASetInputLayout
-  // 4. update perObject Buffer : WVP, World 
-  // 5. DrawIndexed. 
+  for (auto& mb : mesh_buffers)
+  {
+    // 1. set vertex buffer 
+    UINT stride = sizeof(VertexElement);
+    UINT offset = 0;
+    d3d11DevCon->IASetVertexBuffers(
+      0, // the input slot we use as start 
+      1, // number of buffer to bind; we bind one buffer
+      &(mb.meshVertBuffer), // pointer to the buffer object 
+      &stride, // pStrides; data size for each vertex 
+      &offset // starting offset in the data 
+    );
 
-  // Optional : set render state 
+    // 2. set indices buffer
+    d3d11DevCon->IASetIndexBuffer(
+      mb.meshIndexBuffer, // pointer to a buffer data object      
+      DXGI_FORMAT_R32_UINT,  // data format 
+      0 // unsigned int; starting offset in the data 
+    );
 
+    // 3. set per-vertex input layout
+    d3d11DevCon->IASetInputLayout(mb.vertLayout);
+
+    // 4. update and set perObject Buffer : WVP, World 
+    //TODO : incorporation camera 
+    cbPerObject cbMesh;
+    d3d11DevCon->UpdateSubresource(mb.cbPerObjectBuffer, 0, NULL, &cbMesh, 0, 0);
+    d3d11DevCon->VSSetConstantBuffers(0, 1, &(mb.cbPerObjectBuffer));
+
+    // 5. DrawIndexed. 
+    d3d11DevCon->DrawIndexed(mb.indices_num(), 0, 0);
+
+    // Optional : set render state 
+    //d3d11DevCon->RSSetState(SolidRender);
+  }
 }
 
 } // namespace CEL

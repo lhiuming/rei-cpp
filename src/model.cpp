@@ -15,9 +15,6 @@ Mesh::Mesh(const vector<Vertex>& va, const vector<size_type>& ta)
 Mesh::Mesh(vector<Vertex>&& va, vector<size_type>&& ta)
  : vertices(va)
 {
-  // TODO check the size of va ta
-  // TODO check the maximum value in ta
-
   // convert the vertices id to iterator
   VertexIt offset = vertices.begin();
   for (size_type i = 0; i < ta.size(); i += 3) {
@@ -39,6 +36,19 @@ Mesh::Mesh(vector<Vertex>&& va, vector<IndexTriangle>&& ta) : vertices(va)
     Triangle t(offset + ti.a, offset + ti.b, offset + ti.c);
     triangles.push_back(t);
   }
+}
+
+
+// Primitives Queries // 
+
+// Get triangle indices 
+const vector<Mesh::IndexTriangle> Mesh::get_indices() const
+{
+  vector<IndexTriangle> ret;
+  auto offset = vertices.begin();
+  for (const auto& itTri : triangles)
+    ret.emplace_back(itTri.a - offset, itTri.b - offset, itTri.c - offset);
+  return ret;
 }
 
 

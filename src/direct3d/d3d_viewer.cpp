@@ -208,15 +208,29 @@ void D3DViewer::run()
       DispatchMessage(&msg);
     } 
     else 
-    {
-      // run game code            
+    { // Run game code            
+
       //scene->update();
-      //render->draw();
+
+      // clear windows background (render target)
+      float bgColor[4] = { 0.3f, 0.6f, 0.7f, 1.0f };
+      d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
+
+      // Also clear the depth buffer 
+      d3d11DevCon->ClearDepthStencilView(
+        depthStencilView,  
+        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 
+        1.0f, // clear to further value (1.0) 
+        0 // clear value for stencil; we actually not using stencil currently 
+      );
+
+      renderer->render();
+
+      // Flip the buffer 
+      SwapChain->Present(0, 0);
     }
   }  // end while 
 
-  // Flip the buffer 
-  SwapChain->Present(0, 0);
 }
 
 
