@@ -9,9 +9,7 @@ namespace CEL {
 
 // Default Constructor 
 D3DRenderer::D3DRenderer()
-{
-  // actually have nothing todo currently 
-}
+{ }
 
 // Destructor 
 D3DRenderer::~D3DRenderer()
@@ -23,7 +21,7 @@ D3DRenderer::~D3DRenderer()
   PS_Buffer->Release();
 
   // Pipeline states 
-  //FaceRender
+  FaceRender->Release();
   //LineRender
 
   // Mesh buffers 
@@ -44,18 +42,14 @@ D3DRenderer::~D3DRenderer()
 
 // Configurations //
 
-// compiler shaders after set_d3d_interface 
+// INIT: compiler shaders after set_d3d_interface 
 void D3DRenderer::compile_shader()
 {
-  // TODO : do error reporting 
-
-  HRESULT hr;
-
-  // Prepare Shaders //
+  HRESULT hr; // for error reporting 
 
   // Compiling 
   hr = D3DCompileFromFile(
-    L"effects.hlsl",  // shader file name 
+    L"./direct3d/effects.hlsl",  // shader file name 
     0, // shader macros
     0, // shader includes  
     "VS", // shader entry pointer
@@ -64,14 +58,18 @@ void D3DRenderer::compile_shader()
     &(this->VS_Buffer), // recieve the compiled shader bytecode 
     0 // receive optional error repot 
   );
+  if (FAILED(hr)) throw runtime_error("Vertex Shader compile FAILED");
+  else console << "DEBUG: VS compile successed." << endl;
   hr = D3DCompileFromFile(
-    L"effects.hlsl",
+    L"direct3d/effects.hlsl",
     0, 0,
     "PS", "ps_4_0",
     0, 0,
     &(this->PS_Buffer),
     0
   );
+  if (FAILED(hr)) throw runtime_error("Pixel Shader compile FAIED");
+  else console << "DEBUG: PS compile successed." << endl;
 
   // Create the Shader Objects
   hr = this->d3d11Device->CreateVertexShader(
@@ -80,28 +78,41 @@ void D3DRenderer::compile_shader()
     NULL, // pointer to a class linkage interface; no using now 
     &(this->VS) // receive the returned vertex shader object 
   );
+  if (FAILED(hr)) throw runtime_error("Vertex Shader createion FAILED");
   hr = this->d3d11Device->CreatePixelShader(
     PS_Buffer->GetBufferPointer(),
     PS_Buffer->GetBufferSize(),
     NULL,
     &(this->PS)
   );
+  if (FAILED(hr)) throw runtime_error("Pixel Shader createion FAILED");
 
   // Set the Shaders (bind to the pipeline) 
-  this->d3d11DevCon->VSSetShader(
-    this->VS, // compiled shader object 
+  this->d3d11DevCon->VSSetShader(this->VS,
     0, // set the used interface; not using currently 
     0 // the number of class-instance (related to above); not using currently 
   );
-  this->d3d11DevCon->PSSetShader(
-    this->PS,
-    0,
-    0
-  );
+  this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 
 }
 
-// set up view
+// INIT: setup render states
+void D3DRenderer::create_render_states()
+{
+  HRESULT hr; // for error reporting 
+
+  // FaceRender 
+  D3D11_RASTERIZER_DESC FRdesc;
+  ZeroMemory(&FRdesc, sizeof(D3D11_RASTERIZER_DESC));
+  FRdesc.FillMode = D3D11_FILL_SOLID;
+  FRdesc.CullMode = D3D11_CULL_NONE; // TOOD: set to Back after debug 
+  FRdesc.FrontCounterClockwise = true;
+  hr = this->d3d11Device->CreateRasterizerState(&FRdesc, &(this->FaceRender));
+  if (FAILED(hr)) throw runtime_error("FaceRender State creation FAILED");
+
+  // Optional: line Render 
+
+}
 
 // set and initialize internal scenes 
 void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
@@ -110,7 +121,9 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // TODO : create perFrameObject buffer : light 
 
-  // Reset the shaders (why?) 
+  // Reset the shaders : why? FIXME
+  this->d3d11DevCon->VSSetShader(this->VS, 0, 0);
+  this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 
   // turn the scene into internal format, ready for D3D rendering 
   for (auto& modelIns : scene->get_models())
@@ -126,56 +139,69 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 
   // Take control of the creation of MeshBuffer 
 
+  HRESULT hr; // for error reporting 
+
   MeshBuffer mb(mesh);
 
   // Collect the source data 
   vector<VertexElement> vertices;
-  vector<TriangleIndices> indices;
+  vector<DWORD> indices;
   Vec3 default_normal{ 1.0, 1.0, 1.0 };
   for (const auto& v : mesh.get_vertices())
     vertices.emplace_back(v.coord, v.color, default_normal);
   for (const auto& t : mesh.get_indices())
-    indices.emplace_back(t.a, t.b, t.c);
+  {
+    indices.push_back(t.a);
+    indices.push_back(t.b);
+    indices.push_back(t.c);
 
-  // Create a buffer description for vertex data 
+  }
+
+  // Make a buffer description for vertex data 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
   vertexBufferDesc.ByteWidth = vertices.size() * sizeof(vertices[0]);  
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  
+  console << "vertex buffer byte width is " << vertexBufferDesc.ByteWidth << endl;
 
-  // Create a buffer description for indices data 
+  // Make a buffer description for indices data 
   D3D11_BUFFER_DESC indexBufferDesc;
   ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
   indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
   indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
   indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER; 
+  console << "index buffer byte width is 000" << indexBufferDesc.ByteWidth << endl;
+  console << "index data has " << indices.size() << " elements, ";
+  console << "each " << sizeof(indices[0]) << " bytes" << endl;
 
   // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
   vertexBufferData.pSysMem = &(vertices[0]); 
-  d3d11Device->CreateBuffer(
+  hr = d3d11Device->CreateBuffer(
     &vertexBufferDesc, // buffer description 
     &vertexBufferData, // parameter set above 
     &(mb.meshVertBuffer) // receive the returned ID3D11Buffer object 
   );
+  if (FAILED(hr)) throw runtime_error("Vertex Buffer creation FAILED");
 
   // Create the index buffer data object 
   D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
   ZeroMemory(&indexBufferData, sizeof(indexBufferData));
   indexBufferData.pSysMem = &(indices[0]);
-  d3d11Device->CreateBuffer(
+  hr = d3d11Device->CreateBuffer(
     &indexBufferDesc, 
     &indexBufferData, 
     &(mb.meshIndexBuffer)
   );
+  if (FAILED(hr)) throw runtime_error("Index Buffer creation FAILED");
 
   // Create a Input layout for the mesh 
   D3D11_INPUT_ELEMENT_DESC layout[] =
   {
     { "POSITION", 0,  // a Name and an Index to map elements in the shader 
-    DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
+    DXGI_FORMAT_R32G32B32A32_FLOAT, // define the format of the element
     0, // input slot; kind of a flexible and optional configuration 
     0, // byte offset 
     D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
@@ -184,7 +210,7 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     { "COLOR", 0,
     DXGI_FORMAT_R32G32B32A32_FLOAT,
     0,
-    sizeof(VertexElement::pos), // skip the first 3 coordinate data 
+    sizeof(VertexElement::pos), // skip the first 4 position data 
     D3D11_INPUT_PER_VERTEX_DATA, 0
     },
     { "NORMAL", 0,
@@ -194,12 +220,13 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     D3D11_INPUT_PER_VERTEX_DATA , 0
     }
   };
-  d3d11Device->CreateInputLayout(
-    layout, // element layout description (defined above at global scope)
-    ARRAYSIZE(layout), // number of elements; (also defined at global scope) 
+  hr = d3d11Device->CreateInputLayout(
+    layout, // element layout description 
+    ARRAYSIZE(layout), // number of elements
     VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader 
     &(mb.vertLayout) // received the returned Input Layout  
   );
+  if (FAILED(hr)) throw runtime_error("Input Layout creation FAILED");
 
   // Create a perObject Buffer
   D3D11_BUFFER_DESC cbbd;
@@ -207,7 +234,8 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   cbbd.Usage = D3D11_USAGE_DEFAULT;
   cbbd.ByteWidth = sizeof(cbPerObject);
   cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-  d3d11Device->CreateBuffer(&cbbd, NULL, &(mb.cbPerObjectBuffer));
+  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &(mb.cbPerObjectBuffer));
+  if (FAILED(hr)) throw runtime_error("Contant Buffer per-mesh creation FAILED");
 
 }
 
@@ -233,12 +261,13 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
   d3d11DevCon->RSSetViewports(1, &viewport);
+
 }
 
 // Do rendering 
 void D3DRenderer::render() {
 
-  // TODO : update perFramebuffers : light, 
+  // Optional : update perFramebuffers : light, 
 
   // render all buffered meshes 
   render_meshes();
@@ -246,8 +275,6 @@ void D3DRenderer::render() {
 
 // Render the meshes 
 void D3DRenderer::render_meshes() {
-  // TODO 
-
   // Use TRIANGLELIST mode 
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -276,16 +303,18 @@ void D3DRenderer::render_meshes() {
     d3d11DevCon->IASetInputLayout(mb.vertLayout);
 
     // 4. update and set perObject Buffer : WVP, World 
-    //TODO : incorporation camera 
-    cbPerObject cbMesh;
+    // TODO add model transform before w2n
+    Mat4 w2n = camera->get_w2n();
+    w2n[2] = -w2n[2]; // D3D looks through +z axis 
+    cbPerObject cbMesh(w2n);
     d3d11DevCon->UpdateSubresource(mb.cbPerObjectBuffer, 0, NULL, &cbMesh, 0, 0);
     d3d11DevCon->VSSetConstantBuffers(0, 1, &(mb.cbPerObjectBuffer));
 
     // 5. DrawIndexed. 
     d3d11DevCon->DrawIndexed(mb.indices_num(), 0, 0);
 
-    // Optional : set render state 
-    //d3d11DevCon->RSSetState(SolidRender);
+    // set render state 
+    d3d11DevCon->RSSetState(FaceRender);
   }
 }
 

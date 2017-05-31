@@ -11,6 +11,7 @@
 
 #include <d3d11.h>
 #include <d3dcompiler.h>  
+#include <DirectXMath.h>  // d3d's math lib fits good with HLSL 
 
 /*
 * direct3d/d3d_renderer.h
@@ -22,26 +23,30 @@ namespace CEL {
 class D3DRenderer : public Renderer {
 
   // a private Vertex class; packing data for shader 
-  class VertexElement {
-  public:
-    Vec4 pos;     // 4 float 
-    Color color;  // 4 float 
-    Vec3 normal;  // 3 float 
+  struct VertexElement {
+    DirectX::XMFLOAT4 pos;     // 4 float 
+    DirectX::XMFLOAT4 color;  // 4 float 
+    DirectX::XMFLOAT3 normal;  // 3 float 
 
-    VertexElement(Vec4 p, Color c, Vec4 n) : pos(p), color(c), normal(n) {}
-  };
-
-  // a private Triangle calss; pakcing D3D data
-  struct TriangleIndices {
-    DWORD a, b, c;
-    TriangleIndices(DWORD v1, DWORD v2, DWORD v3) : a(v1), b(v2), c(v3) {}
+    VertexElement(Vec4 p, Color c, Vec3 n) : 
+      pos(p.x, p.y, p.z, p.h), 
+      color(c.r, c.g, c.b, c.a), 
+      normal(n.x, n.y, n.z) 
+    {}
   };
 
   // per-object constant-buffer layout 
   struct cbPerObject
   {
-    Mat4 WVP;  // NOTE: Mat4 is column major 
-    Mat4 World; // used for world-space lighting 
+    DirectX::XMMATRIX WVP;  // NOTE: row major storage 
+    DirectX::XMMATRIX World;  
+
+    cbPerObject(Mat4 wvp, Mat4 world = Mat4::I()) : 
+      WVP(wvp(0,0), wvp(0,1), wvp(0,2), wvp(0,3), 
+          wvp(1,0), wvp(1,1), wvp(1,2), wvp(1,3),
+          wvp(2,0), wvp(2,1), wvp(2,2), wvp(2,3), 
+          wvp(3,0), wvp(3,1), wvp(3,2), wvp(3,3) )
+    { }
   };
 
   // a private Mesh class, ready for D3D rendering 
@@ -90,8 +95,10 @@ public:
     d3d11Device = pdevice; 
     d3d11DevCon = pdevCon;
     this->compile_shader(); // only runnable after get the device 
+    this->create_render_states();
   }
   void compile_shader();
+  void create_render_states();
 
 private:
 

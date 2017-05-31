@@ -9,8 +9,8 @@ struct Light
 // constant buffer to hold the projection transforming matrix  
 cbuffer cbPerObject
 {
-    float4x4 WVP;
-    float4x4 World;
+    row_major float4x4 WVP;
+    row_major float4x4 World;
 };
 cbuffer cbPerFrame
 {
@@ -29,7 +29,7 @@ VS_OUTPUT VS(float4 inPos : POSITION, float4 inColor : COLOR, float3 normal : NO
 {
     VS_OUTPUT output;
 
-    output.Pos = mul(inPos, WVP);
+    output.Pos = mul(WVP, inPos);
     output.Color = inColor;
     output.Normal = mul(normal, World);
 
@@ -50,5 +50,7 @@ float4 PS(VS_OUTPUT input) : SV_TARGET
     else
         finalColor = diffuse * light.ambient;
 
-    return float4(finalColor, diffuse.a); // take the alpha channel of object 
+    //return float4(finalColor, diffuse.a); // take the alpha channel of object 
+    //return input.Color;
+    return float4(0.0, 0.0, 1.0, 1.0);
 }

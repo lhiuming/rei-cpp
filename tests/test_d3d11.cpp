@@ -343,7 +343,7 @@ bool InitScene()
   // Compile Shaders from shader file
   // NOTE: new interface for D3DCompiler; different from the original tutorial  
   hr = D3DCompileFromFile(
-    L"effects.hlsl",  // shader file name 
+    L"test_effects.hlsl",  // shader file name 
     0, // shader macros
     0, // shader includes  
     "VS", // shader entry pointer
@@ -352,7 +352,7 @@ bool InitScene()
     &VS_Buffer, // recieve compiled shader code 
     0 // receive optional error repot 
   );
-  hr = D3DCompileFromFile(L"effects.hlsl", 0, 0, "PS", "ps_4_0", 0, 0, &PS_Buffer, 0);
+  hr = D3DCompileFromFile(L"test_effects.hlsl", 0, 0, "PS", "ps_4_0", 0, 0, &PS_Buffer, 0);
 
   // Create the Shader Objects
   hr = d3d11Device->CreateVertexShader(
