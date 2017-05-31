@@ -154,7 +154,6 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     indices.push_back(t.a);
     indices.push_back(t.b);
     indices.push_back(t.c);
-
   }
 
   // Make a buffer description for vertex data 
@@ -171,10 +170,8 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
   indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
   indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER; 
-  console << "index buffer byte width is 000" << indexBufferDesc.ByteWidth << endl;
-  console << "index data has " << indices.size() << " elements, ";
-  console << "each " << sizeof(indices[0]) << " bytes" << endl;
-
+  console << "index buffer byte width is" << indexBufferDesc.ByteWidth << endl;
+ 
   // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
