@@ -23,7 +23,9 @@ int main()
   // Create the triangles
   Vertex v1({10, 0, 0}), v2({8, 7, 0}), v3({-5, 0, 0});
   Vertex v4({0, 6, 0}), v5({-3, 0, 0}), v6({0, -10, 0});
-  Mesh mesh{{v1, v2, v3, v4, v5, v6}, {0, 1, 2, 3, 4, 5}};
+  Vertex v7({0.8f, 0.0f, 0.5}), v8({0.8f, 0.8f, 0.5f}), v9({0.0f, 0.8f, 0.5f});
+  Mesh mesh{{v1, v2, v3, v4, v5, v6, v7, v8, v9}, 
+            {0, 1, 2,  3, 4, 5,  6, 7, 8}};
   console << "Mesh model set up." << endl;
 
   // Set up the scene

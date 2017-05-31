@@ -69,10 +69,21 @@ class D3DRenderer : public Renderer {
 
   };
 
+  // Over simple Light object, to debug
+  struct Light
+  {
+    DirectX::XMFLOAT3 dir;
+    float pad; // padding to match with shader's constant buffer packing scheme 
+    DirectX::XMFLOAT4 ambient;
+    DirectX::XMFLOAT4 diffuse;
+
+    Light() { ZeroMemory(this, sizeof(Light)); }
+  };
+
   // per-frame constant-buffer layout 
   struct cbPerFrame
   {
-    // Light light;
+    Light light;
   };
 
 public:

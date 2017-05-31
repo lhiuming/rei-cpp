@@ -41,7 +41,7 @@ file(COPY ${PROJECT_BINARY_DIR}/lib/d3dcompiler_47.dll
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 
 # also copy the Core shaders for testing 
-file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/effects.hlsl 
+file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/shader.hlsl 
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}/direct3d")
 
 ENDIF()

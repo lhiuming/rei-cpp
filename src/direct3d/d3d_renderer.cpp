@@ -36,7 +36,7 @@ D3DRenderer::~D3DRenderer()
   if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
 
   // scene-wide constant buffer
-  //cbPerFrameBuffer
+  cbPerFrameBuffer->Release();
 
   console << "D3DRenderer is destructed." << endl;
 }
@@ -51,7 +51,7 @@ void D3DRenderer::compile_shader()
 
   // Compiling 
   hr = D3DCompileFromFile(
-    L"./direct3d/effects.hlsl",  // shader file name 
+    L"direct3d/shader.hlsl",  // shader file name 
     0, // shader macros
     0, // shader includes  
     "VS", // shader entry pointer
@@ -62,7 +62,7 @@ void D3DRenderer::compile_shader()
   );
   if (FAILED(hr)) throw runtime_error("Vertex Shader compile FAILED");
   hr = D3DCompileFromFile(
-    L"direct3d/effects.hlsl",
+    L"direct3d/shader.hlsl",
     0, 0,
     "PS", "ps_4_0",
     0, 0,
@@ -80,8 +80,8 @@ void D3DRenderer::compile_shader()
   );
   if (FAILED(hr)) throw runtime_error("Vertex Shader createion FAILED");
   hr = this->d3d11Device->CreatePixelShader(
-    PS_Buffer->GetBufferPointer(),
-    PS_Buffer->GetBufferSize(),
+    this->PS_Buffer->GetBufferPointer(),
+    this->PS_Buffer->GetBufferSize(),
     NULL,
     &(this->PS)
   );
@@ -106,7 +106,7 @@ void D3DRenderer::create_render_states()
   ZeroMemory(&FRdesc, sizeof(D3D11_RASTERIZER_DESC));
   FRdesc.FillMode = D3D11_FILL_SOLID;
   FRdesc.CullMode = D3D11_CULL_NONE; // TOOD: set to Back after debug 
-  FRdesc.FrontCounterClockwise = true;
+  FRdesc.FrontCounterClockwise = true; // FIXME : which way camera looks?
   hr = this->d3d11Device->CreateRasterizerState(&FRdesc, &(this->FaceRender));
   if (FAILED(hr)) throw runtime_error("FaceRender State creation FAILED");
 
@@ -119,17 +119,22 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 {
   Renderer::set_scene(scene);
 
-  // TODO : create perFrameObject buffer : light 
-
-  // Reset the shaders : why? FIXME
-  this->d3d11DevCon->VSSetShader(this->VS, 0, 0);
-  this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
+  // create perFrameObject buffer : light 
+  // FIXME : load light from scene 
+  // FIXME : release the old object if it is outdated
+  D3D11_BUFFER_DESC cbDesc;
+  ZeroMemory(&cbDesc, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
+  cbDesc.Usage = D3D11_USAGE_DEFAULT;
+  cbDesc.ByteWidth = sizeof(cbPerFrame);
+  cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  d3d11Device->CreateBuffer(&cbDesc, NULL, &(this->cbPerFrameBuffer));
 
   // turn the scene into internal format, ready for D3D rendering 
   for (auto& modelIns : scene->get_models())
   {
-    add_mesh_buffer(modelIns);
+    add_mesh_buffer(modelIns);  
   }
+
 }
 
 void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
@@ -164,14 +169,6 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   vertexBufferDesc.ByteWidth = vertices.size() * sizeof(vertices[0]);  
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  
   console << "vertex buffer byte width is " << vertexBufferDesc.ByteWidth << endl;
-
-  // Make a buffer description for indices data 
-  D3D11_BUFFER_DESC indexBufferDesc;
-  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
-  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
-  indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
-  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER; 
-  console << "index buffer byte width is " << indexBufferDesc.ByteWidth << endl;
  
   // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;
@@ -183,6 +180,14 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     &(mb.meshVertBuffer) // receive the returned ID3D11Buffer object 
   );
   if (FAILED(hr)) throw runtime_error("Vertex Buffer creation FAILED");
+
+  // Make a buffer description for indices data 
+  D3D11_BUFFER_DESC indexBufferDesc;
+  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+  indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
+  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+  console << "index buffer byte width is " << indexBufferDesc.ByteWidth << endl;
 
   // Create the index buffer data object 
   D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
@@ -208,13 +213,13 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     { "COLOR", 0,
     DXGI_FORMAT_R32G32B32A32_FLOAT,
     0,
-    sizeof(VertexElement::pos), // skip the first 4 position data 
+    16, // skip the first 4 position data 
     D3D11_INPUT_PER_VERTEX_DATA, 0
     },
     { "NORMAL", 0,
     DXGI_FORMAT_R32G32B32_FLOAT,
     0,
-    sizeof(VertexElement::pos) + sizeof(VertexElement::color), 
+    32, 
     D3D11_INPUT_PER_VERTEX_DATA , 0
     }
   };
@@ -246,29 +251,23 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
   // Update storage 
   this->width = width;
   this->height = height;
-
-  // Update the view port (used in the Rasterizer Stage) 
-  D3D11_VIEWPORT viewport;
-  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-  viewport.TopLeftX = 0;  // position of 
-  viewport.TopLeftY = 0;  //  the top-left corner in the window.
-  viewport.Width = static_cast<float>(width);
-  viewport.Height = static_cast<float>(height);
-  viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
-  viewport.MaxDepth = 1.0f; // furthest value 
-
-  // Set the Viewport (bind to the Raster Stage of he pipeline) 
-  d3d11DevCon->RSSetViewports(1, &viewport);
-
 }
 
 // Do rendering 
 void D3DRenderer::render() {
 
   // Optional : update perFramebuffers : light, 
+  cbPerFrame cbPerF;
+  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &cbPerF, 0, 0);
+  d3d11DevCon->PSSetConstantBuffers(0, 1, &(this->cbPerFrameBuffer)); 
+
+  // Reset the shaders : why? FIXME
+  this->d3d11DevCon->VSSetShader(this->VS, 0, 0);
+  this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 
   // render all buffered meshes 
   render_meshes();
+
 }
 
 // Render the meshes 
@@ -279,6 +278,7 @@ void D3DRenderer::render_meshes() {
   // for each meshBuffer
   for (auto& mb : mesh_buffers)
   {
+
     // 1. set vertex buffer 
     UINT stride = sizeof(VertexElement);
     UINT offset = 0;
@@ -302,17 +302,17 @@ void D3DRenderer::render_meshes() {
 
     // 4. update and set perObject Buffer : WVP, World 
     // TODO add model transform before w2n
-    Mat4 w2n = camera->get_w2n();
-    w2n[2] = -w2n[2]; // D3D looks through +z axis 
-    cbPerObject cbMesh(w2n);
+    cbPerObject cbMesh(camera->get_w2n());
     d3d11DevCon->UpdateSubresource(mb.cbPerObjectBuffer, 0, NULL, &cbMesh, 0, 0);
     d3d11DevCon->VSSetConstantBuffers(0, 1, &(mb.cbPerObjectBuffer));
+
+    // set render state 
+    d3d11DevCon->RSSetState(FaceRender);
 
     // 5. DrawIndexed. 
     d3d11DevCon->DrawIndexed(mb.indices_num(), 0, 0);
 
-    // set render state 
-    d3d11DevCon->RSSetState(FaceRender);
+
   }
 }
 

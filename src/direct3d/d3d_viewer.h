@@ -41,11 +41,10 @@ public:
 
 private:
 
-  // View resources 
-
   // Windows interface object
   LPCTSTR WndClassName = "CEL_Viewer_Window";
   HWND hwnd = nullptr;
+  std::size_t width, height;
 
   // D3D interface object 
   IDXGISwapChain* SwapChain;  // double-buffering 

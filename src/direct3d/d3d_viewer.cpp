@@ -39,6 +39,9 @@ D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
 
   // Some data normally get from WinMain
   HINSTANCE hInstance = GetModuleHandle(nullptr); // handle to the current .exe 
+  this->width = window_w;
+  this->height = window_h;
+
 
   // Initialize a window (Extended Window) // 
 
@@ -158,6 +161,19 @@ D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
     &(this->depthStencilView)  // receive the returned DepthStencil View pointer
   );
 
+  // Setup the view port (used in the Rasterizer Stage) 
+  D3D11_VIEWPORT viewport;
+  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+  viewport.TopLeftX = 0;  // position of 
+  viewport.TopLeftY = 0;  //  the top-left corner in the window.
+  viewport.Width = static_cast<float>(window_w);
+  viewport.Height = static_cast<float>(window_h);
+  viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
+  viewport.MaxDepth = 1.0f; // furthest value 
+
+                            // Set the Viewport (bind to the Raster Stage of he pipeline) 
+  d3d11DevCon->RSSetViewports(1, &viewport);
+
   // Bind Render Target View and StencilDepth View to OM stage
   this->d3d11DevCon->OMSetRenderTargets(
     1, // number of render targets to bind
@@ -191,6 +207,7 @@ void D3DViewer::run()
 {
   // Make sure the renderer is set properly 
   D3DRenderer& d3dRenderer = dynamic_cast<D3DRenderer&>(*renderer);
+  d3dRenderer.set_buffer_size(width, height);
   d3dRenderer.set_d3d_interface(d3d11Device, d3d11DevCon);
   d3dRenderer.set_scene(scene);
   d3dRenderer.set_camera(camera);
@@ -213,18 +230,13 @@ void D3DViewer::run()
       //scene->update();
 
       // clear windows background (render target)
-      float bgColor[4] = { 0.3f, 0.6f, 0.7f, 1.0f };
+      float bgColor[4] = { 0.3f, 0.6f, 0.7f, 0.5f };
       d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
       // Also clear the depth buffer 
-      d3d11DevCon->ClearDepthStencilView(
-        depthStencilView,  
-        D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 
-        1.0f, // clear to further value (1.0) 
-        0 // clear value for stencil; we actually not using stencil currently 
-      );
+      // TODO
 
-      renderer->render();
+      d3dRenderer.render();
 
       // Flip the buffer 
       SwapChain->Present(0, 0);
