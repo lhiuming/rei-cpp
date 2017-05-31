@@ -88,7 +88,7 @@ D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
 
   // Initialize D3D Context // 
 
-  // Swap Chain 
+  // Swap Chain and Device 
   DXGI_MODE_DESC bufferDesc;  // Buffer property for the swap-chain
   ZeroMemory(&bufferDesc, sizeof(DXGI_MODE_DESC));
   bufferDesc.Width = window_w;

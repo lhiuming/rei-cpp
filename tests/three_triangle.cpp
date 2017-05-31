@@ -4,7 +4,6 @@
 #pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 #endif
 
-#include <iostream>
 #include <memory>
 
 #include <model.h>

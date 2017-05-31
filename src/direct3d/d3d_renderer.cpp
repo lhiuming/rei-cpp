@@ -31,7 +31,9 @@ D3DRenderer::~D3DRenderer()
     mb.meshVertBuffer->Release();
     mb.vertLayout->Release();
     mb.cbPerObjectBuffer->Release();
+    console << "A MeshBuffer is destructed." << endl;
   }
+  if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
 
   // scene-wide constant buffer
   //cbPerFrameBuffer
@@ -59,7 +61,6 @@ void D3DRenderer::compile_shader()
     0 // receive optional error repot 
   );
   if (FAILED(hr)) throw runtime_error("Vertex Shader compile FAILED");
-  else console << "DEBUG: VS compile successed." << endl;
   hr = D3DCompileFromFile(
     L"direct3d/effects.hlsl",
     0, 0,
@@ -69,7 +70,6 @@ void D3DRenderer::compile_shader()
     0
   );
   if (FAILED(hr)) throw runtime_error("Pixel Shader compile FAIED");
-  else console << "DEBUG: PS compile successed." << endl;
 
   // Create the Shader Objects
   hr = this->d3d11Device->CreateVertexShader(
@@ -141,7 +141,8 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 
   HRESULT hr; // for error reporting 
 
-  MeshBuffer mb(mesh);
+  mesh_buffers.emplace_back(mesh);
+  MeshBuffer& mb = mesh_buffers.back();
 
   // Collect the source data 
   vector<VertexElement> vertices;
@@ -170,7 +171,7 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
   indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
   indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER; 
-  console << "index buffer byte width is" << indexBufferDesc.ByteWidth << endl;
+  console << "index buffer byte width is " << indexBufferDesc.ByteWidth << endl;
  
   // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;

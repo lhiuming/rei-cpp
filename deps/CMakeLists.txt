@@ -59,7 +59,7 @@ set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "")
 set(NO_EXPORT ON CACHE BOOL "")
 set(OPT_BUILD_PACKAGES OFF CACHE BOOL "")
 # build it
-#add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/assimp)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/assimp)
 # populate the include directory property
 set(ASSIMP_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assimp/include")
-#target_include_directories(assimp PUBLIC ${ASSIMP_INCLUDE_DIR})
+target_include_directories(assimp PUBLIC ${ASSIMP_INCLUDE_DIR})

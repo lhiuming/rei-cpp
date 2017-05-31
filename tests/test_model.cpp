@@ -1,6 +1,6 @@
 // Test model module
 
-#include <iostream>
+#include <console.h>
 #include <model.h>
 
 using namespace std;
@@ -18,13 +18,13 @@ int main()
   // make the mesh
   Mesh mesh(std::move(vao), vbo);
 
-  cout << "Created a Mesh" << endl;
+  console << "Created a Mesh" << endl;
 
   for (const auto& tri : mesh.get_triangles())
   {
-    cout << tri.a->coord << endl;
-    cout << tri.b->coord << endl;
-    cout << tri.c->coord << endl;
+    console << tri.a->coord << endl;
+    console << tri.b->coord << endl;
+    console << tri.c->coord << endl;
   }
 
   return 0;

@@ -60,7 +60,7 @@ add_library(color color.cpp color.h)
 
 # model
 add_library(model model.cpp model.h)
-target_link_libraries(model algebra)
+target_link_libraries(model algebra console)
 
 # scene
 add_library(scene scene.cpp scene.h)

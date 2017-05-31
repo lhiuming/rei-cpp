@@ -4,6 +4,8 @@
 # Test the GL deps and related libraries
 #---------------------------------------
 
+IF (UNIX)
+
 # GL libraries
 set(GL_LIBS glew glfw ${OPENGL_gl_LIBRARY})
 
@@ -14,10 +16,18 @@ foreach(program ${GL_lib_test})
   target_link_libraries(${program} ${GL_LIBS})
 endforeach(program)
 
+# Test pixels
+add_executable(test_pixels test_pixels.cpp)
+target_link_libraries(test_pixels pixels)
+
+ENDIF()
+
 
 #-----------------------
 # Test the D3D libraries
 #-----------------------
+
+IF(WIN32)
 
 add_executable(test_d3d11 WIN32 test_d3d11.cpp)
 target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
@@ -34,24 +44,22 @@ file(COPY ${PROJECT_BINARY_DIR}/lib/d3dcompiler_47.dll
 file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/effects.hlsl 
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}/direct3d")
 
+ENDIF()
+
 
 #-----------------------------
 # Test some utility libraries
 #-----------------------------
 
 # assimp
-add_executable(try_assimp try_assimp.cpp)
-target_link_libraries(try_assimp assimp)
+#add_executable(try_assimp try_assimp.cpp)
+#target_link_libraries(try_assimp assimp)
 
 #----------------------
 # Test the CEL modules
 #----------------------
 
 include_directories(${CELENGINE_SOURCE_DIR}/src)
-
-# Test pixels
-add_executable(test_pixels test_pixels.cpp)
-target_link_libraries(test_pixels pixels)
 
 # Test algebra
 add_executable(test_algebra test_algebra.cpp)
@@ -87,7 +95,7 @@ target_link_libraries(three_triangle
 	model scene camera viewer renderer console)
 
 
-# Three triangle test (for color and z-buffer)
+# Draw Cube test (for color and z-buffer)
 add_executable(draw_cube draw_cube.cpp)
 target_link_libraries(draw_cube 
 	model scene camera viewer renderer asset_loader console)

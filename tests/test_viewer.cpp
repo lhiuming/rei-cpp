@@ -1,5 +1,9 @@
 // Test the Viewer class
 
+#ifdef USE_MSVC
+#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
+#endif
+
 #include <renderer.h>
 #include <scene.h>
 #include <viewer.h>
