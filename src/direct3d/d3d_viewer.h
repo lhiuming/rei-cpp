@@ -41,10 +41,12 @@ public:
 
 private:
 
+  std::size_t width, height;
+  std::string title = "No Title";
+
   // Windows interface object
   LPCTSTR WndClassName = "CEL_Viewer_Window";
-  HWND hwnd = nullptr;
-  std::size_t width, height;
+  HWND hwnd;
 
   // D3D interface object 
   IDXGISwapChain* SwapChain;  // double-buffering 
@@ -56,6 +58,11 @@ private:
 
 
   // Implement Helpers // 
+
+  void initialize_window(HINSTANCE hInstance, int ShowWnd, 
+    int width, int height, bool windowed);
+  void initialize_d3d_interface(HINSTANCE hInstance);
+
 
   // Window callback; useful for setting key-binding
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,

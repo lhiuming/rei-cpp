@@ -330,10 +330,6 @@ void CleanUp()
 
   cbPerObjectBuffer->Release();
   cbPerFrameBuffer->Release();
-
-  // Render states
-  WireFrame->Release();
-  SolidRender->Release();
 }
 
 
@@ -534,33 +530,6 @@ bool InitScene()
 
   d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
 
-
-  // Create and set Render States
-
-  // WireFrame rendering 
-  D3D11_RASTERIZER_DESC wfdesc;
-  ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
-  wfdesc.FillMode = D3D11_FILL_WIREFRAME;  // alternative: D3D11_FILL_SOLID, which is the default mode 
-  wfdesc.CullMode = D3D11_CULL_NONE; // alternative: D3D11_CULL_FRONT, D3D11_CULL_BACK (default)
-  wfdesc.FrontCounterClockwise = false; // default false. I would set it to be true in my own application ...  
-  wfdesc.DepthBias = 0; // default 0; basic depth bias added to each pixel (NOTE: might be usefull for rendering cel-line) 
-  wfdesc.DepthBiasClamp = 0.0f; // default 0.0; maximum depth bias of a pixel. (clamping on the actual bias) 
-  wfdesc.SlopeScaledDepthBias = 0.0f; // default 0.0; see MSDN.
-  wfdesc.DepthClipEnable = false; // default false; clipping based on distance from the `camera`
-  wfdesc.ScissorEnable = false; // default false; scissor-rectangle culling, to create cutting-view?
-  wfdesc.MultisampleEnable = false; // default false. Antialiasing multiplesampling
-  wfdesc.AntialiasedLineEnable = false; // default false; MultiplesampleEnable must be false. Used on line drawing. 
-  d3d11Device->CreateRasterizerState(&wfdesc, &WireFrame);
-
-  // Normal solid rendering 
-  D3D11_RASTERIZER_DESC normaldesc;
-  ZeroMemory(&normaldesc, sizeof(D3D11_RASTERIZER_DESC));
-  normaldesc.FillMode = D3D11_FILL_SOLID;
-  normaldesc.CullMode = D3D11_CULL_BACK;
-  d3d11Device->CreateRasterizerState(&normaldesc, &SolidRender);
-
-  d3d11DevCon->RSSetState(SolidRender);
-
   return true;
 }
 
@@ -637,8 +606,6 @@ void DrawScene()
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
-  // Use solid rendeing 
-  d3d11DevCon->RSSetState(SolidRender);
 
   // Draw
   d3d11DevCon->DrawIndexed(36, 0, 0);
@@ -653,9 +620,6 @@ void DrawScene()
   g_cbPerObj.World = DirectX::XMMatrixTranspose(cube2world);
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
-
-  // Use wireframe rendering
-  d3d11DevCon->RSSetState(SolidRender);
 
   // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);

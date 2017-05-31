@@ -22,17 +22,18 @@ namespace CEL {
 
 class D3DRenderer : public Renderer {
 
-  // a private Vertex class; packing data for shader 
-  struct VertexElement {
-    DirectX::XMFLOAT4 pos;     // 4 float 
-    DirectX::XMFLOAT4 color;  // 4 float 
-    DirectX::XMFLOAT3 normal;  // 3 float 
+  // Vertex Structure and Input Data Layout
+  struct Vertex
+  {
+    Vertex() {}
+    Vertex(float x, float y, float z,
+      float r, float g, float b, float a,
+      float nx, float ny, float nz
+    ) : pos(x, y, z), color(r, g, b, a), normal(nx, ny, nz) {}
 
-    VertexElement(Vec4 p, Color c, Vec3 n) : 
-      pos(p.x, p.y, p.z, p.h), 
-      color(c.r, c.g, c.b, c.a), 
-      normal(n.x, n.y, n.z) 
-    {}
+    DirectX::XMFLOAT3 pos;  // DirectXMath use DirectX namespace 
+    DirectX::XMFLOAT4 color;
+    DirectX::XMFLOAT3 normal;
   };
 
   // per-object constant-buffer layout 
@@ -41,6 +42,7 @@ class D3DRenderer : public Renderer {
     DirectX::XMMATRIX WVP;  // NOTE: row major storage 
     DirectX::XMMATRIX World;  
 
+    cbPerObject() {}
     cbPerObject(Mat4 wvp, Mat4 world = Mat4::I()) : 
       WVP(wvp(0,0), wvp(0,1), wvp(0,2), wvp(0,3), 
           wvp(1,0), wvp(1,1), wvp(1,2), wvp(1,3),
@@ -102,12 +104,7 @@ public:
   void render() override;
 
   // Implementation specific interface
-  void set_d3d_interface(ID3D11Device* pdevice, ID3D11DeviceContext* pdevCon) {
-    d3d11Device = pdevice; 
-    d3d11DevCon = pdevCon;
-    this->compile_shader(); // only runnable after get the device 
-    this->create_render_states();
-  }
+  void set_d3d_interface(ID3D11Device* pdevice, ID3D11DeviceContext* pdevCon);
   void compile_shader();
   void create_render_states();
 
@@ -130,6 +127,56 @@ private:
   // Rendering objects 
   std::vector<MeshBuffer> mesh_buffers;
   ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide data 
+
+
+  // Extra object for debug : FIXME
+  ID3D11Buffer* cubeIndexBuffer;
+  ID3D11Buffer* cubeVertBuffer;
+  ID3D11Buffer* cbPerObjectBuffer; 
+
+  Light g_light;
+  cbPerFrame g_cbPerFrm;
+  cbPerObject g_cbPerObj;
+
+  D3D11_INPUT_ELEMENT_DESC layout[3] =
+  {
+    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
+    DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
+    0, // input slot; kind of a flexible and optional configuration 
+    0, // byte offset 
+    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
+    0 // ADVANCED; also for instancing 
+    },
+    { "COLOR", 0,
+    DXGI_FORMAT_R32G32B32A32_FLOAT,
+    0,
+    12, // skip the first 3 coordinate data 
+    D3D11_INPUT_PER_VERTEX_DATA, 0
+    },
+    { "NORMAL", 0,
+    DXGI_FORMAT_R32G32B32_FLOAT,
+    0,
+    28, // skip the fisrt 3 coordinnate and 4 colors ata 
+    D3D11_INPUT_PER_VERTEX_DATA , 0
+    }
+  };
+  ID3D11InputLayout* vertLayout;
+  // Some math data for transform
+  DirectX::XMMATRIX WVP;
+  DirectX::XMMATRIX World;
+  DirectX::XMMATRIX camView;
+  DirectX::XMMATRIX camProjection;
+  DirectX::XMVECTOR camPosition;
+  DirectX::XMVECTOR camTarget;
+  DirectX::XMVECTOR camUp;
+
+  // Some math for object transformation 
+  DirectX::XMMATRIX cube1world;
+  DirectX::XMMATRIX cube2world;
+  DirectX::XMMATRIX Roration;
+  DirectX::XMMATRIX Scale;
+  DirectX::XMMATRIX TRanslation;
+  float rot = 0.01f;
 
   // Implementation helpers //
 

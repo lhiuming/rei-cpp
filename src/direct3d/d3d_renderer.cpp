@@ -15,13 +15,13 @@ D3DRenderer::D3DRenderer()
 D3DRenderer::~D3DRenderer()
 {
   // Shader objects
-  VS->Release();
-  PS->Release();
-  VS_Buffer->Release();
-  PS_Buffer->Release();
+  //VS->Release();
+  //PS->Release();
+  //VS_Buffer->Release();
+  //PS_Buffer->Release();
 
   // Pipeline states 
-  FaceRender->Release();
+ // FaceRender->Release();
   //LineRender
 
   // Mesh buffers 
@@ -36,7 +36,7 @@ D3DRenderer::~D3DRenderer()
   if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
 
   // scene-wide constant buffer
-  cbPerFrameBuffer->Release();
+  //cbPerFrameBuffer->Release();
 
   console << "D3DRenderer is destructed." << endl;
 }
@@ -44,10 +44,41 @@ D3DRenderer::~D3DRenderer()
 
 // Configurations //
 
-// INIT: compiler shaders after set_d3d_interface 
-void D3DRenderer::compile_shader()
+void D3DRenderer::set_d3d_interface(ID3D11Device* pdevice, 
+  ID3D11DeviceContext* pdevCon) 
+{
+  this->d3d11Device = pdevice;
+  this->d3d11DevCon = pdevCon;
+
+  //this->create_render_states();
+}
+
+// INIT: setup render states
+void D3DRenderer::create_render_states()
 {
   HRESULT hr; // for error reporting 
+
+  // FaceRender 
+  D3D11_RASTERIZER_DESC FRdesc;
+  ZeroMemory(&FRdesc, sizeof(D3D11_RASTERIZER_DESC));
+  FRdesc.FillMode = D3D11_FILL_SOLID;
+  FRdesc.CullMode = D3D11_CULL_NONE; // TOOD: set to Back after debug 
+  FRdesc.FrontCounterClockwise = true; // FIXME : which way camera looks?
+  hr = this->d3d11Device->CreateRasterizerState(&FRdesc, &(this->FaceRender));
+  if (FAILED(hr)) throw runtime_error("FaceRender State creation FAILED");
+
+  // Optional: line Render 
+
+}
+
+// set and initialize internal scenes 
+void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
+{
+  // Renderer::set_scene(scene);  // FIXME 
+
+  HRESULT hr; // for error reporting 
+
+  // Compile shader from file // 
 
   // Compiling 
   hr = D3DCompileFromFile(
@@ -94,49 +125,172 @@ void D3DRenderer::compile_shader()
   );
   this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 
-}
 
-// INIT: setup render states
-void D3DRenderer::create_render_states()
-{
-  HRESULT hr; // for error reporting 
+  // FIXME ; use scene loading below 
 
-  // FaceRender 
-  D3D11_RASTERIZER_DESC FRdesc;
-  ZeroMemory(&FRdesc, sizeof(D3D11_RASTERIZER_DESC));
-  FRdesc.FillMode = D3D11_FILL_SOLID;
-  FRdesc.CullMode = D3D11_CULL_NONE; // TOOD: set to Back after debug 
-  FRdesc.FrontCounterClockwise = true; // FIXME : which way camera looks?
-  hr = this->d3d11Device->CreateRasterizerState(&FRdesc, &(this->FaceRender));
-  if (FAILED(hr)) throw runtime_error("FaceRender State creation FAILED");
+  // Create the vertex & index buffer // 
 
-  // Optional: line Render 
-
-}
-
-// set and initialize internal scenes 
-void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
-{
-  Renderer::set_scene(scene);
-
-  // create perFrameObject buffer : light 
-  // FIXME : load light from scene 
-  // FIXME : release the old object if it is outdated
-  D3D11_BUFFER_DESC cbDesc;
-  ZeroMemory(&cbDesc, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
-  cbDesc.Usage = D3D11_USAGE_DEFAULT;
-  cbDesc.ByteWidth = sizeof(cbPerFrame);
-  cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
-  d3d11Device->CreateBuffer(&cbDesc, NULL, &(this->cbPerFrameBuffer));
-
-  // turn the scene into internal format, ready for D3D rendering 
-  for (auto& modelIns : scene->get_models())
+  // the data we will use
+  Vertex v[] =
   {
-    add_mesh_buffer(modelIns);  
-  }
+    //     Position               Color                     Normal
+    Vertex(-1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, -1.0f),
+    Vertex(-1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, -1.0f),
+    Vertex(+1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, -1.0f),
+    Vertex(+1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, -1.0f),
+    Vertex(-1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, +1.0f),
+    Vertex(-1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, +1.0f),
+    Vertex(+1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, +1.0f),
+    Vertex(+1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, +1.0f),
+  };
+  DWORD indices[] = {
+    // front face
+    0, 1, 2,
+    0, 2, 3,
+
+    // back face
+    4, 6, 5,
+    4, 7, 6,
+
+    // left face
+    4, 5, 1,
+    4, 1, 0,
+
+    // right face
+    3, 2, 6,
+    3, 6, 7,
+
+    // top face
+    1, 5, 6,
+    1, 6, 2,
+
+    // bottom face
+    4, 0, 3,
+    4, 3, 7
+  };
+
+
+  // Create a buffer description for vertex data 
+  D3D11_BUFFER_DESC vertexBufferDesc;
+  ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+  vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
+  vertexBufferDesc.ByteWidth = sizeof(Vertex) * ARRAYSIZE(v);  // size of the buffer 
+  vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  // used as vertex buffer 
+  vertexBufferDesc.CPUAccessFlags = 0; // how it will be used by the CPU; we don't use it 
+  vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
+  vertexBufferDesc.StructureByteStride = NULL; // not using 
+
+  // Create a buffer description for indices data 
+  D3D11_BUFFER_DESC indexBufferDesc;
+  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // I guess this is for DRAM type 
+  indexBufferDesc.ByteWidth = sizeof(DWORD) * ARRAYSIZE(indices);
+  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;  // different flags from vertex buffer; must be set 
+  indexBufferDesc.CPUAccessFlags = 0;
+  indexBufferDesc.MiscFlags = 0;
+  indexBufferDesc.StructureByteStride = NULL;
+
+
+  // Create the vertex buffer data object 
+  D3D11_SUBRESOURCE_DATA vertexBufferData; // parameter struct ?
+  ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+  vertexBufferData.pSysMem = v; 
+  hr = d3d11Device->CreateBuffer(
+    &vertexBufferDesc, // buffer description 
+    &vertexBufferData, // parameter set above 
+    &cubeVertBuffer // receive the returned ID3D11Buffer object 
+  );
+
+  // Create the index buffer data object 
+  D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
+  ZeroMemory(&indexBufferData, sizeof(indexBufferData));
+  indexBufferData.pSysMem = indices;
+  hr = d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &cubeIndexBuffer);
+
+  // Set the vertex buffer (bind it to the Input Assembler) 
+  UINT stride = sizeof(Vertex);
+  UINT offset = 0;
+  d3d11DevCon->IASetVertexBuffers(
+    0, // the input slot we use as start 
+    1, // number of buffer to bind; we bind one buffer 
+    &cubeVertBuffer, // pointer to the buffer object 
+    &stride, // pStrides; data size for each vertex 
+    &offset // starting offset in the data 
+  );
+
+  // Set the index buffer (bind to IA)
+  d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
+    cubeIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
+    DXGI_FORMAT_R32_UINT,  // data format 
+    0 // UINT; starting offset in the data 
+  );
+
+  // Create the Input Layout
+  d3d11Device->CreateInputLayout(
+    layout, // element layout description (defined above at global scope)
+    ARRAYSIZE(layout), // number of elements; (also defined at global scope) 
+    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader byte code 
+    &vertLayout // received the returned Input Layout  
+  );
+
+  // Set the Input Layout (bind to Input Assembler) 
+  d3d11DevCon->IASetInputLayout(vertLayout);
+
+  // Set Primitive Topology (tell InputAssemble )
+  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+
+  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
+  D3D11_VIEWPORT viewport;
+  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+  viewport.TopLeftX = 0;  // position of 
+  viewport.TopLeftY = 0;  //  the top-left corner in the window.
+  viewport.Width = width;
+  viewport.Height = height;
+  viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
+  viewport.MaxDepth = 1.0f; // furthest value 
+
+  // Set the Viewport (bind to the Raster Stage of he pipeline) 
+  d3d11DevCon->RSSetViewports(
+    1, // number of viewport to set 
+    &viewport  // array of viewports
+  );
+
+
+  // Camera data
+  camPosition = DirectX::XMVectorSet(0.0f, 2.0f, -10.0f, 0.0f);
+  camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+  camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+  camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);  // directX Math function to created camera view transform 
+  camProjection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 1.0f, 1000.0f);  // directX Math function 
+
+  // Create a constant buffer for transform 
+  D3D11_BUFFER_DESC cbbd;
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+
+  // Light data 
+  g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
+  g_light.ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+  g_light.diffuse = DirectX::XMFLOAT4(1.0f, 0.9f, 0.4f, 1.0f);
+
+  // Create a constant buffer for light 
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerFrame);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  cbbd.CPUAccessFlags = 0;
+  cbbd.MiscFlags = 0;
+
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
 
 }
 
+// FIXME
+/*
 void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 {
   const Mat4& model_trans = modelIns.transform;
@@ -241,7 +395,7 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   if (FAILED(hr)) throw runtime_error("Contant Buffer per-mesh creation FAILED");
 
 }
-
+*/
 
 // Render request //
 
@@ -256,21 +410,69 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Do rendering 
 void D3DRenderer::render() {
 
-  // Optional : update perFramebuffers : light, 
-  cbPerFrame cbPerF;
-  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &cbPerF, 0, 0);
-  d3d11DevCon->PSSetConstantBuffers(0, 1, &(this->cbPerFrameBuffer)); 
+  // FIXME 
+  // Update scene 
+  {
+    // Keep rotating the cube 
+    if ((rot += 0.0005f) > 6.28f) rot = 0.0f; // the rorate angle 
+
+    // Reset cube world each frame //
+
+    DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+    Roration = DirectX::XMMatrixRotationAxis(rotaxis, rot);
+    TRanslation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f); // alway away from origin by 4.0 
+    cube1world = TRanslation * Roration;
+
+    Roration = DirectX::XMMatrixRotationAxis(rotaxis, -rot); // reversed direction 
+    Scale = DirectX::XMMatrixScaling(1.3f, 3.0f, 1.3f); // little bit bigger than cube 1
+    cube2world = Roration * Scale;
+  }
+
+
+  // Set the light for the scene 
+  g_cbPerFrm.light = g_light;
+  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &g_cbPerFrm, 0, 0);  // update into buffer object 
+  d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);  // send to the Pixel Stage 
 
   // Reset the shaders : why? FIXME
   this->d3d11DevCon->VSSetShader(this->VS, 0, 0);
   this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 
+  // Draw cube 1  //
+
+  // Set transform 
+  WVP = cube1world * camView * camProjection;
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // shader use `x * A` 
+  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube1world);
+  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
+  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+  // Draw
+  d3d11DevCon->DrawIndexed(36, 0, 0);
+
+  // Draw cube 2  //
+
+  // Set transform 
+  WVP = cube2world * camView * camProjection;
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP); // shader use left-mul  
+  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube2world);
+  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
+  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
+  // Draw 
+  d3d11DevCon->DrawIndexed(36, 0, 0);
+
+
+
+
   // render all buffered meshes 
-  render_meshes();
+  //render_meshes(); // FIXME
 
 }
 
 // Render the meshes 
+/*
 void D3DRenderer::render_meshes() {
   // Use TRIANGLELIST mode 
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -315,5 +517,6 @@ void D3DRenderer::render_meshes() {
 
   }
 }
+*/
 
 } // namespace CEL
