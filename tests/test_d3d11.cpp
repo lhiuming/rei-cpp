@@ -495,8 +495,8 @@ bool InitScene()
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
   d3d11DevCon->RSSetViewports(
-    1, // TODO: what are these
-    &viewport
+    1, // number of viewport to set 
+    &viewport  // array of viewports
   );
 
 
@@ -632,7 +632,7 @@ void DrawScene()
 
   // Set transform 
   WVP = cube1world * camView * camProjection;
-  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // shader use `x * A` 
   g_cbPerObj.World = DirectX::XMMatrixTranspose(cube1world);
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
@@ -649,7 +649,7 @@ void DrawScene()
 
   // Set transform 
   WVP = cube2world * camView * camProjection;
-  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // TODO: why transpose ? 
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP); // shader use left-mul  
   g_cbPerObj.World = DirectX::XMMatrixTranspose(cube2world);
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
@@ -662,7 +662,10 @@ void DrawScene()
 
 
   // Present the backbuffer to the screen
-  SwapChain->Present(0, 0);   // TODO: what are there parameters 
+  SwapChain->Present(
+    0, // control vertical synchronization; see MSDN
+    0  // flags to control presentation; see MSDN
+  );  
 }
 
 
