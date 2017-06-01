@@ -29,9 +29,9 @@ class D3DRenderer : public Renderer {
     Vertex(float x, float y, float z,
       float r, float g, float b, float a,
       float nx, float ny, float nz
-    ) : pos(x, y, z), color(r, g, b, a), normal(nx, ny, nz) {}
+    ) : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 
-    DirectX::XMFLOAT3 pos;  // DirectXMath use DirectX namespace 
+    DirectX::XMFLOAT4 pos;  // DirectXMath use DirectX namespace 
     DirectX::XMFLOAT4 color;
     DirectX::XMFLOAT3 normal;
   };
@@ -39,7 +39,7 @@ class D3DRenderer : public Renderer {
   // per-object constant-buffer layout 
   struct cbPerObject
   {
-    DirectX::XMMATRIX WVP;  // NOTE: row major storage 
+    DirectX::XMMATRIX WVP;  
     DirectX::XMMATRIX World;  
 
     cbPerObject() {}
@@ -138,28 +138,6 @@ private:
   cbPerFrame g_cbPerFrm;
   cbPerObject g_cbPerObj;
 
-  D3D11_INPUT_ELEMENT_DESC layout[3] =
-  {
-    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
-    DXGI_FORMAT_R32G32B32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
-    0, // input slot; kind of a flexible and optional configuration 
-    0, // byte offset 
-    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
-    0 // ADVANCED; also for instancing 
-    },
-    { "COLOR", 0,
-    DXGI_FORMAT_R32G32B32A32_FLOAT,
-    0,
-    12, // skip the first 3 coordinate data 
-    D3D11_INPUT_PER_VERTEX_DATA, 0
-    },
-    { "NORMAL", 0,
-    DXGI_FORMAT_R32G32B32_FLOAT,
-    0,
-    28, // skip the fisrt 3 coordinnate and 4 colors ata 
-    D3D11_INPUT_PER_VERTEX_DATA , 0
-    }
-  };
   ID3D11InputLayout* vertLayout;
   // Some math data for transform
   DirectX::XMMATRIX WVP;
@@ -171,11 +149,9 @@ private:
   DirectX::XMVECTOR camUp;
 
   // Some math for object transformation 
-  DirectX::XMMATRIX cube1world;
   DirectX::XMMATRIX cube2world;
   DirectX::XMMATRIX Roration;
   DirectX::XMMATRIX Scale;
-  DirectX::XMMATRIX TRanslation;
   float rot = 0.01f;
 
   // Implementation helpers //

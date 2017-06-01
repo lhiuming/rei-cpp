@@ -226,6 +226,28 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   );
 
   // Create the Input Layout
+  D3D11_INPUT_ELEMENT_DESC layout[3] =
+  {
+    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
+    DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
+    0, // input slot; kind of a flexible and optional configuration 
+    0, // byte offset 
+    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
+    0 // ADVANCED; also for instancing 
+    },
+    { "COLOR", 0,
+    DXGI_FORMAT_R32G32B32A32_FLOAT,
+    0,
+    sizeof(Vertex::pos), // skip the first 3 coordinate data 
+    D3D11_INPUT_PER_VERTEX_DATA, 0
+    },
+    { "NORMAL", 0,
+    DXGI_FORMAT_R32G32B32_FLOAT,
+    0,
+    sizeof(Vertex::pos) + sizeof(Vertex::color), // skip the fisrt 3 coordinnate and 4 colors ata 
+    D3D11_INPUT_PER_VERTEX_DATA , 0
+    }
+  };
   d3d11Device->CreateInputLayout(
     layout, // element layout description (defined above at global scope)
     ARRAYSIZE(layout), // number of elements; (also defined at global scope) 
@@ -410,53 +432,16 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Do rendering 
 void D3DRenderer::render() {
 
-  // FIXME 
-  // Update scene 
-  {
-    // Keep rotating the cube 
-    if ((rot += 0.0005f) > 6.28f) rot = 0.0f; // the rorate angle 
-
-    // Reset cube world each frame //
-
-    DirectX::XMVECTOR rotaxis = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-    Roration = DirectX::XMMatrixRotationAxis(rotaxis, rot);
-    TRanslation = DirectX::XMMatrixTranslation(0.0f, 0.0f, 4.0f); // alway away from origin by 4.0 
-    cube1world = TRanslation * Roration;
-
-    Roration = DirectX::XMMatrixRotationAxis(rotaxis, -rot); // reversed direction 
-    Scale = DirectX::XMMatrixScaling(1.3f, 3.0f, 1.3f); // little bit bigger than cube 1
-    cube2world = Roration * Scale;
-  }
-
-
-  // Set the light for the scene 
+  // Set the light for the scene
   g_cbPerFrm.light = g_light;
   d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &g_cbPerFrm, 0, 0);  // update into buffer object 
   d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);  // send to the Pixel Stage 
 
-  // Reset the shaders : why? FIXME
-  this->d3d11DevCon->VSSetShader(this->VS, 0, 0);
-  this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
-
-  // Draw cube 1  //
+  // Draw cube  //
 
   // Set transform 
-  WVP = cube1world * camView * camProjection;
-  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP);  // shader use `x * A` 
-  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube1world);
-  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
-  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
-
-  // Draw
-  d3d11DevCon->DrawIndexed(36, 0, 0);
-
-  // Draw cube 2  //
-
-  // Set transform 
-  WVP = cube2world * camView * camProjection;
-  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(WVP); // shader use left-mul  
-  g_cbPerObj.World = DirectX::XMMatrixTranspose(cube2world);
+  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(camView * camProjection); // shader use column major storage, but DX use row_major storage 
+  g_cbPerObj.World = DirectX::XMMatrixIdentity();
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
