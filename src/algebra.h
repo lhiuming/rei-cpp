@@ -127,6 +127,9 @@ struct Vec4 {
 // Scalar multiplications from left
 Vec4 operator*(double c, const Vec4& x);
 
+// Dot product
+double dot(const Vec4& a, const Vec4& b);
+
 // print 4D vector
 std::ostream& operator<<(std::ostream& os, const Vec4& v);
 
@@ -141,7 +144,7 @@ public:
   Mat4() {};
 
   // Initialize with row data; useful for hard-coding constant matrix
-  Mat4(double rows[16]);
+  Mat4(const double rows[16]);
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   Mat4(const Vec4& diag);
@@ -176,8 +179,11 @@ private:
 // Print 4D matrix
 std::ostream& operator<<(std::ostream& os, const Mat4& m);
 
-// Vector transformation : Ax
+// Column-vector transformation : Ax
 Vec4 operator*(const Mat4& A, const Vec4& x);
+
+// Row-vector transformation : xA
+Vec4 operator*(const Vec4& x, const Mat4& A);
 
 } // namespace CEL
 

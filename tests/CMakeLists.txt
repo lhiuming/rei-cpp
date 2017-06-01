@@ -63,7 +63,7 @@ include_directories(${CELENGINE_SOURCE_DIR}/src)
 
 # Test algebra
 add_executable(test_algebra test_algebra.cpp)
-target_link_libraries(test_algebra algebra)
+target_link_libraries(test_algebra algebra console)
 
 # Test color
 add_executable(test_color test_color.cpp)

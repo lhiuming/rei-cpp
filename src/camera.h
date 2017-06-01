@@ -6,7 +6,8 @@
 /*
  * camera.h
  * Define the Camera class, used to created a viewport and provide world-to-
- * camera transformation.
+ * camera transformation. Use Left-Hand coordinate, used to transform 
+ * row-vector in Right-Handed world space.
  *
  * TODO: add sematic parameters (focus distance, like a real camera)
  * TODO: add depth
@@ -36,7 +37,8 @@ public:
   void zoom(double quantity);
   void move(double right, double up, double back);
 
-  // Get transforms
+  // Get transforms (result in Left Hand Coordinate; 
+  // used to transform row-vector)
   const Mat4& get_w2c() const { return world2camera; }
   const Mat4& get_c2n() const { return camera2normalized; }
   const Mat4& get_w2n() const { return world2normalized; }
@@ -46,8 +48,10 @@ public:
 
 private:
 
+  // Note: position and direction are in right-haneded world space 
+  Vec3 up = Vec3(0.0, 1.0, 0.0);
   Vec3 position = Vec3(0.0, 0.0, 0.0);
-  Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis
+  Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
   double angle = 60;             // horizontal view-angle range, by degree
   double ratio = 4.0 / 3.0;      // width / height
   double znear = 5.0, zfar = 1000.0; // distance of two planes of the frustrum
@@ -57,7 +61,7 @@ private:
   Mat4 world2normalized;   // composed from above 2
 
   // helpers to update transforms
-  Vec3 orth_u, orth_v, orth_w;
+  Vec3 orth_u, orth_v, orth_w;  // unit bases in the world-space; 
   void update_w2c();
   void update_c2n();
   void update_w2n();

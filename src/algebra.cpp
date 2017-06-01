@@ -51,6 +51,12 @@ Vec4 operator*(double c, const Vec4& x)
   return x * c;
 }
 
+// Dot product
+double dot(const Vec4& a, const Vec4& b)
+{
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.h * b.h);
+}
+
 // Print Vec4
 ostream& operator<<(ostream& os, const Vec4& v)
 {
@@ -63,7 +69,7 @@ ostream& operator<<(ostream& os, const Vec4& v)
 ////
 
 // Row data constructor
-Mat4::Mat4(double rows[16])
+Mat4::Mat4(const double rows[16])
 {
   Mat4& me = *this;
   for (int i = 0; i < 4; ++i)
@@ -149,13 +155,19 @@ std::ostream& operator<<(std::ostream& os, const Mat4& m)
   return os;
 }
 
-// Vector transformation : Ax
+// Column-vector transformation : Ax
 Vec4 operator*(const Mat4& A, const Vec4& x)
 { // linear combination of columns
   return x[0] * A[0] +
          x[1] * A[1] +
          x[2] * A[2] +
          x[3] * A[3];
+}
+
+// Row-vector transformation : xA
+Vec4 operator*(const Vec4& x, const Mat4& A)
+{  
+  return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
 }
 
 } // namespace CEL
