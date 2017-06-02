@@ -46,6 +46,7 @@ D3DRenderer::~D3DRenderer()
 
 // Configurations //
 
+// Set the D3D interface, and initialize related objects
 void D3DRenderer::set_d3d_interface(ID3D11Device* pdevice, 
   ID3D11DeviceContext* pdevCon) 
 {
@@ -128,78 +129,78 @@ void D3DRenderer::compile_shader()
   this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
 }
 
-// set and initialize internal scenes 
+// Set and initialize internal scenes 
 void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 {
   Renderer::set_scene(scene);
 
-  this->set_default_scene();
-
   HRESULT hr; // for error reporting 
 
+  // Initialize some scene-rendering objects // 
 
-  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
-  D3D11_VIEWPORT viewport;
-  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-  viewport.TopLeftX = 0.0;  // position of 
-  viewport.TopLeftY = 0.0;  //  the top-left corner in the window.
-  viewport.Width = (float)width;
-  viewport.Height = (float)height;
-  viewport.MinDepth = 0.0f; // set depth range (0~1); used for converting z-value
-  viewport.MaxDepth = 1.0f; // furthest value  (0~1)
-
-  // Set the Viewport (bind to the Raster Stage of he pipeline) 
-  d3d11DevCon->RSSetViewports(
-    1, // number of viewport to set 
-    &viewport  // array of viewports
-  );
-
-  // Create a constant buffer for transform 
-  D3D11_BUFFER_DESC cbbd;
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerObject);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
-  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
-
-  // Light data 
+  // Initialize a defautl Light data 
   g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
   g_light.ambient = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
   g_light.diffuse = DirectX::XMFLOAT4(0.8f, 0.8f, 0.4f, 1.0f);
 
-  // Create a constant buffer for light 
+  // Specify the per-frame constant-buffer 
+  D3D11_BUFFER_DESC cbbd;
   ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
   cbbd.Usage = D3D11_USAGE_DEFAULT;
   cbbd.ByteWidth = sizeof(cbPerFrame);
   cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
   cbbd.CPUAccessFlags = 0;
   cbbd.MiscFlags = 0;
+  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+  if (FAILED(hr)) throw runtime_error("Per-frame Buufer creation FAILED");
 
-  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+  // Specify the per-object constant-buffer 
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+  if (FAILED(hr)) throw runtime_error("Per-object Buufer creation FAILED");
+
+  // Create the Input Layout for the vertex element
+  hr = d3d11Device->CreateInputLayout(
+    vertex_element_layout_desc, // element layout description (defined above at global scope)
+    ARRAYSIZE(vertex_element_layout_desc), // number of elements; (also defined at global scope) 
+    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader byte code 
+    &vertElementLayout // received the returned Input Layout  
+  );
+
+  // Set the Input Layout (bind to Input Assembler) 
+  d3d11DevCon->IASetInputLayout(vertElementLayout);
+
+  // Initialze object-specific stuffs // 
+
+  // Initialize the default cube scene
+  this->initialize_default_scene();
+
+  // Initialize MeshBuffer for all mesh in the scene 
+  // TODO
 
 }
 
-void D3DRenderer::set_default_scene()
+void D3DRenderer::initialize_default_scene()
 {
-
-  // FIXME ; use scene loading below 
-
-  // Create the vertex & index buffer // 
+  // Create the vertex & index buffer for a cetralized cube // 
 
   HRESULT hr;
 
-  // the data we will use
-  Vertex v[] =
+  // the data for the cube 
+  VertexElement v[] =
   {
     //     Position               Color                     Normal
-    Vertex(-1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, -1.0f),
-    Vertex(-1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, -1.0f),
-    Vertex(+1.0f, +1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, -1.0f),
-    Vertex(+1.0f, -1.0f, -1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, -1.0f),
-    Vertex(-1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, -1.0f, +1.0f),
-    Vertex(-1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   -1.0f, +1.0f, +1.0f),
-    Vertex(+1.0f, +1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, +1.0f, +1.0f),
-    Vertex(+1.0f, -1.0f, +1.0f,   1.0f, 1.0f, 1.0f, 1.0f,   +1.0f, -1.0f, +1.0f),
+    VertexElement(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,-1.0f, -1.0f, -1.0f),
+    VertexElement(-1.0f, +1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,-1.0f, +1.0f, -1.0f),
+    VertexElement(+1.0f, +1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,+1.0f, +1.0f, -1.0f),
+    VertexElement(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,+1.0f, -1.0f, -1.0f),
+    VertexElement(-1.0f, -1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f,-1.0f, -1.0f, +1.0f),
+    VertexElement(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f,-1.0f, +1.0f, +1.0f),
+    VertexElement(+1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f,+1.0f, +1.0f, +1.0f),
+    VertexElement(+1.0f, -1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f,+1.0f, -1.0f, +1.0f),
   };
   DWORD indices[] = {
     // front face
@@ -227,93 +228,41 @@ void D3DRenderer::set_default_scene()
     4, 3, 7
   };
 
-  // Create a buffer description for vertex data 
+  // Create the vertex buffer data object 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // how the buffer will be read from and written to; use default 
-  vertexBufferDesc.ByteWidth = sizeof(Vertex) * ARRAYSIZE(v);  // size of the buffer 
+  vertexBufferDesc.ByteWidth = sizeof(VertexElement) * ARRAYSIZE(v);  // size of the buffer 
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  // used as vertex buffer 
-  vertexBufferDesc.CPUAccessFlags = 0; // how it will be used by the CPU; we don't use it 
+  vertexBufferDesc.CPUAccessFlags = 0; //  we don't use it 
   vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
-  vertexBufferDesc.StructureByteStride = NULL; // not using 
-
-                                               // Create a buffer description for indices data 
-  D3D11_BUFFER_DESC indexBufferDesc;
-  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
-  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // I guess this is for DRAM type 
-  indexBufferDesc.ByteWidth = sizeof(DWORD) * ARRAYSIZE(indices);
-  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;  // different flags from vertex buffer; must be set 
-  indexBufferDesc.CPUAccessFlags = 0;
-  indexBufferDesc.MiscFlags = 0;
-  indexBufferDesc.StructureByteStride = NULL;
-
-
-  // Create the vertex buffer data object 
+  vertexBufferDesc.StructureByteStride = NULL; // not using       
   D3D11_SUBRESOURCE_DATA vertexBufferData; // parameter struct ?
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
   vertexBufferData.pSysMem = v;
   hr = d3d11Device->CreateBuffer(
     &vertexBufferDesc, // buffer description 
     &vertexBufferData, // parameter set above 
-    &cubeVertBuffer // receive the returned ID3D11Buffer object 
+    &(this->cubeVertBuffer) // receive the returned ID3D11Buffer object 
   );
+  if (FAILED(hr)) throw runtime_error("Create cube vertex buffer FAILED");
 
   // Create the index buffer data object 
-  D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
+  D3D11_BUFFER_DESC indexBufferDesc;
+  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // I guess this is for DRAM type 
+  indexBufferDesc.ByteWidth = sizeof(DWORD) * ARRAYSIZE(indices);
+  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;  // index !
+  indexBufferDesc.CPUAccessFlags = 0;
+  indexBufferDesc.MiscFlags = 0;
+  indexBufferDesc.StructureByteStride = NULL;
+  D3D11_SUBRESOURCE_DATA indexBufferData;
   ZeroMemory(&indexBufferData, sizeof(indexBufferData));
   indexBufferData.pSysMem = indices;
-  hr = d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &cubeIndexBuffer);
+  hr = d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData,
+    &(this->cubeIndexBuffer));
+  if (FAILED(hr)) throw runtime_error("Create cube index buffer FAILED");
 
-  // Set the vertex buffer (bind it to the Input Assembler) 
-  UINT stride = sizeof(Vertex);
-  UINT offset = 0;
-  d3d11DevCon->IASetVertexBuffers(
-    0, // the input slot we use as start 
-    1, // number of buffer to bind; we bind one buffer 
-    &cubeVertBuffer, // pointer to the buffer object 
-    &stride, // pStrides; data size for each vertex 
-    &offset // starting offset in the data 
-  );
-
-  // Set the index buffer (bind to IA)
-  d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
-    cubeIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
-    DXGI_FORMAT_R32_UINT,  // data format 
-    0 // UINT; starting offset in the data 
-  );
-
-  // Create the Input Layout
-  D3D11_INPUT_ELEMENT_DESC layout[3] =
-  {
-    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
-    DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the element
-    0, // input slot; kind of a flexible and optional configuration 
-    0, // byte offset 
-    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
-    0 // ADVANCED; also for instancing 
-    },
-    { "COLOR", 0,
-    DXGI_FORMAT_R32G32B32A32_FLOAT,
-    0,
-    sizeof(Vertex::pos), // skip the first 3 coordinate data 
-    D3D11_INPUT_PER_VERTEX_DATA, 0
-    },
-    { "NORMAL", 0,
-    DXGI_FORMAT_R32G32B32_FLOAT,
-    0,
-    sizeof(Vertex::pos) + sizeof(Vertex::color), // skip the fisrt 3 coordinnate and 4 colors ata 
-    D3D11_INPUT_PER_VERTEX_DATA , 0
-    }
-  };
-  d3d11Device->CreateInputLayout(
-    layout, // element layout description (defined above at global scope)
-    ARRAYSIZE(layout), // number of elements; (also defined at global scope) 
-    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader byte code 
-    &vertLayout // received the returned Input Layout  
-  );
-
-  // Set the Input Layout (bind to Input Assembler) 
-  d3d11DevCon->IASetInputLayout(vertLayout);
 }
 
 // FIXME
@@ -426,9 +375,11 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 
 // Render request //
 
-// Change buffer size 
+// Change buffer size
 void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
+  // FIXME : this data are actually not used in rendering ...
+
   // Update storage 
   this->width = width;
   this->height = height;
@@ -437,7 +388,8 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Do rendering 
 void D3DRenderer::render() {
 
-  // Set the global light-source for the scene
+  // Update and feed the global light-source data for the scene
+  // FIXME : update from this->scene
   data_per_frame.light = g_light;
   d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &data_per_frame, 0, 0);  // update into buffer object 
   d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);  // send to the Pixel Stage 
@@ -450,27 +402,46 @@ void D3DRenderer::render() {
 
 }
 
+// Render the default scene 
 void D3DRenderer::render_default_scene()
 {
+  // Binding to the IA //
+
+  // Bind the cube-related buffers to Input Assembler
+  UINT stride = sizeof(VertexElement);
+  UINT offset = 0;
+  d3d11DevCon->IASetVertexBuffers(
+    0, // the input slot we use as start 
+    1, // number of buffer to bind; we bind one buffer 
+    &cubeVertBuffer, // pointer to the buffer object 
+    &stride, // pStrides; data size for each vertex 
+    &offset // starting offset in the data 
+  );
+  d3d11DevCon->IASetIndexBuffer(  // NOTE: IndexBuffer !! 
+    cubeIndexBuffer, // pointer o a buffer data object; must have  D3D11_BIND_INDEX_BUFFER flag 
+    DXGI_FORMAT_R32_UINT,  // data format 
+    0 // UINT; starting offset in the data 
+  );
+
   // Set Primitive Topology (tell InputAssemble )
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-  // Draw cube  //
+  // Draw the cube  //
 
-  // Set transform 
-  g_cbPerObj.update(camera->get_w2n());
-  g_cbPerObj.World = DirectX::XMMatrixIdentity();
-  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
+  // Feed transform to per-object constant buffer
+  cube_cb_data.update(camera->get_w2n());
+  cube_cb_data.World = DirectX::XMMatrixIdentity();
+  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cube_cb_data, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
-  // Set rendering 
+  // Set rendering state
   d3d11DevCon->RSSetState(FaceRender);
 
   // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);
 }
 
-// Render the meshes 
+// Render all buffered meshes 
 /*
 void D3DRenderer::render_meshes() {
   // Use TRIANGLELIST mode 

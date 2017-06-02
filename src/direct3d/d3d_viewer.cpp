@@ -25,6 +25,9 @@ D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
   // Initialize D3D Context // 
   this->initialize_d3d_interface(hInstance);
 
+  // Prepare the set up other thinfs for renderer
+  initialize_render_context();
+
 }
 
 void D3DViewer::initialize_window(HINSTANCE hInstance, int ShowWnd,
@@ -165,6 +168,24 @@ void D3DViewer::initialize_d3d_interface(HINSTANCE hInstance)
 
 }
 
+void D3DViewer::initialize_render_context()
+{
+  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
+  D3D11_VIEWPORT viewport;
+  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+  viewport.TopLeftX = 0.0;  // position of 
+  viewport.TopLeftY = 0.0;  //  the top-left corner in the window.
+  viewport.Width = (float)width;
+  viewport.Height = (float)height;
+  viewport.MinDepth = 0.0f; // set depth range (0~1); used for converting z-value
+  viewport.MaxDepth = 1.0f; // furthest value  (0~1)
+
+  // Set the Viewport (bind to the Raster Stage of he pipeline) 
+  d3d11DevCon->RSSetViewports(
+    1, // number of viewport to set 
+    &viewport  // array of viewports
+  );
+}
 
 // Destructor 
 D3DViewer::~D3DViewer()

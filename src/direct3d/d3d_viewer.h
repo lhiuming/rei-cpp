@@ -62,6 +62,7 @@ private:
   void initialize_window(HINSTANCE hInstance, int ShowWnd, 
     int width, int height, bool windowed);
   void initialize_d3d_interface(HINSTANCE hInstance);
+  void initialize_render_context();
 
 
   // Window callback; useful for setting key-binding
