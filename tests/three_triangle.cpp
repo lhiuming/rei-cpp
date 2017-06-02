@@ -34,17 +34,19 @@ int main()
   console << "Scene set up. " << endl;
 
   // Set up the camera
-  auto c = make_shared<Camera>(Vec3{0, 0, 20}, Vec3{0, 0, -1});
+  auto c = make_shared<Camera>(Vec3{0.0, 2.0, 20.0});
   c->set_ratio(720.0 / 480.0);
   console << "Camera set up." << endl;
 
+  // Create a renderer 
+  auto r = makeRenderer();  // no much setting necessary
+
   // Set up the Viewer and Renderer
-  auto viewer = makeViewer(720, 480, 
-    "Three Triangle (testing color and z-buffer)");
-  auto renderer = makeRenderer();  // no much setting necessary
+  const int width = 720, height = 480;
+  auto viewer = makeViewer(width, height, "Three Triangles");
   viewer->set_camera(c);
   viewer->set_scene(s);
-  viewer->set_renderer(renderer);
+  viewer->set_renderer(r);
   console << "Viewer and Renderer set up." << endl;
 
   // run

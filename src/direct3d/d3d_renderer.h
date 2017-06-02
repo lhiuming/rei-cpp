@@ -30,8 +30,12 @@ class D3DRenderer : public Renderer {
     DirectX::XMFLOAT3 normal;
 
     VertexElement() {}
-    VertexElement(float x, float y, float z,
-      float r, float g, float b, float a,
+    VertexElement(const Vec4& p, const Color& c, const Vec3& n) 
+      : pos(p.x, p.y, p.z, p.h), color(c.r, c.g, c.b, c.a),
+      normal(n.x, n.y, n.z) {}
+    VertexElement(
+      float x,  float y,  float z,
+      float r,  float g,  float b, float a,
       float nx, float ny, float nz
     ) : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
   };
@@ -90,8 +94,8 @@ class D3DRenderer : public Renderer {
     // D3D buffers and related objects 
     ID3D11Buffer* meshIndexBuffer;
     ID3D11Buffer* meshVertBuffer;
-    ID3D11InputLayout* vertLayout;
-    ID3D11Buffer* cbPerObjectBuffer;
+    ID3D11Buffer* meshConstBuffer;
+    cbPerObject mesh_cb_data;
 
     MeshBuffer(const Mesh& mesh) : model(mesh) {};
 
@@ -155,10 +159,9 @@ private:
 
   // Rendering objects 
   ID3D11InputLayout* vertElementLayout;
-  ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide data 
-  ID3D11Buffer* cbPerObjectBuffer;
-  Light g_light;  // global light-source data, fed to frame-buffer 
+  ID3D11Buffer* cbPerFrameBuffer;  // shader buffer to hold frame-wide data 
   cbPerFrame data_per_frame;  // memory-layouting for frame constant-buffer 
+  Light g_light;  // global light-source data, fed to frame-buffer 
   std::vector<MeshBuffer> mesh_buffers;
 
 
@@ -175,6 +178,7 @@ private:
   void render_default_scene();
   ID3D11Buffer* cubeIndexBuffer;
   ID3D11Buffer* cubeVertBuffer;
+  ID3D11Buffer* cubeConstBuffer;
   cbPerObject cube_cb_data;
 
 };

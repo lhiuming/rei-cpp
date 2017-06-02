@@ -26,19 +26,24 @@ D3DRenderer::~D3DRenderer()
   FaceRender->Release();
   //LineRender
 
+  // Shared Rendering objects
+  vertElementLayout->Release();
+  cbPerFrameBuffer->Release();
+
+  // Default cube stuffs
+  cubeIndexBuffer->Release();
+  cubeVertBuffer->Release();
+  cubeConstBuffer->Release();
+
   // Mesh buffers 
   for (auto& mb : mesh_buffers)
   {
     mb.meshIndexBuffer->Release();
     mb.meshVertBuffer->Release();
-    mb.vertLayout->Release();
-    mb.cbPerObjectBuffer->Release();
+    mb.meshConstBuffer->Release();
     console << "A MeshBuffer is destructed." << endl;
   }
   if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
-
-  // scene-wide constant buffer
-  cbPerFrameBuffer->Release();
 
   console << "D3DRenderer is destructed." << endl;
 }
@@ -154,14 +159,6 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
   if (FAILED(hr)) throw runtime_error("Per-frame Buufer creation FAILED");
 
-  // Specify the per-object constant-buffer 
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerObject);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
-  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
-  if (FAILED(hr)) throw runtime_error("Per-object Buufer creation FAILED");
-
   // Create the Input Layout for the vertex element
   hr = d3d11Device->CreateInputLayout(
     vertex_element_layout_desc, // element layout description (defined above at global scope)
@@ -179,10 +176,14 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   this->initialize_default_scene();
 
   // Initialize MeshBuffer for all mesh in the scene 
-  // TODO
+  for (const auto& modelIns : scene->get_models())
+  {
+    add_mesh_buffer(modelIns);
+  }
 
 }
 
+// Helper to set_scene
 void D3DRenderer::initialize_default_scene()
 {
   // Create the vertex & index buffer for a cetralized cube // 
@@ -263,14 +264,22 @@ void D3DRenderer::initialize_default_scene()
     &(this->cubeIndexBuffer));
   if (FAILED(hr)) throw runtime_error("Create cube index buffer FAILED");
 
+  // Create a constant-buffer for the cube
+  D3D11_BUFFER_DESC cbbd;
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cubeConstBuffer);
+  if (FAILED(hr)) throw runtime_error("Cube Const Buffer creation FAILED");
+
 }
 
-// FIXME
-/*
+// Helper to set_scene
 void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
 {
-  const Mat4& model_trans = modelIns.transform;
-  const Mesh& mesh = dynamic_cast<Mesh&>(*(modelIns.pmodel));
+  const Mat4& model_stran = modelIns.transform;
+  const Mesh& mesh = dynamic_cast<Mesh&>(*modelIns.pmodel);
 
   // Take control of the creation of MeshBuffer 
 
@@ -292,15 +301,13 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     indices.push_back(t.c);
   }
 
-  // Make a buffer description for vertex data 
+  // Create the vertex buffer data object 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
   vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  
   vertexBufferDesc.ByteWidth = vertices.size() * sizeof(vertices[0]);  
   vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;  
   console << "vertex buffer byte width is " << vertexBufferDesc.ByteWidth << endl;
- 
-  // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData;
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
   vertexBufferData.pSysMem = &(vertices[0]); 
@@ -309,17 +316,15 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     &vertexBufferData, // parameter set above 
     &(mb.meshVertBuffer) // receive the returned ID3D11Buffer object 
   );
-  if (FAILED(hr)) throw runtime_error("Vertex Buffer creation FAILED");
+  if (FAILED(hr)) throw runtime_error("Mesh Vertex Buffer creation FAILED");
 
-  // Make a buffer description for indices data 
+  // Create the index buffer data object 
   D3D11_BUFFER_DESC indexBufferDesc;
   ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
   indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
   indexBufferDesc.ByteWidth = indices.size() * sizeof(indices[0]);
   indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
   console << "index buffer byte width is " << indexBufferDesc.ByteWidth << endl;
-
-  // Create the index buffer data object 
   D3D11_SUBRESOURCE_DATA indexBufferData; // parameter struct ?
   ZeroMemory(&indexBufferData, sizeof(indexBufferData));
   indexBufferData.pSysMem = &(indices[0]);
@@ -328,50 +333,22 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
     &indexBufferData, 
     &(mb.meshIndexBuffer)
   );
-  if (FAILED(hr)) throw runtime_error("Index Buffer creation FAILED");
+  if (FAILED(hr)) throw runtime_error("Mesh Index Buffer creation FAILED");
 
-  // Create a Input layout for the mesh 
-  D3D11_INPUT_ELEMENT_DESC layout[] =
-  {
-    { "POSITION", 0,  // a Name and an Index to map elements in the shader 
-    DXGI_FORMAT_R32G32B32A32_FLOAT, // define the format of the element
-    0, // input slot; kind of a flexible and optional configuration 
-    0, // byte offset 
-    D3D11_INPUT_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing 
-    0 // ADVANCED; also for instancing 
-    },
-    { "COLOR", 0,
-    DXGI_FORMAT_R32G32B32A32_FLOAT,
-    0,
-    16, // skip the first 4 position data 
-    D3D11_INPUT_PER_VERTEX_DATA, 0
-    },
-    { "NORMAL", 0,
-    DXGI_FORMAT_R32G32B32_FLOAT,
-    0,
-    32, 
-    D3D11_INPUT_PER_VERTEX_DATA , 0
-    }
-  };
-  hr = d3d11Device->CreateInputLayout(
-    layout, // element layout description 
-    ARRAYSIZE(layout), // number of elements
-    VS_Buffer->GetBufferPointer(), VS_Buffer->GetBufferSize(), // the shader 
-    &(mb.vertLayout) // received the returned Input Layout  
-  );
-  if (FAILED(hr)) throw runtime_error("Input Layout creation FAILED");
-
-  // Create a perObject Buffer
+  // Create a constant-buffer for the cube
   D3D11_BUFFER_DESC cbbd;
   ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
   cbbd.Usage = D3D11_USAGE_DEFAULT;
   cbbd.ByteWidth = sizeof(cbPerObject);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &(mb.cbPerObjectBuffer));
-  if (FAILED(hr)) throw runtime_error("Contant Buffer per-mesh creation FAILED");
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  hr = d3d11Device->CreateBuffer(
+    &cbbd, 
+    NULL, 
+    &(mb.meshConstBuffer));
+  if (FAILED(hr)) throw runtime_error("Cube Const Buffer creation FAILED");
+
 
 }
-*/
 
 // Render request //
 
@@ -398,7 +375,7 @@ void D3DRenderer::render() {
   render_default_scene();
 
   // render all buffered meshes 
-  //render_meshes(); // FIXME
+  render_meshes(); 
 
 }
 
@@ -406,6 +383,9 @@ void D3DRenderer::render() {
 void D3DRenderer::render_default_scene()
 {
   // Binding to the IA //
+
+  // Set Primitive Topology (tell InputAssemble )
+  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // Bind the cube-related buffers to Input Assembler
   UINT stride = sizeof(VertexElement);
@@ -423,16 +403,11 @@ void D3DRenderer::render_default_scene()
     0 // UINT; starting offset in the data 
   );
 
-  // Set Primitive Topology (tell InputAssemble )
-  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-  // Draw the cube  //
-
   // Feed transform to per-object constant buffer
   cube_cb_data.update(camera->get_w2n());
   cube_cb_data.World = DirectX::XMMatrixIdentity();
-  d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cube_cb_data, 0, 0);
-  d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+  d3d11DevCon->UpdateSubresource(cubeConstBuffer, 0, NULL, &cube_cb_data, 0, 0);
+  d3d11DevCon->VSSetConstantBuffers(0, 1, &cubeConstBuffer);
 
   // Set rendering state
   d3d11DevCon->RSSetState(FaceRender);
@@ -442,16 +417,17 @@ void D3DRenderer::render_default_scene()
 }
 
 // Render all buffered meshes 
-/*
-void D3DRenderer::render_meshes() {
-  // Use TRIANGLELIST mode 
+void D3DRenderer::render_meshes() 
+{
+  // All mesh use TRIANGLELIST mode 
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // for each meshBuffer
   for (auto& mb : mesh_buffers)
   {
+    // Bind the buffers 
 
-    // 1. set vertex buffer 
+    // 1. bind vertex buffer 
     UINT stride = sizeof(VertexElement);
     UINT offset = 0;
     d3d11DevCon->IASetVertexBuffers(
@@ -462,31 +438,30 @@ void D3DRenderer::render_meshes() {
       &offset // starting offset in the data 
     );
 
-    // 2. set indices buffer
+    // 2. bind indices buffer
     d3d11DevCon->IASetIndexBuffer(
       mb.meshIndexBuffer, // pointer to a buffer data object      
       DXGI_FORMAT_R32_UINT,  // data format 
       0 // unsigned int; starting offset in the data 
     );
 
-    // 3. set per-vertex input layout
-    d3d11DevCon->IASetInputLayout(mb.vertLayout);
-
-    // 4. update and set perObject Buffer : WVP, World 
-    // TODO add model transform before w2n
-    cbPerObject cbMesh(camera->get_w2n());
-    d3d11DevCon->UpdateSubresource(mb.cbPerObjectBuffer, 0, NULL, &cbMesh, 0, 0);
-    d3d11DevCon->VSSetConstantBuffers(0, 1, &(mb.cbPerObjectBuffer));
+    // 3. update and bind the per-mesh constant Buffe 
+    mb.mesh_cb_data.update(camera->get_w2n());
+    mb.mesh_cb_data.World = DirectX::XMMatrixIdentity();
+    d3d11DevCon->UpdateSubresource(mb.meshConstBuffer,
+      0, NULL, 
+      &(mb.mesh_cb_data), 
+      0, 0);
+    d3d11DevCon->VSSetConstantBuffers(0, 1, &mb.meshConstBuffer);
 
     // set render state 
     d3d11DevCon->RSSetState(FaceRender);
 
     // 5. DrawIndexed. 
     d3d11DevCon->DrawIndexed(mb.indices_num(), 0, 0);
-
-
   }
+
 }
-*/
+
 
 } // namespace CEL
