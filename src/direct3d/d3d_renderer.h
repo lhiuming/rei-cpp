@@ -43,12 +43,17 @@ class D3DRenderer : public Renderer {
     DirectX::XMMATRIX World;  
 
     cbPerObject() {}
-    cbPerObject(Mat4 wvp, Mat4 world = Mat4::I()) : 
-      WVP(wvp(0,0), wvp(0,1), wvp(0,2), wvp(0,3), 
-          wvp(1,0), wvp(1,1), wvp(1,2), wvp(1,3),
-          wvp(2,0), wvp(2,1), wvp(2,2), wvp(2,3), 
-          wvp(3,0), wvp(3,1), wvp(3,2), wvp(3,3) )
-    { }
+    void update(const Mat4& wvp, const Mat4& world = Mat4::I()) {
+      WVP = CEL_to_D3D(wvp);
+      World = CEL_to_D3D(world);
+    }
+    static DirectX::XMMATRIX CEL_to_D3D(const Mat4& A) {
+      return DirectX::XMMatrixSet( // must transpose
+        A(0, 0), A(1, 0), A(2, 0), A(3, 0),
+        A(0, 1), A(1, 1), A(2, 1), A(3, 1),
+        A(0, 2), A(1, 2), A(2, 2), A(3, 2),
+        A(0, 3), A(1, 3), A(2, 3), A(3, 3));
+    }
   };
 
   // a private Mesh class, ready for D3D rendering 
@@ -127,7 +132,6 @@ private:
   // Rendering objects 
   std::vector<MeshBuffer> mesh_buffers;
   ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide data 
-
 
   // Extra object for debug : FIXME
   ID3D11Buffer* cubeIndexBuffer;

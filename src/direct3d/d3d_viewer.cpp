@@ -215,7 +215,7 @@ void D3DViewer::run()
   d3dRenderer.set_buffer_size(width, height);
   d3dRenderer.set_d3d_interface(d3d11Device, d3d11DevCon);
   d3dRenderer.set_scene(scene);
-  //d3dRenderer.set_camera(camera); // FIXME
+  d3dRenderer.set_camera(camera);
 
   // Check event and do update&render
   MSG msg;
@@ -233,6 +233,8 @@ void D3DViewer::run()
     { // Run game code            
 
       //scene->update();
+      camera->move(0.01, 0.0, 0.0);
+      camera->set_target(Vec3(0.0, 0.0, 0.0));
 
       // clear windows background (render target)
       float bgColor[4] = { 0.3f, 0.6f, 0.7f, 0.5f };

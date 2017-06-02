@@ -145,6 +145,14 @@ public:
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
+  Mat4(double a00, double a01, double a02, double a03, 
+       double a10, double a11, double a12, double a13, 
+       double a20, double a21, double a22, double a23,
+       double a30, double a31, double a32, double a33 )
+  : columns{
+    Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31),
+    Vec4(a02, a12, a22, a32), Vec4(a03, a13, a23, a33)
+  } {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   Mat4(const Vec4& diag);

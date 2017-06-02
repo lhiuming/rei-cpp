@@ -50,7 +50,7 @@ void D3DRenderer::set_d3d_interface(ID3D11Device* pdevice,
   this->d3d11Device = pdevice;
   this->d3d11DevCon = pdevCon;
 
-  //this->create_render_states();
+  this->create_render_states();
 }
 
 // INIT: setup render states
@@ -63,7 +63,7 @@ void D3DRenderer::create_render_states()
   ZeroMemory(&FRdesc, sizeof(D3D11_RASTERIZER_DESC));
   FRdesc.FillMode = D3D11_FILL_SOLID;
   FRdesc.CullMode = D3D11_CULL_NONE; // TOOD: set to Back after debug 
-  FRdesc.FrontCounterClockwise = true; // FIXME : which way camera looks?
+  FRdesc.FrontCounterClockwise = true; // FIXME : check vertex order
   hr = this->d3d11Device->CreateRasterizerState(&FRdesc, &(this->FaceRender));
   if (FAILED(hr)) throw runtime_error("FaceRender State creation FAILED");
 
@@ -74,7 +74,7 @@ void D3DRenderer::create_render_states()
 // set and initialize internal scenes 
 void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 {
-  // Renderer::set_scene(scene);  // FIXME 
+  Renderer::set_scene(scene);
 
   HRESULT hr; // for error reporting 
 
@@ -265,26 +265,18 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
   D3D11_VIEWPORT viewport;
   ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-  viewport.TopLeftX = 0;  // position of 
-  viewport.TopLeftY = 0;  //  the top-left corner in the window.
-  viewport.Width = width;
-  viewport.Height = height;
-  viewport.MinDepth = 0.0f; // set depth range; used for converting z-values to depth  
-  viewport.MaxDepth = 1.0f; // furthest value 
+  viewport.TopLeftX = 0.0;  // position of 
+  viewport.TopLeftY = 0.0;  //  the top-left corner in the window.
+  viewport.Width = (float)width;
+  viewport.Height = (float)height;
+  viewport.MinDepth = 0.0f; // set depth range (0~1); used for converting z-value
+  viewport.MaxDepth = 1.0f; // furthest value  (0~1)
 
   // Set the Viewport (bind to the Raster Stage of he pipeline) 
   d3d11DevCon->RSSetViewports(
     1, // number of viewport to set 
     &viewport  // array of viewports
   );
-
-
-  // Camera data
-  camPosition = DirectX::XMVectorSet(0.0f, 2.0f, -10.0f, 0.0f);
-  camTarget = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-  camUp = DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-  camView = DirectX::XMMatrixLookAtLH(camPosition, camTarget, camUp);  // directX Math function to created camera view transform 
-  camProjection = DirectX::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 1.0f, 1000.0f);  // directX Math function 
 
   // Create a constant buffer for transform 
   D3D11_BUFFER_DESC cbbd;
@@ -440,15 +432,16 @@ void D3DRenderer::render() {
   // Draw cube  //
 
   // Set transform 
-  g_cbPerObj.WVP = DirectX::XMMatrixTranspose(camView * camProjection); // shader use column major storage, but DX use row_major storage 
+  g_cbPerObj.update(camera->get_w2n());
   g_cbPerObj.World = DirectX::XMMatrixIdentity();
   d3d11DevCon->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &g_cbPerObj, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+  // Set rendering 
+  d3d11DevCon->RSSetState(FaceRender);
+
   // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);
-
-
 
 
   // render all buffered meshes 

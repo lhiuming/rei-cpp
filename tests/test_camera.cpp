@@ -40,8 +40,14 @@ int main() {
   console << "c2n = " << c.get_c2n() << endl;
   const Mat4& w2n = c.get_w2n();
   console << "w2n = " << w2n << endl;
-  for (int i = 0; i < world_points.size(); ++i)
+  for (unsigned i = 0; i < world_points.size(); ++i)
     console << "x * w2n " << i << " = " << Vec3(world_points[i] * w2n) << endl;
+  
+  console << ">> Viewport points: " << endl;
+  const Mat4& w2v = c.get_w2v();
+  console << "w2v = " << w2v << endl;
+  for (unsigned i = 0; i < world_points.size(); ++i)
+    console << "x * w2v " << i << " = " << Vec3(world_points[i] * w2v) << endl;
 
   return 0;
 }

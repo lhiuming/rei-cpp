@@ -13,22 +13,28 @@ namespace CEL {
 // Default constructor
 Camera::Camera()
 {
-  update_w2c();
-  update_c2n();
-  update_w2n();
+  update_transforms();
 };
 
 // Initialize with pos and dir
-Camera::Camera(const Vec3& pos, const Vec3& dir)
- : position(pos), direction(dir.normalized())
+Camera::Camera(const Vec3& pos) : position(pos)
 {
-  update_w2c();
-  update_c2n();
-  update_w2n();
+  update_transforms();
+}
+Camera::Camera(const Vec3& pos, const Vec3& dir)
+ : position(pos), direction(dir)
+{
+  update_transforms();
 }
 
 
 // Configurations //
+
+void Camera::set_target(const Vec3& target)
+{
+  direction = target - position;
+  update_transforms();
+}
 
 // update ratio
 void Camera::set_ratio(double ratio)
@@ -118,7 +124,14 @@ void Camera::update_c2n()
 // Update world2normalized
 void Camera::update_w2n()
 {
+  static Mat4 normalized2viewport{
+    1.0, 0.0, 0.0, 0.0, 
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    1.0, 1.0, 1.0, 2.0 
+  };
   world2normalized = world2camera * camera2normalized; // they are row-wise
+  world2viewport = world2normalized * normalized2viewport;
 }
 
 } // namespace CEL

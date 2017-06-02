@@ -20,7 +20,9 @@ int main()
   console << "Successfully craeted a Viewer." << endl;
 
   // setting renderer and scene
-  auto c = make_shared<Camera>();
+  auto c = make_shared<Camera>(Vec3(3.0, 2.0, 10.0));
+  c->set_target(Vec3(0.0, 0.0, 0.0));
+  c->set_ratio(360.0 / 280.0);
   auto s = make_shared<StaticScene>();
   auto r = makeRenderer();
   v.set_camera(c);
