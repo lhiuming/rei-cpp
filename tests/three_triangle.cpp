@@ -31,7 +31,7 @@ int main()
   Vertex v7({  8,  4, 2 }, { 0.0f, 0.7f, 0.7f, 1.0f });
   Vertex v8({ -6, -6, 0 }, { 0.2f, 0.2f, 0.7f, 0.0f });
 
-  Mesh mesh{{v0, v1, v2, v3, v4, v5, v6, v7, v8}, 
+  Mesh mesh{{v0, v1, v2, v3, v4, v5, v6, v7, v8},
             { 0,  1,  2,  3,  4,  5,  6,  7,  8}};
   console << "Mesh model set up." << endl;
 
@@ -45,12 +45,11 @@ int main()
   c->set_ratio(720.0 / 480.0);
   console << "Camera set up." << endl;
 
-  // Create a renderer 
-  auto r = makeRenderer();  // no much setting necessary
-
   // Set up the Viewer and Renderer
   const int width = 720, height = 480;
   auto viewer = makeViewer(width, height, "Three Triangles");
+  auto r = makeRenderer();  // FIXME: have to make viewer first for pixels.h implementation
+  console << "Renderer created." << endl;
   viewer->set_camera(c);
   viewer->set_scene(s);
   viewer->set_renderer(r);

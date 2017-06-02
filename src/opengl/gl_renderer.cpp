@@ -35,14 +35,15 @@ GLRenderer::GLRenderer() : Renderer()
   // Variables for compile error check
   GLint success;
   GLchar infoLog[512];
-
+cout << "spot 0" << endl;
   // Compile the vertex shader
-  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);
-  glCompileShader(vertexShader);
-  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER); cout << "spot 1" << endl;
+  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);cout << "spot 2" << endl;
+  glCompileShader(vertexShader);cout << "spot 1" << endl;
+  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);cout << "spot 3" << endl;
   if (!success) // check if compile pass
   {
+    cout << "trying to report failure" << endl;
     glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
     cerr << "Error: vertex shader compile failed:\n" << infoLog << endl;
   }

@@ -1,9 +1,9 @@
-# Solve all dependencies 
+# Solve all dependencies
 # In order to build some of them, you might need to fetch the submodules first
 
 
 #------------------------------------------------------------------------------
-# OpenGL stuffs 
+# OpenGL stuffs
 
 IF (UNIX)
 
@@ -22,28 +22,28 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
 
-set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "") 
+set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
 
 ENDIF()
 
 
 #------------------------------------------------------------------------------
-# Direct3D stuffs 
+# Direct3D stuffs
 
 IF (WIN32)
 
 # find the window sdk path
 # TODO: support more version
 find_path(WIN_SDK_DIR NAMES Include/um/d3d11.h
-	HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/" 
+	HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/"
 	)
 
 # copy the d3dcompiler dll
-file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll 
+file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
 	DESTINATION  ${PROJECT_BINARY_DIR}/lib
-	)	
+	)
 
-set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE STRING "") 
+set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE STRING "")
 
 ENDIF()
 
@@ -66,7 +66,12 @@ target_include_directories(assimp PUBLIC ${ASSIMP_INCLUDE_DIR})
 # fetch the DLLs
 get_property(ASSIMP_OUTPUT TARGET assimp PROPERTY OUTPUT_NAME)
 set(ASSIMP_OUTPUT_NAME ${ASSIMP_OUTPUT}.dll CACHE STRING "")
-set(ASSIMP_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/assimp/code/${CMAKE_CONFIGURATION_TYPES}/)
-file(COPY ${ASSIMP_OUTPUT_PATH}/${ASSIMP_OUTPUT_NAME}
-	DESTINATION "${PROJECT_BINARY_DIR}/lib")
-
+set(ASSIMP_OUTPUT_PATH
+ ${CMAKE_CURRENT_BINARY_DIR}/assimp/code/${CMAKE_CONFIGURATION_TYPES}/)
+add_custom_target(post_assimp DEPENDS assimp)
+add_custom_command(
+	TARGET post_assimp POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+		"${ASSIMP_OUTPUT_PATH}/${ASSIMP_OUTPUT_NAME}"
+		"${PROJECT_BINARY_DIR}/lib"
+	)

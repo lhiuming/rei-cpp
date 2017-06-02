@@ -33,15 +33,15 @@ add_executable(test_d3d11 WIN32 test_d3d11.cpp)
 target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
 
 # copy the shader file
-file(COPY ${CMAKE_CURRENT_ROOT_DIR}test_effects.hlsl 
+file(COPY ${CMAKE_CURRENT_ROOT_DIR}test_effects.hlsl
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 
-# copy the .dll for all tests 
+# copy the .dll for all tests
 file(COPY ${PROJECT_BINARY_DIR}/lib/d3dcompiler_47.dll
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 
-# also copy the Core shaders for testing 
-file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/shader.hlsl 
+# also copy the Core shaders for testing
+file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/shader.hlsl
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}/direct3d")
 
 ENDIF()
@@ -52,8 +52,8 @@ ENDIF()
 #-----------------------------
 
 # assimp
-#add_executable(try_assimp try_assimp.cpp)
-#target_link_libraries(try_assimp assimp)
+add_executable(try_assimp try_assimp.cpp)
+target_link_libraries(try_assimp assimp)
 
 #----------------------
 # Test the CEL modules
@@ -91,17 +91,19 @@ target_link_libraries(test_viewer viewer camera scene renderer console)
 
 # Three triangle test (for color and z-buffer)
 add_executable(three_triangle three_triangle.cpp)
-target_link_libraries(three_triangle 
-	model scene camera viewer renderer console)
+target_link_libraries(three_triangle
+	model scene camera viewer renderer asset_loader console)
 
 
 # Draw Cube test (model loading overall)
 add_executable(draw_cube draw_cube.cpp)
-target_link_libraries(draw_cube 
+target_link_libraries(draw_cube
 	model scene camera viewer renderer asset_loader console)
 # copy the shader file
-file(COPY ${CMAKE_CURRENT_ROOT_DIR}color_cube.dae 
+file(COPY ${CMAKE_CURRENT_ROOT_DIR}color_cube.dae
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 # copy assimp dll
+if(MSVC14)
 file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}
 DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
+endif(MSVC14)

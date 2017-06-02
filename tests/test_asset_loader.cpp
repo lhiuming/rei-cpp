@@ -14,7 +14,7 @@ int main(int argc, char** argv)
   if (argc > 1) {
     fn = string(argv[1]);
   } else {
-    fn = string("../tests/cube.dae");
+    fn = string("color_cube.dae");
     cout << "using default input file: " << fn << endl;
   }
 
