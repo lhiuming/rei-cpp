@@ -146,7 +146,7 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   // Initialize a defautl Light data 
   g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
   g_light.ambient = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-  g_light.diffuse = DirectX::XMFLOAT4(0.8f, 0.8f, 0.4f, 1.0f);
+  g_light.diffuse = DirectX::XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
 
   // Specify the per-frame constant-buffer 
   D3D11_BUFFER_DESC cbbd;

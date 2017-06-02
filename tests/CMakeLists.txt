@@ -95,7 +95,13 @@ target_link_libraries(three_triangle
 	model scene camera viewer renderer console)
 
 
-# Draw Cube test (for color and z-buffer)
+# Draw Cube test (model loading overall)
 add_executable(draw_cube draw_cube.cpp)
 target_link_libraries(draw_cube 
 	model scene camera viewer renderer asset_loader console)
+# copy the shader file
+file(COPY ${CMAKE_CURRENT_ROOT_DIR}color_cube.dae 
+	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
+# copy assimp dll
+file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}
+DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")

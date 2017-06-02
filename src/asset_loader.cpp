@@ -82,10 +82,15 @@ MeshPtr AssetLoader::make_mesh(const aiMesh& mesh, Mat4 trans)
 
     // convert color if any. NOTE: the mesh may containt multiple color set
     const int color_set = 0;
-    Color color {0.0f, 0.0f, 0.6f, 1.0f};
-    if (mesh.mColors[0] != NULL) {
+    Color color;
+    if (mesh.mColors[0] != NULL) 
+    {
       const aiColor4D& c = mesh.mColors[color_set][i];
       Color color (c.r, c.g, c.b, c.a);
+    }
+    else 
+    {
+      color = Color{ 0.5f, 0.5f, 0.5f, 1.0f };
     }
 
     // push the vertex

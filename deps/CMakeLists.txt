@@ -63,3 +63,10 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/assimp)
 # populate the include directory property
 set(ASSIMP_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assimp/include")
 target_include_directories(assimp PUBLIC ${ASSIMP_INCLUDE_DIR})
+# fetch the DLLs
+get_property(ASSIMP_OUTPUT TARGET assimp PROPERTY OUTPUT_NAME)
+set(ASSIMP_OUTPUT_NAME ${ASSIMP_OUTPUT}.dll CACHE STRING "")
+set(ASSIMP_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/assimp/code/${CMAKE_CONFIGURATION_TYPES}/)
+file(COPY ${ASSIMP_OUTPUT_PATH}/${ASSIMP_OUTPUT_NAME}
+	DESTINATION "${PROJECT_BINARY_DIR}/lib")
+
