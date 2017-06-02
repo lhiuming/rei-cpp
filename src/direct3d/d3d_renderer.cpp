@@ -9,19 +9,21 @@ namespace CEL {
 
 // Default Constructor 
 D3DRenderer::D3DRenderer()
-{ }
+{
+  // Really nothing todo before given the D3D interfaces (Device, ImmediateContext)
+}
 
 // Destructor 
 D3DRenderer::~D3DRenderer()
 {
   // Shader objects
-  //VS->Release();
-  //PS->Release();
-  //VS_Buffer->Release();
-  //PS_Buffer->Release();
+  VS->Release();
+  PS->Release();
+  VS_Buffer->Release();
+  PS_Buffer->Release();
 
   // Pipeline states 
- // FaceRender->Release();
+  FaceRender->Release();
   //LineRender
 
   // Mesh buffers 
@@ -36,7 +38,7 @@ D3DRenderer::~D3DRenderer()
   if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
 
   // scene-wide constant buffer
-  //cbPerFrameBuffer->Release();
+  cbPerFrameBuffer->Release();
 
   console << "D3DRenderer is destructed." << endl;
 }
@@ -51,6 +53,7 @@ void D3DRenderer::set_d3d_interface(ID3D11Device* pdevice,
   this->d3d11DevCon = pdevCon;
 
   this->create_render_states();
+  this->compile_shader();
 }
 
 // INIT: setup render states
@@ -71,14 +74,13 @@ void D3DRenderer::create_render_states()
 
 }
 
-// set and initialize internal scenes 
-void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
+// INIT: compile the default shaders
+void D3DRenderer::compile_shader()
 {
-  Renderer::set_scene(scene);
+  // Compile shader from file "direct3d/shader.hlsl", and bind to 
+  // vertex- and pixel-stage. 
 
-  HRESULT hr; // for error reporting 
-
-  // Compile shader from file // 
+  HRESULT hr; // error reporting 
 
   // Compiling 
   hr = D3DCompileFromFile(
@@ -124,11 +126,67 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
     0 // the number of class-instance (related to above); not using currently 
   );
   this->d3d11DevCon->PSSetShader(this->PS, 0, 0);
+}
 
+// set and initialize internal scenes 
+void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
+{
+  Renderer::set_scene(scene);
+
+  this->set_default_scene();
+
+  HRESULT hr; // for error reporting 
+
+
+  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
+  D3D11_VIEWPORT viewport;
+  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
+  viewport.TopLeftX = 0.0;  // position of 
+  viewport.TopLeftY = 0.0;  //  the top-left corner in the window.
+  viewport.Width = (float)width;
+  viewport.Height = (float)height;
+  viewport.MinDepth = 0.0f; // set depth range (0~1); used for converting z-value
+  viewport.MaxDepth = 1.0f; // furthest value  (0~1)
+
+  // Set the Viewport (bind to the Raster Stage of he pipeline) 
+  d3d11DevCon->RSSetViewports(
+    1, // number of viewport to set 
+    &viewport  // array of viewports
+  );
+
+  // Create a constant buffer for transform 
+  D3D11_BUFFER_DESC cbbd;
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerObject);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
+
+  // Light data 
+  g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
+  g_light.ambient = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
+  g_light.diffuse = DirectX::XMFLOAT4(0.8f, 0.8f, 0.4f, 1.0f);
+
+  // Create a constant buffer for light 
+  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
+  cbbd.Usage = D3D11_USAGE_DEFAULT;
+  cbbd.ByteWidth = sizeof(cbPerFrame);
+  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
+  cbbd.CPUAccessFlags = 0;
+  cbbd.MiscFlags = 0;
+
+  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
+
+}
+
+void D3DRenderer::set_default_scene()
+{
 
   // FIXME ; use scene loading below 
 
   // Create the vertex & index buffer // 
+
+  HRESULT hr;
 
   // the data we will use
   Vertex v[] =
@@ -169,7 +227,6 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
     4, 3, 7
   };
 
-
   // Create a buffer description for vertex data 
   D3D11_BUFFER_DESC vertexBufferDesc;
   ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
@@ -180,7 +237,7 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   vertexBufferDesc.MiscFlags = 0; // extra flags; not using 
   vertexBufferDesc.StructureByteStride = NULL; // not using 
 
-  // Create a buffer description for indices data 
+                                               // Create a buffer description for indices data 
   D3D11_BUFFER_DESC indexBufferDesc;
   ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
   indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;  // I guess this is for DRAM type 
@@ -194,7 +251,7 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
   // Create the vertex buffer data object 
   D3D11_SUBRESOURCE_DATA vertexBufferData; // parameter struct ?
   ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-  vertexBufferData.pSysMem = v; 
+  vertexBufferData.pSysMem = v;
   hr = d3d11Device->CreateBuffer(
     &vertexBufferDesc, // buffer description 
     &vertexBufferData, // parameter set above 
@@ -257,50 +314,6 @@ void D3DRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // Set the Input Layout (bind to Input Assembler) 
   d3d11DevCon->IASetInputLayout(vertLayout);
-
-  // Set Primitive Topology (tell InputAssemble )
-  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-
-  // Create the D3D Viewport (settings are used in the Rasterizer Stage) 
-  D3D11_VIEWPORT viewport;
-  ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
-  viewport.TopLeftX = 0.0;  // position of 
-  viewport.TopLeftY = 0.0;  //  the top-left corner in the window.
-  viewport.Width = (float)width;
-  viewport.Height = (float)height;
-  viewport.MinDepth = 0.0f; // set depth range (0~1); used for converting z-value
-  viewport.MaxDepth = 1.0f; // furthest value  (0~1)
-
-  // Set the Viewport (bind to the Raster Stage of he pipeline) 
-  d3d11DevCon->RSSetViewports(
-    1, // number of viewport to set 
-    &viewport  // array of viewports
-  );
-
-  // Create a constant buffer for transform 
-  D3D11_BUFFER_DESC cbbd;
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerObject);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
-  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerObjectBuffer);
-
-  // Light data 
-  g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
-  g_light.ambient = DirectX::XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-  g_light.diffuse = DirectX::XMFLOAT4(1.0f, 0.9f, 0.4f, 1.0f);
-
-  // Create a constant buffer for light 
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerFrame);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer 
-  cbbd.CPUAccessFlags = 0;
-  cbbd.MiscFlags = 0;
-
-  d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
-
 }
 
 // FIXME
@@ -424,10 +437,23 @@ void D3DRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Do rendering 
 void D3DRenderer::render() {
 
-  // Set the light for the scene
-  g_cbPerFrm.light = g_light;
-  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &g_cbPerFrm, 0, 0);  // update into buffer object 
+  // Set the global light-source for the scene
+  data_per_frame.light = g_light;
+  d3d11DevCon->UpdateSubresource(cbPerFrameBuffer, 0, NULL, &data_per_frame, 0, 0);  // update into buffer object 
   d3d11DevCon->PSSetConstantBuffers(0, 1, &cbPerFrameBuffer);  // send to the Pixel Stage 
+
+  // Render the default scene, for debug
+  render_default_scene();
+
+  // render all buffered meshes 
+  //render_meshes(); // FIXME
+
+}
+
+void D3DRenderer::render_default_scene()
+{
+  // Set Primitive Topology (tell InputAssemble )
+  d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // Draw cube  //
 
@@ -442,11 +468,6 @@ void D3DRenderer::render() {
 
   // Draw 
   d3d11DevCon->DrawIndexed(36, 0, 0);
-
-
-  // render all buffered meshes 
-  //render_meshes(); // FIXME
-
 }
 
 // Render the meshes 

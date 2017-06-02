@@ -42,13 +42,14 @@ float4 PS(VS_OUTPUT input) : SV_TARGET
 
     float tint = dot(normalize(light.dir), normalize(input.Normal));
 
-    float3 finalColor;
     if (tint > 0.5)
-        finalColor = diffuse * light.diffuse;
-    else if (tint > 0.3)
-        finalColor = diffuse * tint * light.diffuse;
+        tint = 1.0;
+    else if (tint < 0.2)
+        tint = 0.0;
     else
-        finalColor = diffuse * light.ambient;
+        tint = 0.4;
+    
+    float3 finalColor = diffuse * (tint * light.diffuse + light.ambient);
 
     return float4(finalColor, diffuse.a); // take the alpha channel of object 
 }

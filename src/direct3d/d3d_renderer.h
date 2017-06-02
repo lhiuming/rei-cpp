@@ -110,8 +110,8 @@ public:
 
   // Implementation specific interface
   void set_d3d_interface(ID3D11Device* pdevice, ID3D11DeviceContext* pdevCon);
-  void compile_shader();
   void create_render_states();
+  void compile_shader();
 
 private:
 
@@ -119,7 +119,7 @@ private:
   ID3D11Device* d3d11Device;
   ID3D11DeviceContext* d3d11DevCon;
 
-  // Shader objects
+  // Default Shader objects
   ID3D11VertexShader* VS;
   ID3D11PixelShader* PS;
   ID3DBlob* VS_Buffer;
@@ -132,31 +132,9 @@ private:
   // Rendering objects 
   std::vector<MeshBuffer> mesh_buffers;
   ID3D11Buffer* cbPerFrameBuffer;  // buffer to hold frame-wide data 
+  Light g_light;  // global light-source data, fed to frame-buffer 
+  cbPerFrame data_per_frame;  // memory-layouting for frame constant-buffer 
 
-  // Extra object for debug : FIXME
-  ID3D11Buffer* cubeIndexBuffer;
-  ID3D11Buffer* cubeVertBuffer;
-  ID3D11Buffer* cbPerObjectBuffer; 
-
-  Light g_light;
-  cbPerFrame g_cbPerFrm;
-  cbPerObject g_cbPerObj;
-
-  ID3D11InputLayout* vertLayout;
-  // Some math data for transform
-  DirectX::XMMATRIX WVP;
-  DirectX::XMMATRIX World;
-  DirectX::XMMATRIX camView;
-  DirectX::XMMATRIX camProjection;
-  DirectX::XMVECTOR camPosition;
-  DirectX::XMVECTOR camTarget;
-  DirectX::XMVECTOR camUp;
-
-  // Some math for object transformation 
-  DirectX::XMMATRIX cube2world;
-  DirectX::XMMATRIX Roration;
-  DirectX::XMMATRIX Scale;
-  float rot = 0.01f;
 
   // Implementation helpers //
 
@@ -164,6 +142,16 @@ private:
 
   void render_meshes();
   void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
+
+  // Extra object for debug
+  // FIXME 
+  void set_default_scene();
+  void render_default_scene();
+  ID3D11Buffer* cubeIndexBuffer;
+  ID3D11Buffer* cubeVertBuffer;
+  ID3D11Buffer* cbPerObjectBuffer;
+  cbPerObject g_cbPerObj;
+  ID3D11InputLayout* vertLayout;
 
 };
 

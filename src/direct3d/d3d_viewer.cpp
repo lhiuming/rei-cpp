@@ -10,29 +10,6 @@ using namespace std;
 
 namespace CEL {
 
-// Windows message callback handler 
-LRESULT CALLBACK 
-D3DViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-  // Choose a reaction for keyboard or mouse events 
-  switch (msg)
-  {
-  case WM_KEYDOWN:
-    if (wParam == VK_ESCAPE) {  // press ESC
-      DestroyWindow(hwnd);
-    }
-    return 0;
-
-  case WM_DESTROY:  // click (X)
-    PostQuitMessage(0);
-    return 0;
-  }
-
-  // Default case: use windows' default procudure  
-  return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-
 // Constructor 
 D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
 : width(window_w), height(window_h), title(title)
@@ -255,6 +232,29 @@ void D3DViewer::run()
     }
   }  // end while 
 
+}
+
+
+// Windows message callback handler 
+LRESULT CALLBACK
+D3DViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+  // Choose a reaction for keyboard or mouse events 
+  switch (msg)
+  {
+  case WM_KEYDOWN:
+    if (wParam == VK_ESCAPE) {  // press ESC
+      DestroyWindow(hwnd);
+    }
+    return 0;
+
+  case WM_DESTROY:  // click (X)
+    PostQuitMessage(0);
+    return 0;
+  }
+
+  // Default case: use windows' default procudure  
+  return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
 
