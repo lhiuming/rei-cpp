@@ -1,0 +1,2 @@
+# exclude deps code from language-statistics; Git Sumodule didn't work
+deps/* linguist-vendored
