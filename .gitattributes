@@ -1,4 +1,3 @@
-deps/* linguist-vendored
-/deps/ linguist-vendored
-deps/ linguist-vendored
-/deps/* linguist-vendored
+deps/assimp/* linguist-vendored
+deps/glew/* linguist-vendored
+deps/glfw/* linguist-vendored
