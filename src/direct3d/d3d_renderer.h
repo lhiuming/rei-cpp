@@ -180,6 +180,7 @@ private:
   ID3D11Buffer* cubeVertBuffer;
   ID3D11Buffer* cubeConstBuffer;
   cbPerObject cube_cb_data;
+  double cube_rot = 0.0;
 
 };
 

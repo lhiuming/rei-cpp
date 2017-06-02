@@ -404,8 +404,13 @@ void D3DRenderer::render_default_scene()
   );
 
   // Feed transform to per-object constant buffer
-  cube_cb_data.update(camera->get_w2n());
-  cube_cb_data.World = DirectX::XMMatrixIdentity();
+  cube_rot -= 0.002; 
+  Mat4 rotateLH = Mat4(
+    cos(cube_rot), 0.0, -sin(cube_rot), 0.0,
+    0.0, 1.0, 0.0, 0.0, 
+    sin(cube_rot), 0.0, cos(cube_rot), 0.0,
+    0.0, 0.0, 0.0, 1.0);
+  cube_cb_data.update(rotateLH * camera->get_w2n(), rotateLH);
   d3d11DevCon->UpdateSubresource(cubeConstBuffer, 0, NULL, &cube_cb_data, 0, 0);
   d3d11DevCon->VSSetConstantBuffers(0, 1, &cubeConstBuffer);
 

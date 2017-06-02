@@ -21,11 +21,18 @@ int main()
   using Vertex = typename Mesh::Vertex;
 
   // Create the triangles
-  Vertex v1({10, 0, 0}), v2({8, 7, 0}), v3({-5, 0, 0});
-  Vertex v4({0, 6, 0}), v5({-3, 0, 0}), v6({0, -10, 0});
-  Vertex v7({0.8f, 0.0f, 0.5}), v8({0.8f, 0.8f, 0.5f}), v9({0.0f, 0.8f, 0.5f});
-  Mesh mesh{{v1, v2, v3, v4, v5, v6, v7, v8, v9}, 
-            {0, 1, 2,  3, 4, 5,  6, 7, 8}};
+  Vertex v0({   10, 0, 0 }, { 0.9f, 0.6f, 0.1f, 0.0f });
+  Vertex v1({   8, 10, 0 }, { 0.9f, 0.1f, 0.5f, 1.0f });
+  Vertex v2({ -12,  0, 2 }, { 0.8f, 0.4f, 0.1f, 1.0f });
+  Vertex v3({  0,   7, 0 }, { 0.4f, 0.8f, 0.0f, 0.0f });
+  Vertex v4({ -8,   6, 0 }, { 0.7f, 0.8f, 0.1f, 1.0f });
+  Vertex v5({  0, -13, 2 }, { 0.1f, 0.8f, 0.6f, 1.0f });
+  Vertex v6({  5, -9, 0 }, { 0.4f, 0.1f, 0.7f, 1.0f });
+  Vertex v7({  8,  4, 2 }, { 0.0f, 0.7f, 0.7f, 1.0f });
+  Vertex v8({ -6, -6, 0 }, { 0.2f, 0.2f, 0.7f, 0.0f });
+
+  Mesh mesh{{v0, v1, v2, v3, v4, v5, v6, v7, v8}, 
+            { 0,  1,  2,  3,  4,  5,  6,  7,  8}};
   console << "Mesh model set up." << endl;
 
   // Set up the scene
