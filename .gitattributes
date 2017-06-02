@@ -1,1 +1,4 @@
 deps/* linguist-vendored
+/deps/ linguist-vendored
+deps/ linguist-vendored
+/deps/* linguist-vendored
