@@ -1,7 +1,7 @@
 # Solve all dependencies
 # In order to build some of them, you might need to fetch the submodules first
 
-INCLUDE(ExternalProject)
+include(ExternalProject)
 
 #------------------------------------------------------------------------------
 # OpenGL stuffs
@@ -16,17 +16,39 @@ find_package(OpenGL REQUIRED)
 #set(GLEW_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/glew/include")
 #target_include_directories(glew PUBLIC ${GLEW_INCLUDE_DIR})
 
-# GLEW (built using native CMakeList.txt)
-set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
-set(GLEW_REGAL OFF CACHE BOOL "" FORCE)
-set(GLEW_OSMESA OFF CACHE BOOL "" FORCE)
-set(BUILD_FRAMEWORK OFF CACHE BOOL "" FORCE)
-ExternalProject_Add(glew
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake
+# GLEW (built using native CMakeList.txt
+set_property(DIRECTORY PROPERTY EP_STEP_TARGETS build)
+ExternalProject_Add(glew_project
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/glew
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake
-  )
+	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/glew
+	CMAKE_ARGS
+		-DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/glew
+		-DCMAKE_INSTALL_LIBDIR=${CMAKE_CURRENT_BINARY_DIR}/glew/lib
+		-DCMAKE_BUILD_TYPE=Release
+	CMAKE_CACHE_ARGS
+		-DBUILD_UTILS:BOOL=OFF
+		-DGLEW_REGAL:BOOL=OFF
+		-DGLEW_OSMESA:BOOL=OFF
+	  -DBUILD_FRAMEWORK:BOOL=OFF
+		-DBUILD_SHARED_LIBS:BOOL=TRUE
+  STEP_TARGETS build
+  DEPENDEES glew
+)
+#ExternalProject_Add_Step(glew_project copy_lib
+#  COMMAND ${CMAKE_COMMAND} -E copy_directory
+#		${CMAKE_CURRENT_BINARY_DIR}/glew/lib
+#		${PROJECT_BINARY_DIR}/lib
+#  DEPENDEES install
+#)
+add_library(glew SHARED IMPORTED)
+set_target_properties(glew PROPERTIES IMPORTED_LOCATION
+	${CMAKE_CURRENT_BINARY_DIR}/glew/lib/libGLEW.dylib)
+set(glew_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/glew/include")
+set(glew_LIBRARIES "${CMAKE_CURRENT_BINARY_DIR}/glew/lib")
 
 # GLFW (built using native CMakeLists.txt)
+# TODO: use extrenal project
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
