@@ -16,6 +16,10 @@ find_package(OpenGL REQUIRED)
 #target_include_directories(glew PUBLIC ${GLEW_INCLUDE_DIR})
 
 # GLEW (built using native CMakeList.txt)
+set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(GLEW_REGAL OFF CACHE BOOL "" FORCE)
+set(GLEW_OSMESA OFF CACHE BOOL "" FORCE)
+set(BUILD_FRAMEWORK OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake)
 
 # GLFW (built using native CMakeLists.txt)
