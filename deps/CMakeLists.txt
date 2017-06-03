@@ -11,9 +11,12 @@ IF (UNIX)
 find_package(OpenGL REQUIRED)
 
 # GLEW (built from here, since the release doesn't come with CMakeLists)
-add_library(glew ${CMAKE_CURRENT_SOURCE_DIR}/glew/src/glew.c)
-set(GLEW_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/glew/include")
-target_include_directories(glew PUBLIC ${GLEW_INCLUDE_DIR})
+#add_library(glew ${CMAKE_CURRENT_SOURCE_DIR}/glew/src/glew.c)
+#set(GLEW_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/glew/include")
+#target_include_directories(glew PUBLIC ${GLEW_INCLUDE_DIR})
+
+# GLEW (built using native CMakeList.txt)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake)
 
 # GLFW (built using native CMakeLists.txt)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
