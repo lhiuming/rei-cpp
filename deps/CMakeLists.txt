@@ -1,6 +1,7 @@
 # Solve all dependencies
 # In order to build some of them, you might need to fetch the submodules first
 
+INCLUDE(ExternalProject)
 
 #------------------------------------------------------------------------------
 # OpenGL stuffs
@@ -20,7 +21,10 @@ set(BUILD_UTILS OFF CACHE BOOL "" FORCE)
 set(GLEW_REGAL OFF CACHE BOOL "" FORCE)
 set(GLEW_OSMESA OFF CACHE BOOL "" FORCE)
 set(BUILD_FRAMEWORK OFF CACHE BOOL "" FORCE)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake)
+ExternalProject_Add(glew
+	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake
+	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/glew/build/cmake
+  DEPENDS glew_generation)
 
 # GLFW (built using native CMakeLists.txt)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -28,7 +32,7 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
-
+#ExternalProject_Add
 set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
 
 ENDIF()
