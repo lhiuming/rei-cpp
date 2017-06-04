@@ -57,11 +57,10 @@ void check_model(const aiNode& node)
 int main(int argc, char** argv)
 {
   // Check the input file name
-  if (argc < 2) {
-    cout << "Not enough arguments." << endl;
-    return -1;
+  string filename("color_cube.dae");
+  if (argc > 1) {
+    filename = argv[1];
   }
-  string filename = argv[1];
   cout << "Filename is " << filename << endl;
 
   Assimp::Importer importer;
@@ -80,6 +79,8 @@ int main(int argc, char** argv)
 
     cout << "Ready to check the model : " << endl;
     check_model(*(as->mRootNode));
+  } else {
+    cout << "Read .dae failed" << endl;
   }
 
   return 0;
