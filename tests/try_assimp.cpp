@@ -22,6 +22,8 @@ void print_face(const aiFace& face)
 void print_mesh(const aiMesh& mesh)
 {
   cout << "mesh has ";
+  cout << mesh.GetNumColorChannels() << " color chs, ";
+  cout << mesh.HasVertexColors(0) << " has color set, ";
   cout << mesh.mNumFaces << " faces, ";
   cout << mesh.mNumBones << " bones, ";
   cout << mesh.mNumUVComponents[0] << " texture uv componets, ";
@@ -57,10 +59,11 @@ void check_model(const aiNode& node)
 int main(int argc, char** argv)
 {
   // Check the input file name
-  string filename("color_cube.dae");
-  if (argc > 1) {
-    filename = argv[1];
+  if (argc < 2) {
+    cout << "Not input .dae file." << endl;
+    return -1;
   }
+  string filename{argv[1]};
   cout << "Filename is " << filename << endl;
 
   Assimp::Importer importer;

@@ -96,12 +96,9 @@ target_link_libraries(three_triangle
 
 
 # Draw Cube test (model loading overall)
-add_executable(draw_cube draw_cube.cpp)
-target_link_libraries(draw_cube
+add_executable(draw_model draw_model.cpp)
+target_link_libraries(draw_model
 	model scene camera viewer renderer asset_loader console)
-# copy the shader file
-file(COPY ${CMAKE_CURRENT_ROOT_DIR}color_cube.dae
-	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 # copy assimp dll
 if(MSVC14)
 file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}

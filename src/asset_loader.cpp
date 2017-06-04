@@ -7,58 +7,18 @@
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 
+#include "console.h"
+
 using namespace std;
 
 namespace CEL {
 
-std::vector<MeshPtr>
-AssetLoader::load_mesh(const std::string filename)
-{
-  // Try to load the file by assimp
-  Assimp::Importer importer;
-  const aiScene* as;
-  if ( (as = importer.ReadFile(filename, 0)) == nullptr)
-  {
-    cout << "Read " << filename << " failed." << endl;
-    return vector<MeshPtr>();
-  }
-  cout << "Read " << filename << " successfully. Trying to convert." << endl;
-  cout << "  " << "File has " << as->mNumMeshes << " meshes in a scene" << endl;
+// Private functions to this modules. ///////////////////////////////////////
+// Do this to hide the assimp dependency from the interface.
+////
 
-  // read the mesh from children, with corrent world-space stransform
-  std::vector<MeshPtr> ret;
-  int read_count = load_mesh(as, as->mRootNode, ret, Mat4::I());
-  cout << "  " << "Actually " << read_count << " mehses are read." << endl;
-
-  return ret;
-}
-
-
-int AssetLoader::load_mesh(const aiScene* as, const aiNode* node,
-  vector<MeshPtr>& models, Mat4 trans)
-{
-  int mesh_count = 0;
-
-  // Add the mesh, with accumulated transform
-  trans = trans * make_Mat4(node->mTransformation);
-  for (int i = 0; i < node->mNumMeshes; ++i)
-  {
-    // Convert the aiMesh stored in aiScene
-    unsigned int mesh_ind = node->mMeshes[i];
-    models.push_back( make_mesh(*(as->mMeshes[mesh_ind]), trans) );
-    ++mesh_count;
-  }
-
-  // Check the children
-  for (int i = 0; i < node->mNumChildren; ++i)
-    mesh_count += load_mesh(as, node->mChildren[i], models, trans);
-
-  return mesh_count;
-}
-
-
-// transform a aiMatrix4x4 (from assimp) to a CEL::Mat4
-Mat4 AssetLoader::make_Mat4(const aiMatrix4x4& mat)
+// Convert a aiMatrix4x4 (from assimp) to a CEL::Mat4
+Mat4 make_Mat4(const aiMatrix4x4& mat)
 {
   Mat4 ret;
   // aiMatrix4x4 {a1, a2, a3 ... } is row-major
@@ -69,9 +29,15 @@ Mat4 AssetLoader::make_Mat4(const aiMatrix4x4& mat)
   return ret;
 }
 
-
-MeshPtr AssetLoader::make_mesh(const aiMesh& mesh, Mat4 trans)
+// Convert a aiMesh to Mesh and return a shared pointer
+MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
 {
+  // So Implementation check
+  if (mesh.GetNumColorChannels() > 1)
+    console << "AssetLoader Warning: mesh has multiple color channels" << endl;
+  if (mesh.HasVertexColors(1))
+    console << "AssetLoader Warning: mesh has multiple color sets" << endl;
+
   // Convert all vertex
   vector<Mesh::Vertex> va;
   for (int i = 0; i < mesh.mNumVertices; ++i)
@@ -83,12 +49,12 @@ MeshPtr AssetLoader::make_mesh(const aiMesh& mesh, Mat4 trans)
     // convert color if any. NOTE: the mesh may containt multiple color set
     const int color_set = 0;
     Color color;
-    if (mesh.mColors[0] != NULL) 
+    if (mesh.HasVertexColors(color_set))
     {
       const aiColor4D& c = mesh.mColors[color_set][i];
-      Color color (c.r, c.g, c.b, c.a);
+      color = Color(c.r, c.g, c.b, c.a);
     }
-    else 
+    else
     {
       color = Color{ 0.5f, 0.5f, 0.5f, 1.0f };
     }
@@ -110,7 +76,59 @@ MeshPtr AssetLoader::make_mesh(const aiMesh& mesh, Mat4 trans)
   }
 
   return make_shared<Mesh>(std::move(va), std::move(ta));
+} // end make_mesh
+
+// Convert a asMesh to a CEL::Mesh and push to the `models`
+int add_mesh(const aiScene* as, const aiNode* node,
+  vector<MeshPtr>& models, Mat4 trans)
+{
+  int mesh_count = 0;
+
+  // Add the mesh to `models`, with accumulated transform
+  trans = trans * make_Mat4(node->mTransformation);
+  for (int i = 0; i < node->mNumMeshes; ++i)
+  {
+    // Convert the aiMesh stored in aiScene
+    unsigned int mesh_ind = node->mMeshes[i];
+    models.push_back( make_mesh(*(as->mMeshes[mesh_ind]), trans) );
+    ++mesh_count;
+  }
+
+  // Check the children
+  for (int i = 0; i < node->mNumChildren; ++i)
+    mesh_count += add_mesh(as, node->mChildren[i], models, trans);
+
+  return mesh_count;
 }
+
+
+// AssetLoader member functions /////////////////////////////////////////////
+////
+
+std::vector<MeshPtr>
+AssetLoader::load_mesh(const std::string filename)
+{
+  // Try to load the file by assimp
+  Assimp::Importer importer;
+  const aiScene* as;
+  if ( (as = importer.ReadFile(filename, 0)) == nullptr)
+  {
+    cout << "Read " << filename << " failed." << endl;
+    return vector<MeshPtr>();
+  }
+  cout << "Read " << filename << " successfully. Trying to convert." << endl;
+  cout << "  " << "File has " << as->mNumMeshes << " meshes in a scene" << endl;
+
+  // read the mesh from children, with corrent world-space stransform
+  std::vector<MeshPtr> ret;
+  int read_count = add_mesh(as, as->mRootNode, ret, Mat4::I());
+  cout << "  " << "Actually " << read_count << " mehses are read." << endl;
+
+  return ret;
+}
+
+
+
 
 
 } // namespace CEL
