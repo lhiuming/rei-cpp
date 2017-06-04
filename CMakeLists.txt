@@ -13,7 +13,7 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/deps")
 # Set up Compiler
 #----------------
 
-# Use C++11 
+# Use C++11
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

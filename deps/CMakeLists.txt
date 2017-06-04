@@ -57,7 +57,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
 #ExternalProject_Add
 set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
 
-ENDIF()
+ENDIF (UNIX)
 
 
 #------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
 
 set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE STRING "")
 
-ENDIF()
+ENDIF (WIN32)
 
 
 #------------------------------------------------------------------------------
