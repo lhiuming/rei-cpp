@@ -67,7 +67,7 @@ int main(int argc, char** argv)
   // run
   v->run();
 
-  console << "Viewer stopped. Program ends." << endl;
+  console << "Program closing." << endl;
 
   return 0;
 }

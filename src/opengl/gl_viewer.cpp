@@ -7,7 +7,8 @@
 #include <vector>
 #include <chrono>  // for waiting
 #include <thread>  // for waiting
-#include <iostream> // for debug
+
+#include "../console.h"
 
 using namespace std;
 
@@ -32,7 +33,7 @@ GLViewer::~GLViewer()
 {
   gl_close_window(window);  // close the window anyway
   if (--view_count == 0) gl_terminate();
-  cout << "A Viewer is closed." << endl;
+  console << "A Viewer is closed." << endl;
 }
 
 
@@ -58,6 +59,9 @@ void GLViewer::run()
     // Don't forget this
     gl_poll_events();
 
+    // Clear the frame buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     // update the scene (it may be dynamics)
     //scene.update();
     camera->move(0.05, 0.0, 0.0);
@@ -66,9 +70,12 @@ void GLViewer::run()
     // render the scene on the buffer
     renderer->render();
 
+    // Display !
+    glfwSwapBuffers(window);
+
   } // end while
 
-  cout << "user closed window; view stop running" << endl;
+  console << "user closed window; view stop running" << endl;
 
 } // end run()
 

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <typeinfo>
+#include <stdexcept>
 
 using namespace std;
 
@@ -30,22 +31,22 @@ namespace CEL {
 // Default constructor
 GLRenderer::GLRenderer() : Renderer()
 {
-  // Prepare a shared pass-through style shaders //////////////////////////////
+  // Prepare a default shaders /////////////////////////////////////////////
 
   // Variables for compile error check
   GLint success;
   GLchar infoLog[512];
-cout << "spot 0" << endl;
+
   // Compile the vertex shader
-  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER); cout << "spot 1" << endl;
-  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);cout << "spot 2" << endl;
-  glCompileShader(vertexShader);cout << "spot 1" << endl;
-  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);cout << "spot 3" << endl;
+  GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);
+  glCompileShader(vertexShader);
+  glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
   if (!success) // check if compile pass
   {
-    cout << "trying to report failure" << endl;
     glGetShaderInfoLog(vertexShader, 512, nullptr, infoLog);
     cerr << "Error: vertex shader compile failed:\n" << infoLog << endl;
+    throw runtime_error("Default Vertex Shader compile FAILD");
   }
 
   // Compile the fragment shader. Similar above.
@@ -57,6 +58,7 @@ cout << "spot 0" << endl;
   {
     glGetShaderInfoLog(fragmentShader, 512, nullptr, infoLog);
     cerr << "Error: fragment shader compile failed:\n" << infoLog << endl;
+    throw runtime_error("Default Fragment Shader compile FAILD");
   }
 
   // Link the compiled shader into a program;
@@ -70,12 +72,12 @@ cout << "spot 0" << endl;
     glGetProgramInfoLog(program, 512, nullptr, infoLog);
     std::cerr << "Error: shader linking failed:\n"
               << infoLog << std::endl;
+    throw runtime_error("Default Shader linkage FAILD");
   }
 
   // Do not need them after set up the shader program
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
-
 }
 
 // Set buffer size
@@ -89,21 +91,6 @@ void GLRenderer::set_buffer_size(BufferSize width, BufferSize height)
 // Render request
 void GLRenderer::render()
 {
-  // TODO: devide this into stages like a hardware pipeline
-  // 1. transform the model into camera space (need some memory)
-  //   - may be every data should be converted to "render vertex" now,
-  //     or any data that is good for renderering.
-  //   - may be some shared accelerating helpers, like a BVH tree for global
-  //     illuminating. (but how many stuffs are shared among models, really?)
-  // (different models should be passed to different handling function now)
-  // 2. do vertex shading on the scene (result stored in vertex)
-  // 3. project by Mat4 (perspective of orthographic)
-  // 4. clipping (or naive clipping) againt the normalized unit cube
-  // 5. screen mapping ( (0, width) x (0, height) )
-  // 6. rasterrize by primitives (interpolating, color merging into pixels)
-  //   - maybe support some fragment shader things.
-  //   - see RTR notes for detials
-
   // Make sure the scene and camera is set
   if (scene == nullptr) {
     cerr << "SoftRenderer Error: no scene! " << endl;
@@ -117,13 +104,10 @@ void GLRenderer::render()
   // make the window current (activate)
   glfwMakeContextCurrent(this->window);
 
-  // Set the rendering methos
+  // Set the rendering methods
   glEnable(GL_DEPTH_TEST); // yes, we need to enable it manually !
-  glDepthRangef(0.0, 1.0); // we looks at +z axis in left-hand coordinate 
+  glDepthRangef(0.0, 1.0); // we looks at +z axis in left-hand coordinate
   glDepthFunc(GL_LESS); // it is default :)
-
-  // Clear the frame buffer
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Activate shader programs
   glUseProgram(this->program);
@@ -143,8 +127,6 @@ void GLRenderer::render()
     }
   } // end for
 
-  // Display !
-  glfwSwapBuffers(window);
 }
 
 
