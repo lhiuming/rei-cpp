@@ -21,12 +21,19 @@ namespace CEL {
 Mat4 make_Mat4(const aiMatrix4x4& mat)
 {
   Mat4 ret;
-  // aiMatrix4x4 {a1, a2, a3 ... } is row-major
-  ret[0] = Vec4(mat.a1, mat.b1, mat.c1, mat.d1); // fill by cols
-  ret[1] = Vec4(mat.a2, mat.b2, mat.c2, mat.d2);
-  ret[2] = Vec4(mat.a3, mat.b3, mat.c3, mat.d3);
-  ret[3] = Vec4(mat.a4, mat.b4, mat.c4, mat.d4);
-  return ret;
+  // NOTE: aiMatrix4x4 {a1, a2, a3 ... } is row-major,
+  // but Mat4 is column-major. So transposed here.
+  return Mat4(
+    mat.a1, mat.b1, mat.c1, mat.d1,
+    mat.a2, mat.b2, mat.c2, mat.d2,
+    mat.a3, mat.b3, mat.c3, mat.d3,
+    mat.a4, mat.b4, mat.c4, mat.d4
+  );
+  //ret[0] = Vec4(mat.a1, mat.b1, mat.c1, mat.d1); // fill by cols
+  //ret[1] = Vec4(mat.a2, mat.b2, mat.c2, mat.d2);
+  //ret[2] = Vec4(mat.a3, mat.b3, mat.c3, mat.d3);
+  //ret[3] = Vec4(mat.a4, mat.b4, mat.c4, mat.d4);
+  //return ret;
 }
 
 // Convert a aiMesh to Mesh and return a shared pointer
@@ -42,9 +49,9 @@ MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
   vector<Mesh::Vertex> va;
   for (int i = 0; i < mesh.mNumVertices; ++i)
   {
-    // convert and transform coordinate
+    // convert and transform coordinate (store world-space coordinate)
     const aiVector3D& v = mesh.mVertices[i];
-    Vec4 coord = trans * Vec4(v.x, v.y, v.z, 1.0);
+    Vec4 coord = Vec4(v.x, v.y, v.z, 1.0) * trans;
 
     // convert color if any. NOTE: the mesh may containt multiple color set
     const int color_set = 0;
@@ -85,7 +92,7 @@ int add_mesh(const aiScene* as, const aiNode* node,
   int mesh_count = 0;
 
   // Add the mesh to `models`, with accumulated transform
-  trans = trans * make_Mat4(node->mTransformation);
+  trans = make_Mat4(node->mTransformation) * trans;
   for (int i = 0; i < node->mNumMeshes; ++i)
   {
     // Convert the aiMesh stored in aiScene

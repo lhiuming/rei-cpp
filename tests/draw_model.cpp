@@ -47,8 +47,8 @@ int main(int argc, char** argv)
   console << "Scene set up. " << endl;
 
   // window size
-  const int width = 1280;
-  const int height = 720;
+  const int width = 720;
+  const int height = 480;
 
   // Set up the camera
   auto c = make_shared<Camera>(Vec3{0, 0, 20}, Vec3{0, 0, -1});

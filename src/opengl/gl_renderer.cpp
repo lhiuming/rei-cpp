@@ -119,7 +119,7 @@ void GLRenderer::render()
 
   // Set the rendering methos
   glEnable(GL_DEPTH_TEST); // yes, we need to enable it manually !
-  glDepthRangef(0.0, 1.0); // reversed; we looks at -z axis
+  glDepthRangef(0.0, 1.0); // we looks at +z axis in left-hand coordinate 
   glDepthFunc(GL_LESS); // it is default :)
 
   // Clear the frame buffer
@@ -180,7 +180,7 @@ void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
   {
     // coordinate (transformed by model and camera)
     // TODO push it at GPU
-    Vec4 coord = camera->get_w2n() * trans * v.coord;
+    Vec4 coord = v.coord * trans * camera->get_w2n();
     mesh_prop.push_back(coord.x);
     mesh_prop.push_back(coord.y);
     mesh_prop.push_back(coord.z);

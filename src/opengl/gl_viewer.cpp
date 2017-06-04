@@ -60,7 +60,8 @@ void GLViewer::run()
 
     // update the scene (it may be dynamics)
     //scene.update();
-    this->camera->move(0.01, 0.0, 0.0);
+    camera->move(0.05, 0.0, 0.0);
+    camera->set_target(Vec3(0.0, 0.0, 0.0));
 
     // render the scene on the buffer
     renderer->render();
