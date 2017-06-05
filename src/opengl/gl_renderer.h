@@ -15,24 +15,19 @@
  * opengl/renderer.h
  * Implement a OpenGL-based renderer.
  *
- * TODO: using OpenGL api instead of software rendering.
- * TODO: design some internal model format for rendering (see RTR)
  * TODO: implement fantastic CEL shading
+ * TODO: design some internal model format for rendering (for more fancy fx)
  */
 
 namespace CEL {
 
 class GLRenderer : public Renderer {
 
-  // a private Vertex class
-  class Vertex {
+  // TODO a private Vertex class
+  class Vertex { };
 
-  };
-
-  // a private Triangle class; represent a primitive
-  class Triangle {
-
-  };
+  // TODO a private Triangle class; represent a primitive
+  class Triangle { };
 
 public:
 
@@ -50,7 +45,8 @@ public:
   void render() override;
 
   // Implementation specific interface
-  void set_window(GLFWwindow* w) { window = w; }
+  void set_gl_context(GLFWwindow* w);
+  void compile_shader();
 
 private:
 
@@ -60,7 +56,6 @@ private:
 
   // Implementation helpers
   void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
-  void rasterize_triangle(const Mesh::Triangle& tri, const Mat4& trans);
 
 };
 

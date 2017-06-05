@@ -19,11 +19,12 @@ add_definitions(-DUSE_OPENGL)
 
 # renderer : OpenGL
 add_library(renderer_imp opengl/gl_renderer.cpp opengl/gl_renderer.h)
-target_link_libraries(renderer_imp algebra scene model color ${GL_LIBRARY})
+target_link_libraries(renderer_imp algebra scene model color console
+  ${GL_LIBRARY})
 
 # viewer
 add_library(viewer_imp opengl/gl_viewer.cpp opengl/gl_viewer.h)
-target_link_libraries(viewer_imp renderer scene ${GL_LIBRARY})
+target_link_libraries(viewer_imp renderer scene console ${GL_LIBRARY})
 
 ENDIF()
 

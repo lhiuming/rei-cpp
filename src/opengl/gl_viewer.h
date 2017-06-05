@@ -9,7 +9,7 @@
 #include <functional> // for std::function
 
 #include <GL/glew.h>    // must include before glfw
-#include <GLFW/glfw3.h> 
+#include <GLFW/glfw3.h>
 
 #include "gl_renderer.h"
 

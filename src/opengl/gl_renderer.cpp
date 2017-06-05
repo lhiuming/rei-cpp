@@ -2,13 +2,14 @@
 #include "gl_renderer.h"
 
 #include <cstring>
-#include <iostream>
 #include <typeinfo>
 #include <stdexcept>
 
+#include "../console.h"
+
 using namespace std;
 
-static const char* gl_vertex_shader_text =  // vertiex shader source
+static const char* default_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
 "layout (location = 0) in vec4 vPosition;\n"
 "layout (location = 1) in vec4 vColor;\n"
@@ -18,7 +19,7 @@ static const char* gl_vertex_shader_text =  // vertiex shader source
 "  color = vColor;\n"
 "}\n";
 
-static const char* gl_fragment_shader_text =  // fragment shader source
+static const char* default_fragment_shader_text =  // fragment shader source
 "#version 410 core\n"
 "in vec4 color;\n"
 "out vec4 fcolor;\n"
@@ -31,7 +32,22 @@ namespace CEL {
 // Default constructor
 GLRenderer::GLRenderer() : Renderer()
 {
-  // Prepare a default shaders /////////////////////////////////////////////
+  // Really nothings to do
+}
+
+// INIT: receive context, then initialized GL objects
+void GLRenderer::set_gl_context(GLFWwindow* w)
+{
+  window = w;
+  compile_shader(); // must run after GL context is prepared
+}
+
+// INIT: compile default shaders
+void GLRenderer::compile_shader()
+{ // NOTE: must run after the GL context is initialized
+
+  // NOTE: currently using hard-coded text
+  // TODO: load shader from file !
 
   // Variables for compile error check
   GLint success;
@@ -39,7 +55,7 @@ GLRenderer::GLRenderer() : Renderer()
 
   // Compile the vertex shader
   GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertexShader, 1, &gl_vertex_shader_text, nullptr);
+  glShaderSource(vertexShader, 1, &default_vertex_shader_text, nullptr);
   glCompileShader(vertexShader);
   glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
   if (!success) // check if compile pass
@@ -51,7 +67,7 @@ GLRenderer::GLRenderer() : Renderer()
 
   // Compile the fragment shader. Similar above.
   GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragmentShader, 1, &gl_fragment_shader_text, nullptr);
+  glShaderSource(fragmentShader, 1, &default_fragment_shader_text, nullptr);
   glCompileShader(fragmentShader);
   glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
   if (!success)
@@ -78,13 +94,14 @@ GLRenderer::GLRenderer() : Renderer()
   // Do not need them after set up the shader program
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
+
 }
+
 
 // Set buffer size
 void GLRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
-  // TODO
-  // use GL api
+  // Really nothings to do
 }
 
 
@@ -93,21 +110,13 @@ void GLRenderer::render()
 {
   // Make sure the scene and camera is set
   if (scene == nullptr) {
-    cerr << "SoftRenderer Error: no scene! " << endl;
-    return;
+    cerr << "GLRenderer Error: no scene! " << endl;
+    throw runtime_error("GLRenderer Error: no scene!");
   }
   if (camera == nullptr) {
-    cerr << "SoftRenderer Error: no camera! " << endl;
-    return;
+    cerr << "GLRenderer Error: no camera! " << endl;
+    throw runtime_error("GLRenderer Error: no camera");
   }
-
-  // make the window current (activate)
-  glfwMakeContextCurrent(this->window);
-
-  // Set the rendering methods
-  glEnable(GL_DEPTH_TEST); // yes, we need to enable it manually !
-  glDepthRangef(0.0, 1.0); // we looks at +z axis in left-hand coordinate
-  glDepthFunc(GL_LESS); // it is default :)
 
   // Activate shader programs
   glUseProgram(this->program);

@@ -28,13 +28,6 @@ GLViewer::GLViewer(size_t window_w, size_t window_h, string title)
   // Set all interaction events throught callback function
   register_callbacks();
 
-  // Fill the window with a default color.
-  // NOTE: This also set the default color for followed glClear().
-  glClearColor(0.9, 0.4, 0.0, 1.0); // eva blue
-
-  // Set the swaping intercal to 1 (synchronize with monitor refresh rate)
-  // May have no effect on some machine. Atleast no effect on mine.
-  glfwSwapInterval(1);
 }
 
 // constructor helpers
@@ -58,6 +51,11 @@ void GLViewer::init_glfw_context(int width, int height, const char* s)
 
   glfwMakeContextCurrent(this->window); // activate the context before use
   glfwSetErrorCallback(glfw_error_callback); // simple error call back
+
+  // Set the swaping interval to 1 (synchronize with monitor refresh rate)
+  // NOTE: May have no effect on some machine. Atleast no effect on mine.
+  glfwSwapInterval(1);
+
 } // end initialize_glfw_context
 
 void GLViewer::init_gl_interface()
@@ -78,6 +76,14 @@ void GLViewer::init_gl_interface()
   glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
   glViewport(0, 0, buffer_w, buffer_h);
   console << "GL viewport setup. " << endl;
+
+  // Set the depth buffer
+  glEnable(GL_DEPTH_TEST); // yes, we need to enable it manually !
+  glDepthRangef(0.0, 1.0); // we looks at +z axis in left-hand coordinate
+  glDepthFunc(GL_LESS); // it is default :)
+
+  // Setup a default background color, and fill
+  glClearColor(0.9, 0.4, 0.0, 1.0); // EVA blue :P
 
 }
 
@@ -148,21 +154,18 @@ GLViewer::~GLViewer()
 // The update&render loop
 void GLViewer::run()
 {
-  // Activate my context
-  glfwMakeContextCurrent(window);
-
   // Make sure the renderer is set corretly
   GLRenderer& gl_renderer = dynamic_cast<GLRenderer&>(*this->renderer);
-  int buffer_w, buffer_h;
-  glfwGetFramebufferSize(window, &buffer_w, &buffer_h);
-  gl_renderer.set_buffer_size(buffer_w, buffer_h);
+  gl_renderer.set_gl_context(window);
   gl_renderer.set_scene(scene);
   gl_renderer.set_camera(camera);
-  gl_renderer.set_window(window);
 
   // Start the loop
   while (!glfwWindowShouldClose(window))
   {
+    // Activate my context
+    glfwMakeContextCurrent(window);
+
     // Don't forget this (possible alternative: glfwWaitEvents)
     glfwPollEvents();
 
