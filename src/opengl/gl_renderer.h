@@ -29,6 +29,20 @@ class GLRenderer : public Renderer {
   // TODO a private Triangle class; represent a primitive
   class Triangle { };
 
+  // Holds GL objects related to a mesh
+  // TODO: make a more automonous class (auto alloc/release GL resouces)
+  struct BufferedMesh {
+    const Mesh& mesh;
+    GLuint meshVAO;
+    GLuint meshIndexBuffer;
+    GLuint meshVertexBuffer;
+
+    BufferedMesh(const Mesh& m) : mesh(m) {};
+
+    Mesh::size_type indices_num() const {
+      return mesh.get_triangles().size() * 3; }
+  };
+
 public:
 
   // Type Alias
@@ -38,7 +52,10 @@ public:
   GLRenderer();
 
   // Destructor
-  ~GLRenderer() override {};
+  ~GLRenderer() override;
+
+  // Configurations
+  void set_scene(std::shared_ptr<const Scene> scene) override;
 
   // Render request
   void set_buffer_size(BufferSize width, BufferSize height) override;
@@ -54,8 +71,12 @@ private:
   GLFWwindow* window; // manged by GLViewer
   GLuint program; // object id for a unified pass-through shader
 
+  // Rendering objects
+  std::vector<BufferedMesh> meshes;
+
   // Implementation helpers
-  void rasterize_mesh(const Mesh& mesh, const Mat4& trans);
+  void add_buffered_mesh(const Mesh& mesh, const Mat4& trans);
+  void render_mesh(BufferedMesh& buffered_mesh);
 
 };
 

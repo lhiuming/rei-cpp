@@ -98,12 +98,101 @@ void GLRenderer::compile_shader()
 }
 
 
+// Destructor
+GLRenderer::~GLRenderer()
+{
+  // TODO destructing bufferd models resouces
+  for (auto& bm : meshes)
+  {
+    glDeleteVertexArrays(1, &(bm.meshVAO));
+    glDeleteBuffers(1, &(bm.meshIndexBuffer));
+    glDeleteBuffers(1, &(bm.meshVertexBuffer));
+  }
+
+  console << "GLRenderer destroyed" << endl;
+}
+
+
+// Configurations //
+
 // Set buffer size
 void GLRenderer::set_buffer_size(BufferSize width, BufferSize height)
 {
   // Really nothings to do
 }
 
+// Set scene to renderer
+void GLRenderer::set_scene(shared_ptr<const Scene> scene)
+{ // Set the scene and buffer each model
+
+  // Set
+  Renderer::set_scene(scene);
+
+  // Buffer each mesh
+  // NOTE: only supports Mesh currently
+  for (const auto& mi : scene->get_models() )
+  {
+    const Mesh& mesh = dynamic_cast<Mesh&>(*(mi.pmodel));
+    const Mat4& trans = mi.transform;
+    add_buffered_mesh(mesh, trans);
+  }
+
+}
+
+void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
+{
+  BufferedMesh bm(mesh);
+
+  // 1. Create a vertex array object
+  glGenVertexArrays(1, &(bm.meshVAO)); // get an vao id
+  glBindVertexArray(bm.meshVAO); // activate it
+
+  // 2. Send triangle vertices index by Element Buffer object
+  vector<GLuint> triangle_indixes;
+  for (const Mesh::IndexTriangle& it : mesh.get_indices())
+  {
+    triangle_indixes.push_back(it.a);
+    triangle_indixes.push_back(it.b);
+    triangle_indixes.push_back(it.c);
+  }
+  glGenBuffers(1, &(bm.meshIndexBuffer));
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bm.meshIndexBuffer); // activate
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, // target
+    bm.indices_num() * sizeof(GLuint), // size of the buffer
+    &(triangle_indixes[0]), // array to Initialize
+    GL_STATIC_DRAW);
+
+  // 3. pass coordinate and colors by creating and linking buffer objects
+  vector<GLfloat> mesh_prop;
+  for (const auto& v : mesh.get_vertices())
+  {
+    // coordinate
+    mesh_prop.push_back(v.coord.x);
+    mesh_prop.push_back(v.coord.y);
+    mesh_prop.push_back(v.coord.z);
+    mesh_prop.push_back(v.coord.h);
+    // color
+    mesh_prop.push_back(v.color.r);
+    mesh_prop.push_back(v.color.g);
+    mesh_prop.push_back(v.color.b);
+    mesh_prop.push_back(v.color.a);
+  }
+  glGenBuffers(1, &(bm.meshVertexBuffer));
+  glBindBuffer(GL_ARRAY_BUFFER, bm.meshVertexBuffer);  // activate
+  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * mesh_prop.size(),
+    &(mesh_prop[0]), GL_STATIC_DRAW);
+  // link to attribute location to match the layout
+  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
+    8 * sizeof(GLfloat), (GLvoid *)0);
+  glEnableVertexAttribArray(0); // coordinate
+  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
+    8 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
+  glEnableVertexAttribArray(1); // color
+
+  // Push at meshes
+  meshes.push_back(bm);
+
+} // end add_buffered_mesh
 
 // Render request
 void GLRenderer::render()
@@ -121,90 +210,26 @@ void GLRenderer::render()
   // Activate shader programs
   glUseProgram(this->program);
 
-  // Fetch and render all models (set vao, ebo, etc and draw)
-  for (const auto& mi : scene->get_models() )
-  {
-    const Model& model = *(mi.pmodel);
-    const Mat4& trans = mi.transform;
-
-    // choose a rendering procedure
-    const auto& model_type = typeid(model);
-    if (model_type == typeid(Mesh)) {
-      rasterize_mesh(dynamic_cast<const Mesh&>(model), trans);
-    } else {
-      cerr << "Error: Unkown model type: "<< model_type.name() << endl;
-    }
-  } // end for
+  // Render all buffered models
+  for (auto& bm : meshes)
+    render_mesh(bm);
 
 }
 
 
-void GLRenderer::rasterize_mesh(const Mesh& mesh, const Mat4& trans)
+void GLRenderer::render_mesh(BufferedMesh& buffered_mesh)
 {
-  // 1. create vertex array object
-  GLuint vao;
-  glGenVertexArrays(1, &vao); // get an vao id
-  glBindVertexArray(vao); // activate it
+  // Activate the per-mesh objects
+  glBindVertexArray(buffered_mesh.meshVAO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffered_mesh.meshIndexBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, buffered_mesh.meshVertexBuffer);
 
-  // 2. pass triangle vertices index by Element Buffer object
-  vector<GLuint> triangle_indixes;
-  auto offset = mesh.get_vertices().begin();
-  for (const Mesh::Triangle& t : mesh.get_triangles())
-  {
-    // We should possibly use id in mesh.triangles ... instead of iterator
-    triangle_indixes.push_back(t.a - offset);
-    triangle_indixes.push_back(t.b - offset);
-    triangle_indixes.push_back(t.c - offset);
-  }
-  unsigned int element_count = triangle_indixes.size();
-  GLuint ebo;
-  glGenBuffers(1, &ebo);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, // target
-    element_count * sizeof(GLuint), // size of the buffer
-    &(triangle_indixes[0]), // array to Initialize
-    GL_STATIC_DRAW);
-
-  // 3. pass coordinate and colors by creating and linking buffer objects
-  vector<GLfloat> mesh_prop;
-  for (const auto& v : mesh.get_vertices())
-  {
-    // coordinate (transformed by model and camera)
-    // TODO push it at GPU
-    Vec4 coord = v.coord * trans * camera->get_w2n();
-    mesh_prop.push_back(coord.x);
-    mesh_prop.push_back(coord.y);
-    mesh_prop.push_back(coord.z);
-    mesh_prop.push_back(coord.h);
-    // color
-    mesh_prop.push_back(v.color.r);
-    mesh_prop.push_back(v.color.g);
-    mesh_prop.push_back(v.color.b);
-    mesh_prop.push_back(v.color.a);
-  }
-  GLuint vbo;
-  glGenBuffers(1, &vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * mesh_prop.size(),
-    &(mesh_prop[0]), GL_STATIC_DRAW);
-  // link to attribute location
-  glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
-    8 * sizeof(GLfloat), (GLvoid *)0);
-  glEnableVertexAttribArray(0); // coordinate
-  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-    8 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
-  glEnableVertexAttribArray(1); // color
-
-  // TODO
-  // pass a uniform transform matrix
+  // TODO : send WVP transform to GPU (uniform shader variable )
 
   // Draw them
-  glDrawElements(GL_TRIANGLES, element_count, GL_UNSIGNED_INT, nullptr);
+  glDrawElements(GL_TRIANGLES, (unsigned int)buffered_mesh.indices_num(),
+   GL_UNSIGNED_INT, nullptr);
 
-  // Delete after using
-  glDeleteVertexArrays(1, &vao);
-  glDeleteBuffers(1, &vbo);
-  glDeleteBuffers(1, &ebo);
 }
 
 
