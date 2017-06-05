@@ -2,15 +2,19 @@
 #define CEL_OPENGL_GL_VIEWER_H
 
 #include <cstddef>
+
 #include <string>
 #include <vector>
+#include <map>
+#include <functional> // for std::function
 
-#include "pixels.h"
+#include <GL/glew.h>    // must include before glfw
+#include <GLFW/glfw3.h> 
+
 #include "gl_renderer.h"
 
 #include "../scene.h"
 #include "../camera.h"
-
 #include "../viewer.h" // the base class
 
 /*
@@ -44,19 +48,33 @@ public:
 
 private:
 
-  WindowID window;
-
-  static int view_count; // count the number of alive window
+  // GL interface object
+  GLFWwindow* window;
 
   // Implementation helpers
-  void update_buffer_size() const;
+  void init_glfw_context(int width, int height, const char* s);
+  void init_gl_interface();
+  void register_callbacks();
+  double last_i, last_j; // used for mouse callback
 
-  // create callback objects for pixiels library
-  BufferFunc make_buffer_callback() const;
-  ScrollFunc make_scroll_callback() const;
-  CursorFunc make_cursor_callback() const;
-  mutable double last_i, last_j;
-
+  // Shared between instances
+  using BufferFunc = std::function<void (int w, int h)>;
+  using ScrollFunc = std::function<void (double dx, double dy)>;
+  using CursorFunc = std::function<void (double i, double j)>;
+  using MouseFunc = std::function<void (int button, int action, int modkey)>;
+  struct CallbackMemo {
+    BufferFunc buffer_callback; // a unique buffer size callback
+    ScrollFunc scroll_callback; // a unique scroll callback
+    CursorFunc cursor_callback; // a unique cursor position callback
+    MouseFunc mouse_callback; // a unique mouse button callback
+  };
+  static std::map<GLFWwindow*, CallbackMemo> memo_table;
+  static void glfw_init_auto();
+  static void glfw_error_callback(int, const char*);
+  static void glfw_bffersize_callback(GLFWwindow*, int, int);
+  static void glfw_scroll_callback(GLFWwindow*, double, double);
+  static void glfw_cursor_callback(GLFWwindow*, double, double);
+  static void glfw_mouse_callback(GLFWwindow*, int, int, int);
 };
 
 } // namespace CEL

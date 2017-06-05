@@ -54,7 +54,8 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
-#ExternalProject_Add
+
+# set the collective library
 set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
 
 ENDIF (UNIX)

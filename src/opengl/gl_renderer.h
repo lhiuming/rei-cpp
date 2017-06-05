@@ -3,12 +3,13 @@
 
 #include <cstddef>
 
+#include <GL/glew.h>    // it includes GL; must before glfw
+#include <GLFW/glfw3.h>
+
 #include "../camera.h"
 #include "../scene.h"
 #include "../model.h"
 #include "../renderer.h" // base class
-
-#include "pixels.h" // WindowID
 
 /*
  * opengl/renderer.h
@@ -49,11 +50,12 @@ public:
   void render() override;
 
   // Implementation specific interface
-  void set_window(WindowID w) { window = w; }
+  void set_window(GLFWwindow* w) { window = w; }
 
 private:
 
-  WindowID window; // set by GLViewer
+  // GL interface object
+  GLFWwindow* window; // manged by GLViewer
   GLuint program; // object id for a unified pass-through shader
 
   // Implementation helpers

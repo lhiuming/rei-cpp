@@ -17,8 +17,8 @@ foreach(program ${GL_lib_test})
 endforeach(program)
 
 # Test pixels
-add_executable(test_pixels test_pixels.cpp)
-target_link_libraries(test_pixels pixels)
+#add_executable(test_pixels test_pixels.cpp)
+#target_link_libraries(test_pixels pixels)
 
 ENDIF()
 
