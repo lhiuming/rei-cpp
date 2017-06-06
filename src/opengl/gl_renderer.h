@@ -92,6 +92,7 @@ private:
   GLFWwindow* window; // manged by GLViewer
   GLuint program; // object id for a unified pass-through shader
 
+  // Uniform Buffer slot assignment
   GLuint perFrameBufferIndex = 0;
   GLuint perObjectBufferIndex = 1;
 
