@@ -11,20 +11,41 @@ using namespace std;
 
 static const char* default_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
+"uniform ubPerObject {\n"
+"  mat4 WVP;\n"
+"};\n"
 "layout (location = 0) in vec4 vPosition;\n"
-"layout (location = 1) in vec4 vColor;\n"
+"layout (location = 1) in vec3 vNormal;\n"
+"layout (location = 2) in vec4 vColor;\n"
 "out vec4 color;\n"
+"out vec3 normal;\n"
 "void main() {\n"
-"  gl_Position = vPosition;\n"
+"  gl_Position = vPosition * WVP;\n"
 "  color = vColor;\n"
+"  //normal = vNormal;\n"
+"  normal = vec3(vPosition);\n" // TODO ; use real normal
 "}\n";
 
 static const char* default_fragment_shader_text =  // fragment shader source
 "#version 410 core\n"
+"struct Light {\n"
+"  vec3 dir;\n"
+"  float pad;\n"
+"  vec4 ambient;\n"
+"  vec4 diffuse;\n"
+"};\n"
+"uniform ubPerFrame {\n"
+"  Light light;\n"
+"};\n"
 "in vec4 color;\n"
+"in vec3 normal;\n"
 "out vec4 fcolor;\n"
 "void main() {\n"
-"  fcolor = color;\n"
+"  float tint = dot(normalize(light.dir), normalize(normal));\n"
+"  if (tint < 0.3) tint = 0.0;\n"
+"  else if (tint > 0.5) tint = 1.0;\n"
+"  fcolor = color * (light.ambient + tint * light.diffuse);\n"
+"  fcolor.a = 1.0;\n"
 "}\n";
 
 namespace CEL {
@@ -101,7 +122,10 @@ void GLRenderer::compile_shader()
 // Destructor
 GLRenderer::~GLRenderer()
 {
-  // TODO destructing bufferd models resouces
+  // delete shader
+  glDeleteProgram(program);
+
+  // destructing bufferd models resouces
   for (auto& bm : meshes)
   {
     glDeleteVertexArrays(1, &(bm.meshVAO));
@@ -127,6 +151,22 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // Set
   Renderer::set_scene(scene);
+
+  // Inifialize the default global directional light
+  Light dir_light{
+    {0.25f, 0.5f, 0.0f}, 1.0f,
+    {0.3f, 0.3f, 0.3f, 1.0f},
+    {0.9f, 0.9f, 0.9f, 1.0f}
+  };
+  g_ubPerFrame.light = dir_light;
+  glGenBuffers(1, &(this->perFrameBuffer));
+  glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);
+  glBufferData(GL_UNIFORM_BUFFER, sizeof(ubPerFrame), &(this->g_ubPerFrame),
+    GL_STATIC_DRAW);
+  glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBufferIndex,
+    this->perFrameBuffer);
+  GLuint ubf_index = glGetUniformBlockIndex(this->program, "ubPerFrame");
+  glUniformBlockBinding(this->program, ubf_index, perFrameBufferIndex);
 
   // Buffer each mesh
   // NOTE: only supports Mesh currently
@@ -164,6 +204,7 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
 
   // 3. pass coordinate and colors by creating and linking buffer objects
   vector<GLfloat> mesh_prop;
+  Vec3 default_normal(1.0, 1.0, 1.0);
   for (const auto& v : mesh.get_vertices())
   {
     // coordinate
@@ -171,6 +212,10 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
     mesh_prop.push_back(v.coord.y);
     mesh_prop.push_back(v.coord.z);
     mesh_prop.push_back(v.coord.h);
+    // TODO: load normal from model
+    mesh_prop.push_back(1.0);
+    mesh_prop.push_back(1.0);
+    mesh_prop.push_back(1.0);
     // color
     mesh_prop.push_back(v.color.r);
     mesh_prop.push_back(v.color.g);
@@ -181,13 +226,31 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
   glBindBuffer(GL_ARRAY_BUFFER, bm.meshVertexBuffer);  // activate
   glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * mesh_prop.size(),
     &(mesh_prop[0]), GL_STATIC_DRAW);
+
   // link to attribute location to match the layout
+  int stride = 4 + 3 + 4;
+  // position = location 0
   glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
-    8 * sizeof(GLfloat), (GLvoid *)0);
-  glEnableVertexAttribArray(0); // coordinate
-  glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE,
-    8 * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
-  glEnableVertexAttribArray(1); // color
+    stride  * sizeof(GLfloat), (GLvoid *)0);
+  glEnableVertexAttribArray(0);
+  // normal = location 1
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+    stride * sizeof(GLfloat), (GLvoid*)(4 * sizeof(GLfloat)));
+  glEnableVertexAttribArray(1);
+  // color = location 2
+  glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE,
+    stride * sizeof(GLfloat), (GLvoid*)(7 * sizeof(GLfloat)));
+  glEnableVertexAttribArray(2);
+
+  // 4. create a uniform buffer for transforms, etc
+  glGenBuffers(1, &(bm.meshUniformBuffer));
+  glBindBuffer(GL_UNIFORM_BUFFER, bm.meshUniformBuffer);
+  glBindBufferBase(GL_UNIFORM_BUFFER, perObjectBufferIndex,
+    bm.meshUniformBuffer);
+  GLuint ub_index = glGetUniformBlockIndex(
+    this->program,
+    "ubPerObject"); // see shader code
+  glUniformBlockBinding(this->program, ub_index, perObjectBufferIndex);
 
   // Push at meshes
   meshes.push_back(bm);
@@ -210,25 +273,39 @@ void GLRenderer::render()
   // Activate shader programs
   glUseProgram(this->program);
 
-  // Render all buffered models
-  for (auto& bm : meshes)
-    render_mesh(bm);
+  // Activate shared uniforom buffer
+  // FIXME: do i need to do this?
+  glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);
+
+  // Render all buffered meshes
+  render_meshes();
 
 }
 
 
-void GLRenderer::render_mesh(BufferedMesh& buffered_mesh)
+void GLRenderer::render_meshes()
 {
-  // Activate the per-mesh objects
-  glBindVertexArray(buffered_mesh.meshVAO);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffered_mesh.meshIndexBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, buffered_mesh.meshVertexBuffer);
+  // Activate and render each mesh
+  for (auto& buffered_mesh : meshes)
+  {
+    // Activate the per-mesh objects
+    glBindVertexArray(buffered_mesh.meshVAO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffered_mesh.meshIndexBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, buffered_mesh.meshVertexBuffer);
+    glBindBuffer(GL_UNIFORM_BUFFER, buffered_mesh.meshUniformBuffer);
 
-  // TODO : send WVP transform to GPU (uniform shader variable )
+    // Send WVP transform to GPU (uniform shader variable)
+    ubPerObject ubpo(camera->get_w2n());
+    glBufferData(GL_UNIFORM_BUFFER,
+      sizeof(ubPerObject),
+      &ubpo,
+      GL_STATIC_DRAW
+    );
 
-  // Draw them
-  glDrawElements(GL_TRIANGLES, (unsigned int)buffered_mesh.indices_num(),
-   GL_UNSIGNED_INT, nullptr);
+    // Draw them
+    glDrawElements(GL_TRIANGLES, (unsigned int)buffered_mesh.indices_num(),
+     GL_UNSIGNED_INT, nullptr);
+  }
 
 }
 

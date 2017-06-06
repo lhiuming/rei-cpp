@@ -23,11 +23,31 @@ namespace CEL {
 
 class GLRenderer : public Renderer {
 
-  // TODO a private Vertex class
-  class Vertex { };
+  // a VertexElement class to pass data in VS
+  class Vertex {
+    // TODO : position, color, normal, (material?)
+  };
 
-  // TODO a private Triangle class; represent a primitive
-  class Triangle { };
+  // a uniform block data per model object
+  struct ubPerObject {
+    float WVP[4 * 4]; // column-major in GLSL
+
+    ubPerObject(const Mat4& wvp) {
+      for (int i = 0; i < 16; ++i)
+        WVP[i] = static_cast<float>(wvp(i % 4, i / 4));
+    }
+  };
+
+  // a uniform block data per frame
+  struct Light {
+    float dir[3];
+    float pad; // De we need this in GLSL ?
+    float ambient[4];
+    float diffuse[4];
+  };
+  struct ubPerFrame {
+    Light light;
+  };
 
   // Holds GL objects related to a mesh
   // TODO: make a more automonous class (auto alloc/release GL resouces)
@@ -36,6 +56,7 @@ class GLRenderer : public Renderer {
     GLuint meshVAO;
     GLuint meshIndexBuffer;
     GLuint meshVertexBuffer;
+    GLuint meshUniformBuffer;
 
     BufferedMesh(const Mesh& m) : mesh(m) {};
 
@@ -71,12 +92,17 @@ private:
   GLFWwindow* window; // manged by GLViewer
   GLuint program; // object id for a unified pass-through shader
 
+  GLuint perFrameBufferIndex = 0;
+  GLuint perObjectBufferIndex = 1;
+
   // Rendering objects
   std::vector<BufferedMesh> meshes;
+  ubPerFrame g_ubPerFrame;
+  GLuint perFrameBuffer;
 
   // Implementation helpers
   void add_buffered_mesh(const Mesh& mesh, const Mat4& trans);
-  void render_mesh(BufferedMesh& buffered_mesh);
+  void render_meshes();
 
 };
 
