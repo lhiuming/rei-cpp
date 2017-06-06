@@ -6,8 +6,9 @@ Project under construction
 
 - Rendering
   - add model loading, and support general mesh and material
-    - add default shading in GLRenderer 
-    - skip texture currently
+    - load normals
+    - load material
+    - merge identical pointers to make real mesh
 	- Add interaction in D3DViewer
   - loading complex scene
   - add shadow maps and global light
