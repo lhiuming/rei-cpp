@@ -49,9 +49,12 @@ MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
   vector<Mesh::Vertex> va;
   for (int i = 0; i < mesh.mNumVertices; ++i)
   {
-    // convert and transform coordinate (store world-space coordinate)
+    // convert and transform coordinates&normal (store world-space coordinate)
+    // TODO : cancel scale in normal 
     const aiVector3D& v = mesh.mVertices[i];
+    const aiVector3D& n = mesh.mNormals[i];
     Vec4 coord = Vec4(v.x, v.y, v.z, 1.0) * trans;
+    Vec3 normal = (Vec4(n.x, n.y, n.z, 0.0) * trans).truncated().normalized();
 
     // convert color if any. NOTE: the mesh may containt multiple color set
     const int color_set = 0;
@@ -67,7 +70,7 @@ MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
     }
 
     // push the vertex
-    va.push_back( Mesh::Vertex(coord, color) );
+    va.push_back( Mesh::Vertex(coord, normal, color) );
 
   } // end for
 

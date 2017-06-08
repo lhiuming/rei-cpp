@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.78.0 commit date:2017-02-24, commit time:14:33, hash:e92f235</authoring_tool>
     </contributor>
-    <created>2017-06-04T11:50:05</created>
-    <modified>2017-06-04T11:50:05</modified>
+    <created>2017-06-08T15:04:51</created>
+    <modified>2017-06-08T15:04:51</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -149,7 +149,7 @@
         <instance_light url="#Lamp-light"/>
       </node>
       <node id="Suzanne" name="Suzanne" type="NODE">
-        <matrix sid="transform">1.390669 0.578295 0.3746719 0 -0.6744366 0.9694142 1.007043 0 0.1412069 -1.065165 1.119933 0 0 0 0 1</matrix>
+        <matrix sid="transform">1.426643 0.03024559 0.6103597 0 -0.05054004 1.550647 0.04129105 0 -0.6090151 -0.05783124 1.426366 0 0 0 0 1</matrix>
         <instance_geometry url="#Suzanne-mesh" name="Suzanne"/>
       </node>
     </visual_scene>

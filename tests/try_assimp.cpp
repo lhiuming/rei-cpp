@@ -1,11 +1,12 @@
 // Try the assimp model loader
 
-#include <iostream>
+#include <console.h>
 
 #include <assimp/Importer.hpp>      // C++ importer interface
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 
+using CEL::console;
 
 using namespace std;
 
@@ -13,41 +14,55 @@ const aiScene* as;
 
 void print_face(const aiFace& face)
 {
-  cout << "face has vertices ";
+  console << "face has vertices ";
   for (int i = 0; i < face.mNumIndices; ++i)
-    cout << face.mIndices[i] << " ";
-  cout << endl;
+  {
+    console << face.mIndices[i] << " ";
+  }
+  console << endl;
 }
 
 void print_mesh(const aiMesh& mesh)
 {
-  cout << "mesh has ";
-  cout << mesh.GetNumColorChannels() << " color chs, ";
-  cout << mesh.HasVertexColors(0) << " has color set, ";
-  cout << mesh.mNumFaces << " faces, ";
-  cout << mesh.mNumBones << " bones, ";
-  cout << mesh.mNumUVComponents[0] << " texture uv componets, ";
-  cout << mesh.mNumVertices << " vertices, ";
-  cout << mesh.mPrimitiveTypes << " primitive types";
-  cout << endl;
+  console << "mesh has ";
+  console << mesh.GetNumColorChannels() << " color chs, ";
+  console << mesh.HasVertexColors(0) << " has color set, ";
+  console << mesh.mNumFaces << " faces, ";
+  console << mesh.mNumBones << " bones, ";
+  console << mesh.mNumUVComponents[0] << " texture uv componets, ";
+  console << mesh.mNumVertices << " vertices, ";
+  console << mesh.mPrimitiveTypes << " primitive types";
+  console << endl;
 
   // print each face
   for (int i = 0; i < mesh.mNumFaces; ++i) {
-    cout << "        ";
+    console << "        ";
     print_face(mesh.mFaces[i]);
+  }
+  // sample vertex data
+  if (mesh.mNumFaces > 0)
+  {
+    const aiFace& face0 = mesh.mFaces[0];
+    console << "        " << "sample data (first vertex):" << endl;
+    const aiVector3D& v = mesh.mVertices[face0.mIndices[0]];
+    const aiVector3D& n = mesh.mNormals[face0.mIndices[0]];
+    console << "        ";
+    console << "coord: " << v.x << "," << v.y << "," << v.z << endl;
+    console << "        ";
+    console << "normal: " << n.x << "," << n.y << "," << n.z << endl;
   }
 }
 
 void check_model(const aiNode& node)
 {
   // check the content of this node
-  cout << "Node has " << node.mNumMeshes << " meshes, ";
-  cout << node.mNumChildren << " children." << endl;
+  console << "Node has " << node.mNumMeshes << " meshes, ";
+  console << node.mNumChildren << " children." << endl;
 
   // print the meshes if any
   for (int i = 0; i < node.mNumMeshes; ++i) {
     unsigned int mesh_ind = node.mMeshes[i];
-    cout << "    ";
+    console << "    ";
     print_mesh(*(as->mMeshes[mesh_ind]));
   }
 
@@ -60,30 +75,30 @@ int main(int argc, char** argv)
 {
   // Check the input file name
   if (argc < 2) {
-    cout << "Not input .dae file." << endl;
+    console << "Not input .dae file." << endl;
     return -1;
   }
   string filename{argv[1]};
-  cout << "Filename is " << filename << endl;
+  console << "Filename is " << filename << endl;
 
   Assimp::Importer importer;
 
   // Read the cube.dae file
   if ( (as = importer.ReadFile(filename, 0)) ) {
-    cout << "Read .dae successfully" << endl;
+    console << "Read .dae successfully" << endl;
 
-    cout << "The scene containts ";
-    cout << as->mNumCameras << " cameras, ";
-    cout << as->mNumLights << " lights, ";
-    cout << as->mNumMaterials << " materials, ";
-    cout << as->mNumMeshes << " meshes, ";
-    cout << as->mNumTextures << " textures";
-    cout << endl;
+    console << "The scene containts ";
+    console << as->mNumCameras << " cameras, ";
+    console << as->mNumLights << " lights, ";
+    console << as->mNumMaterials << " materials, ";
+    console << as->mNumMeshes << " meshes, ";
+    console << as->mNumTextures << " textures";
+    console << endl;
 
-    cout << "Ready to check the model : " << endl;
+    console << "Ready to check the model : " << endl;
     check_model(*(as->mRootNode));
   } else {
-    cout << "Read .dae failed" << endl;
+    console << "Read .dae failed" << endl;
   }
 
   return 0;

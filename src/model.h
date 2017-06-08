@@ -40,11 +40,14 @@ public:
 
   // Simple Vertex class
   struct Vertex {
-    Vec4 coord; // Vertex position
+    Vec4 coord; // Vertex position in right-hand world space
+    Vec3 normal; // Vertex normal
     Color color; // Vertec color
 
-    Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0)) 
-      : coord(pos3, 1.0), color(c) {};
+    Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0))
+      : coord(pos3, 1.0), normal(), color(c) {};
+    Vertex(const Vec3& pos3, const Vec3& nor, const Color& c)
+      : coord(pos3, 1.0), normal(nor), color(c) {};
   };
 
   // Triangle template class, details depend on implementation of mesh

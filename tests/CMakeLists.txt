@@ -53,7 +53,7 @@ ENDIF()
 
 # assimp
 add_executable(try_assimp try_assimp.cpp)
-target_link_libraries(try_assimp assimp)
+target_link_libraries(try_assimp assimp console)
 
 #----------------------
 # Test the CEL modules
@@ -67,11 +67,11 @@ target_link_libraries(test_algebra algebra console)
 
 # Test color
 add_executable(test_color test_color.cpp)
-target_link_libraries(test_color color)
+target_link_libraries(test_color color console)
 
 # Test model
 add_executable(test_model test_model.cpp)
-target_link_libraries(test_model model)
+target_link_libraries(test_model model console)
 
 # Test camera
 add_executable(test_camera test_camera.cpp)
@@ -79,7 +79,7 @@ target_link_libraries(test_camera camera console)
 
 # Test asset_loader
 add_executable(test_asset_loader test_asset_loader.cpp)
-target_link_libraries(test_asset_loader asset_loader model)
+target_link_libraries(test_asset_loader asset_loader model console)
 
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)

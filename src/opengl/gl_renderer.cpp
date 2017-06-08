@@ -22,8 +22,7 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "void main() {\n"
 "  gl_Position = vPosition * WVP;\n"
 "  color = vColor;\n"
-"  //normal = vNormal;\n"
-"  normal = vec3(vPosition);\n" // TODO ; use real normal
+"  normal = vNormal;\n"
 "}\n";
 
 static const char* default_fragment_shader_text =  // fragment shader source
@@ -154,9 +153,9 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // Inifialize the default global directional light
   Light dir_light{
-    {0.25f, 0.5f, 0.0f}, 1.0f,
-    {0.3f, 0.3f, 0.3f, 1.0f},
-    {0.9f, 0.9f, 0.9f, 1.0f}
+    {0.25f, 0.5f, 0.2f}, 1.0f, // direction
+    {0.3f, 0.3f, 0.3f, 1.0f},  // ambient
+    {0.9f, 0.9f, 0.9f, 1.0f}   // diffuse
   };
   g_ubPerFrame.light = dir_light;
   glGenBuffers(1, &(this->perFrameBuffer));
@@ -204,7 +203,6 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
 
   // 3. pass coordinate and colors by creating and linking buffer objects
   vector<GLfloat> mesh_prop;
-  Vec3 default_normal(1.0, 1.0, 1.0);
   for (const auto& v : mesh.get_vertices())
   {
     // coordinate
@@ -212,10 +210,10 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
     mesh_prop.push_back(v.coord.y);
     mesh_prop.push_back(v.coord.z);
     mesh_prop.push_back(v.coord.h);
-    // TODO: load normal from model
-    mesh_prop.push_back(1.0);
-    mesh_prop.push_back(1.0);
-    mesh_prop.push_back(1.0);
+    // normal
+    mesh_prop.push_back(v.normal.x);
+    mesh_prop.push_back(v.normal.y);
+    mesh_prop.push_back(v.normal.z);
     // color
     mesh_prop.push_back(v.color.r);
     mesh_prop.push_back(v.color.g);

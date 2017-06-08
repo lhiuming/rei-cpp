@@ -98,8 +98,9 @@ struct Vec4 {
   Vec4(const Vec3& v) : x(v.x), y(v.y), z(v.z), h(0.0) {};
   Vec4(const Vec3& v, double h) : x(v.x), y(v.y), z(v.z), h(h) {};
 
-  // Convert to Vec3
-  operator Vec3();
+  // Convert to Vec3 from 4Dhomogenous, or projection/truncating
+  operator Vec3() const { return Vec3(x / h, y / h, z / h); }
+  Vec3 truncated() const { return Vec3(x, y, z); }
 
   // Access element by index (from 0)
   double& operator[](int i) { return (&x)[i]; }
@@ -145,8 +146,8 @@ public:
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
-  Mat4(double a00, double a01, double a02, double a03, 
-       double a10, double a11, double a12, double a13, 
+  Mat4(double a00, double a01, double a02, double a03,
+       double a10, double a11, double a12, double a13,
        double a20, double a21, double a22, double a23,
        double a30, double a31, double a32, double a33 )
   : columns{

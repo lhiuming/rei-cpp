@@ -38,12 +38,8 @@ ostream& operator<<(ostream& os, const Vec3& v)
 }
 
 // Vec4 //////////////////////////////////////////////////////////////////////
+// Non-members.
 ////
-
-// Convert to Vec3 from 4D homogehous coordinate
-Vec4::operator Vec3() {
-  return Vec3(x / h, y / h, z / h);
-}
 
 // Scalar multiplications from left
 Vec4 operator*(double c, const Vec4& x)
@@ -166,7 +162,7 @@ Vec4 operator*(const Mat4& A, const Vec4& x)
 
 // Row-vector transformation : xA
 Vec4 operator*(const Vec4& x, const Mat4& A)
-{  
+{
   return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
 }
 
