@@ -30,7 +30,7 @@ int main(int argc, char** argv)
   }
 
   AssetLoader loader;
-  auto meshes = loader.load_mesh(fn);
+  auto meshes = loader.load_meshes(fn);
   console << "Model read. Get " << meshes.size() << " meshes. " << endl;
 
   // Check the model

@@ -13,51 +13,73 @@ using namespace std;
 
 namespace CEL {
 
-// Private functions to this modules. ///////////////////////////////////////
-// Do this to hide the assimp dependency from the interface.
+// AssetLoaderImp ///////////////////////////////////////////////////////////
+// Private Class to this modules. Effetively seperates the assimp header
+// dependency from the interface.
 ////
 
-// Convert a aiMatrix4x4 (from assimp) to a CEL::Mat4
-Mat4 make_Mat4(const aiMatrix4x4& mat)
-{
+// NOTE: works almost like a namespace :P
+class AssetLoaderImp {
+public:
+
+  // Main Functions //
+
+  // Load as meshes
+  static vector<MeshPtr> load_meshes(const string filename);
+
+private:
+
+  // Helpers Functions //
+  static MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans);
+  static int collect_mesh(const aiScene* as, const aiNode* node,
+    vector<MeshPtr>& models, Mat4 trans);
+
+  // Utilities
+  static Mat4 make_Mat4(const aiMatrix4x4& aim);
+
+};
+
+
+// Utilities ////
+
+// Convert from siMatrix4x4 to CEL::Mat4
+inline Mat4 AssetLoaderImp::make_Mat4(const aiMatrix4x4& aim) {
   Mat4 ret;
   // NOTE: aiMatrix4x4 {a1, a2, a3 ... } is row-major,
-  // but Mat4 is column-major. So transposed here.
+  // So transposed to fit column-maojr Mat4
   return Mat4(
-    mat.a1, mat.b1, mat.c1, mat.d1,
-    mat.a2, mat.b2, mat.c2, mat.d2,
-    mat.a3, mat.b3, mat.c3, mat.d3,
-    mat.a4, mat.b4, mat.c4, mat.d4
+    aim.a1, aim.b1, aim.c1, aim.d1,
+    aim.a2, aim.b2, aim.c2, aim.d2,
+    aim.a3, aim.b3, aim.c3, aim.d3,
+    aim.a4, aim.b4, aim.c4, aim.d4
   );
-  //ret[0] = Vec4(mat.a1, mat.b1, mat.c1, mat.d1); // fill by cols
-  //ret[1] = Vec4(mat.a2, mat.b2, mat.c2, mat.d2);
-  //ret[2] = Vec4(mat.a3, mat.b3, mat.c3, mat.d3);
-  //ret[3] = Vec4(mat.a4, mat.b4, mat.c4, mat.d4);
-  //return ret;
 }
 
+
+// Big Helpers Functions ////
+
 // Convert a aiMesh to Mesh and return a shared pointer
-MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans)
+MeshPtr AssetLoaderImp::make_mesh(const aiMesh& mesh, const Mat4 trans)
 {
-  // So Implementation check
+  // Some little check
   if (mesh.GetNumColorChannels() > 1)
     console << "AssetLoader Warning: mesh has multiple color channels" << endl;
   if (mesh.HasVertexColors(1))
     console << "AssetLoader Warning: mesh has multiple color sets" << endl;
 
-  // Convert all vertex
+  // Convert all vertex (with coordinates, normals, and colors)
   vector<Mesh::Vertex> va;
   const Mat3 trans_normal = trans.sub3(); // don't use adj3(); you need scale
   for (int i = 0; i < mesh.mNumVertices; ++i)
   {
-    // convert and transform coordinates&normal (store world-space coordinate)
-    // TODO : cancel scale in normal
+    // Coordinates & Normal (store in world-space)
     const aiVector3D& v = mesh.mVertices[i];
-    const aiVector3D& n = mesh.mNormals[i];
+    const aiVector3D& n = mesh.mNormals[i]; // NOTE: pertain scaling !
     Vec4 coord = Vec4(v.x, v.y, v.z, 1.0) * trans;
     Vec3 normal = Vec3(n.x, n.y, n.z) * trans_normal;
 
-    // convert color if any. NOTE: the mesh may containt multiple color set
+    // Color
+    // NOTE: the mesh may containt multiple color set
     const int color_set = 0;
     Color color;
     if (mesh.HasVertexColors(color_set))
@@ -70,12 +92,12 @@ MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans)
       color = Color{ 0.5f, 0.5f, 0.5f, 1.0f };
     }
 
-    // push the vertex
+    // Push to vertex array
     va.push_back( Mesh::Vertex(coord, normal, color) );
 
-  } // end for
+  } // end for all vertex
 
-  // Convert all triangle faces
+  // Encode all triangle (face) as vertex index
   using Triangle = typename Mesh::IndexTriangle;
   vector<Triangle> ta;
   for (int i = 0; i < mesh.mNumFaces; ++i)
@@ -86,11 +108,13 @@ MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans)
     ta.push_back(it);
   }
 
+  // Done
   return make_shared<Mesh>(std::move(va), std::move(ta));
+
 } // end make_mesh
 
-// Convert a asMesh to a CEL::Mesh and push to the `models`
-int add_mesh(const aiScene* as, const aiNode* node,
+// Convert from asMesh to a CEL::Mesh, and add to `models` [out]
+int AssetLoaderImp::collect_mesh(const aiScene* as, const aiNode* node,
   vector<MeshPtr>& models, Mat4 trans)
 {
   int mesh_count = 0;
@@ -105,24 +129,27 @@ int add_mesh(const aiScene* as, const aiNode* node,
     ++mesh_count;
   }
 
-  // Check the children
+  // Continue to collect the child if any
   for (int i = 0; i < node->mNumChildren; ++i)
-    mesh_count += add_mesh(as, node->mChildren[i], models, trans);
+    mesh_count += collect_mesh(as, node->mChildren[i], models, trans);
 
   return mesh_count;
+
 }
 
 
-// AssetLoader member functions /////////////////////////////////////////////
-////
+// Main Interfaces //
 
-std::vector<MeshPtr>
-AssetLoader::load_mesh(const std::string filename)
+// Load all meshes into world-space
+vector<MeshPtr> AssetLoaderImp::load_meshes(const string filename)
 {
-  // Try to load the file by assimp
+  // Load as assimp scene
   Assimp::Importer importer;
-  const aiScene* as;
-  if ( (as = importer.ReadFile(filename, 0)) == nullptr)
+  const aiScene* as = importer.ReadFile(filename,
+    aiProcess_Triangulate |  // break-down polygons
+    aiProcess_JoinIdenticalVertices |  // join vertices
+    aiProcess_SortByPType);  // what is this?
+  if (as == nullptr) // Read failed
   {
     cout << "Read " << filename << " failed." << endl;
     return vector<MeshPtr>();
@@ -130,13 +157,25 @@ AssetLoader::load_mesh(const std::string filename)
   cout << "Read " << filename << " successfully. Trying to convert." << endl;
   cout << "  " << "File has " << as->mNumMeshes << " meshes in a scene" << endl;
 
-  // read the mesh from children, with corrent world-space stransform
-  std::vector<MeshPtr> ret;
-  int read_count = add_mesh(as, as->mRootNode, ret, Mat4::I());
-  cout << "  " << "Actually " << read_count << " mehses are read." << endl;
+  // Process the assimp scene
+  vector<MeshPtr> ret;
+  int read_count = collect_mesh(as, as->mRootNode, ret, Mat4::I());
+  cout << "  " << "Totally " << read_count << " mehses are read." << endl;
 
   return ret;
 }
+
+
+// AssetLoader /////////////////////////////////////////////////////////////
+// Member functions are all just wappers!
+////
+
+
+vector<MeshPtr> AssetLoader::load_meshes(const std::string filename)
+{
+  return AssetLoaderImp::load_meshes(filename);
+}
+
 
 
 

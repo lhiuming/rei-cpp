@@ -1,14 +1,14 @@
 // Try the assimp model loader
 
 #include <console.h>
+#include <algebra.h>
 
 #include <assimp/Importer.hpp>      // C++ importer interface
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 
-using CEL::console;
-
 using namespace std;
+using namespace CEL;
 
 const aiScene* as;
 
@@ -27,6 +27,7 @@ void print_mesh(const aiMesh& mesh)
   console << "mesh has ";
   console << mesh.GetNumColorChannels() << " color chs, ";
   console << mesh.HasVertexColors(0) << " has color set, ";
+  console << mesh.mMaterialIndex << "-th material, ";
   console << mesh.mNumFaces << " faces, ";
   console << mesh.mNumBones << " bones, ";
   console << mesh.mNumUVComponents[0] << " texture uv componets, ";
@@ -56,7 +57,8 @@ void print_mesh(const aiMesh& mesh)
 void check_model(const aiNode& node)
 {
   // check the content of this node
-  console << "Node has " << node.mNumMeshes << " meshes, ";
+  console << "Node " << node.mName.C_Str()
+          << " has " << node.mNumMeshes << " meshes, ";
   console << node.mNumChildren << " children." << endl;
 
   // print the meshes if any
@@ -69,6 +71,66 @@ void check_model(const aiNode& node)
   // continue for all child nodes
   for(int a = 0; a < node.mNumChildren; ++a)
     check_model( *(node.mChildren[a]) );
+}
+
+void check_material(const aiMaterial& mater)
+{
+  string sp = "    ";
+
+  // Material name
+  aiString mater_name;
+  mater.Get(AI_MATKEY_NAME, mater_name);
+  console << "  > Material " << mater_name.C_Str() << endl;
+
+  // Shading model
+  int shading_model;
+  mater.Get(AI_MATKEY_SHADING_MODEL, shading_model);
+  switch (shading_model) {
+    case aiShadingMode_Phong:
+      console << sp << "Using Phone shaing;" << endl; break;
+    case aiShadingMode_Gouraud:
+      console << sp << "Using Gouraud shading;" << endl; break;
+    default:
+      console << sp << "Using unidentified shading;" << endl; break;
+  }
+
+  // Key-Value pairs
+  aiColor3D dif(0.f,0.f,0.f);
+  aiColor3D amb(0.f,0.f,0.f);
+  aiColor3D spec(0.f,0.f,0.f);
+  float shine = 0.0;
+
+  mater.Get(AI_MATKEY_COLOR_AMBIENT, amb);
+  mater.Get(AI_MATKEY_COLOR_DIFFUSE, dif);
+  mater.Get(AI_MATKEY_COLOR_SPECULAR, spec);
+  mater.Get(AI_MATKEY_SHININESS, shine);
+
+  Vec3 diffuse(dif.r, dif.g, dif.b);
+  Vec3 ambient(amb.r, amb.g, amb.b);
+  Vec3 specular(spec.r, spec.g, spec.b);
+  double shineness = shine;
+
+  console << sp << "Diffuse: " << diffuse << endl;
+  console << sp << "AMbient: " << ambient << endl;
+  console << sp << "Specular: " << specular << endl;
+  console << sp << "Shineness: " << shineness << endl;
+
+  return;
+
+  // Other properties
+  console << "    has " << mater.mNumProperties << " props:" << endl;
+  for (int i = 0; i < mater.mNumProperties; ++i)
+  {
+    aiMaterialProperty& prop = *(mater.mProperties[i]);
+    console << sp
+      << "KEY: " << prop.mKey.C_Str() << "; "
+      << "TYPE: " << prop.mType << "; "
+      << "SEMANTIC: " << prop.mSemantic << "; "
+      << "INDEX: " << prop.mIndex << "; "
+      << "DATA: " << prop.mData << "; "
+      << "DATALENGTH: " << prop.mDataLength << "; "
+      << endl;
+  }
 }
 
 int main(int argc, char** argv)
@@ -84,7 +146,11 @@ int main(int argc, char** argv)
   Assimp::Importer importer;
 
   // Read the cube.dae file
-  if ( (as = importer.ReadFile(filename, 0)) ) {
+  if ( (as = importer.ReadFile(filename,
+    aiProcess_Triangulate |
+    aiProcess_JoinIdenticalVertices |
+    aiProcess_SortByPType)) )
+    {
     console << "Read .dae successfully" << endl;
 
     console << "The scene containts ";
@@ -94,6 +160,11 @@ int main(int argc, char** argv)
     console << as->mNumMeshes << " meshes, ";
     console << as->mNumTextures << " textures";
     console << endl;
+
+    console << "Check materials : " << endl;
+    for (int i = 0; i < as->mNumMaterials; ++i) {
+      check_material(*(as->mMaterials[i]));
+    }
 
     console << "Ready to check the model : " << endl;
     check_model(*(as->mRootNode));

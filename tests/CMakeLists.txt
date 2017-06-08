@@ -53,7 +53,7 @@ ENDIF()
 
 # assimp
 add_executable(try_assimp try_assimp.cpp)
-target_link_libraries(try_assimp assimp console)
+target_link_libraries(try_assimp assimp console algebra)
 
 #----------------------
 # Test the CEL modules
