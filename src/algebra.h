@@ -78,6 +78,61 @@ Vec3 cross(const Vec3& a, const Vec3& b);
 // Print 3D vector
 std::ostream& operator<<(std::ostream& os, const Vec3& v);
 
+
+// Mat3 ///////////////////////////////////////////////////////////////////////
+// 3x3 matrix. Very limited.
+////
+
+struct Mat3 {
+  Vec3 columns[3];
+
+  // Default constructor
+  Mat3() {};
+
+  // Construct by columns
+  Mat3(const Vec3& c1, const Vec3& c2, const Vec3& c3) : columns{c1, c2, c3} {}
+  Mat3(Vec3&& c1, Vec3&& c2, Vec3&& c3) : columns{c1, c2, c3} {}
+
+  // Initialize with row data; useful for hard-coding constant matrix
+  Mat3(const double rows[9]); // TODO
+  Mat3(double a00, double a01, double a02,
+       double a10, double a11, double a12,
+       double a20, double a21, double a22)
+  : columns{ {a00, a10, a20}, {a01, a11, a21}, {a02, a12, a22} } {}
+
+  // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
+  Mat3(const Vec3& diag); // TODO
+
+  // Access by column
+  Vec3& operator[](int i) { return columns[i]; }
+  const Vec3& operator[](int i) const { return columns[i]; }
+
+  // Access by element index (row, col), from 0
+  double& operator()(int i, int j) { return columns[j][i]; }
+  const double& operator()(int i, int j) const { return columns[j][i]; }
+
+  // Matrix transposition
+  static void transpose(Mat3& A); // TODO
+  Mat3 T() const; // TODO
+
+  // Matrix inversion (assuem invertibility)
+  static void inverse(Mat3& A); // TODO
+  Mat3 inv() const; // TODO
+
+};
+
+// Print 3D matrix
+std::ostream& operator<<(std::ostream& os, const Mat3& m); // TODO
+
+// Column-vector transformation : Ax
+Vec3 operator*(const Mat3& A, const Vec3& x); // TODO
+
+// Row-vector transformation : xA
+inline Vec3 operator*(const Vec3& x, const Mat3& A) {
+  return Vec3(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]));
+}
+
+
 // Vec4 ///////////////////////////////////////////////////////////////////////
 // A general 4D vector; useful for homogenous coordinates of 3D points.
 ////
@@ -134,15 +189,23 @@ double dot(const Vec4& a, const Vec4& b);
 // print 4D vector
 std::ostream& operator<<(std::ostream& os, const Vec4& v);
 
+
 // Mat4 ///////////////////////////////////////////////////////////////////////
 // 4x4 matrix. Useful to represent affine transformation in homogenous
 // coordinates.
 ////
 
-class Mat4 {
-public:
+struct Mat4 {
+  Vec4 columns[4]; // column-major storage
+
   // Default constructor (all zero)
   Mat4() {};
+
+  // Construct by columns
+  Mat4(const Vec4& c1, const Vec4& c2, const Vec4& c3, const Vec4& c4)
+  : columns{c1, c2, c3, c4} {}
+  Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4)
+  : columns{c1, c2, c3, c4} {}
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
@@ -174,14 +237,17 @@ public:
   static void inverse(Mat4& A);
   Mat4 inv() const;
 
-  // Special matrix
-  static Mat4 I(); // identity matrix
+  // Identity matrix
+  static Mat4 I() { return Mat4( Vec4(1.0, 1.0, 1.0, 1.0) ); }
 
   // Matrix multiplication, or transform composition
   Mat4 operator*(const Mat4& rhs) const;
 
-private:
-  Vec4 columns[4]; // store data by columns
+  // Upper-left 3x3 sub-matrix
+  Mat3 sub3() const;
+
+  // Adjoint of the upper-left 3x3 matrix; useful for normal transform
+  Mat3 adj3() const;
 
 };
 
@@ -192,7 +258,9 @@ std::ostream& operator<<(std::ostream& os, const Mat4& m);
 Vec4 operator*(const Mat4& A, const Vec4& x);
 
 // Row-vector transformation : xA
-Vec4 operator*(const Vec4& x, const Mat4& A);
+inline Vec4 operator*(const Vec4& x, const Mat4& A) {
+  return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
+}
 
 } // namespace CEL
 

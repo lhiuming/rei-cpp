@@ -37,7 +37,7 @@ Mat4 make_Mat4(const aiMatrix4x4& mat)
 }
 
 // Convert a aiMesh to Mesh and return a shared pointer
-MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
+MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans)
 {
   // So Implementation check
   if (mesh.GetNumColorChannels() > 1)
@@ -47,14 +47,15 @@ MeshPtr make_mesh(const aiMesh& mesh, Mat4 trans)
 
   // Convert all vertex
   vector<Mesh::Vertex> va;
+  const Mat3 trans_normal = trans.sub3(); // don't use adj3(); you need scale
   for (int i = 0; i < mesh.mNumVertices; ++i)
   {
     // convert and transform coordinates&normal (store world-space coordinate)
-    // TODO : cancel scale in normal 
+    // TODO : cancel scale in normal
     const aiVector3D& v = mesh.mVertices[i];
     const aiVector3D& n = mesh.mNormals[i];
     Vec4 coord = Vec4(v.x, v.y, v.z, 1.0) * trans;
-    Vec3 normal = (Vec4(n.x, n.y, n.z, 0.0) * trans).truncated().normalized();
+    Vec3 normal = Vec3(n.x, n.y, n.z) * trans_normal;
 
     // convert color if any. NOTE: the mesh may containt multiple color set
     const int color_set = 0;

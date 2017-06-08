@@ -51,7 +51,7 @@ int main(int argc, char** argv)
   const int height = 480;
 
   // Set up the camera
-  auto c = make_shared<Camera>(Vec3{0, 0, 20}, Vec3{0, 0, -1});
+  auto c = make_shared<Camera>(Vec3{0, 0, 10}, Vec3{0, 0, -1});
   c->set_ratio((float)width / height);
   console << "Camera set up." << endl;
 

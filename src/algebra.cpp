@@ -37,6 +37,27 @@ ostream& operator<<(ostream& os, const Vec3& v)
   return os;
 }
 
+
+// Mat3 //////////////////////////////////////////////////////////////////////
+// Member and Non-member functions.
+////
+
+// Print Mat3
+std::ostream& operator<<(std::ostream& os, const Mat3& m)
+{
+  os << "Mat3[" << endl;
+  for (int i = 0; i < 2; ++i) {
+    os << "(";
+    for (int j = 0; j < 2; ++j) os << m(i, j) << ", ";
+    os << m(i, 2) << ")," << endl;
+  }
+  os << "(";
+  for (int j = 0; j < 2; ++j) os << m(2, j) << ", ";
+  os << m(2, 2) << ")" << "]";
+  return os;
+}
+
+
 // Vec4 //////////////////////////////////////////////////////////////////////
 // Non-members.
 ////
@@ -107,6 +128,7 @@ Mat4 Mat4::T() const
 // Inverse a matrix
 void Mat4::inverse(Mat4& A)
 {
+  // TODO : real implementation
   A = A.inv();
 }
 
@@ -116,12 +138,6 @@ Mat4 Mat4::inv() const
   // TODO: implement me ?
   cerr << "Warm: used a un-implemented method: Mat4::inv" << endl;
   return I();
-}
-
-// Make Identity matrix
-Mat4 Mat4::I()
-{
-  return Mat4(Vec4(1.0, 1.0, 1.0, 1.0));
 }
 
 // Matrix multiplication, or transform composition
@@ -134,6 +150,29 @@ Mat4 Mat4::operator*(const Mat4& rhs) const
   ret[2] = me * rhs[2];
   ret[3] = me * rhs[3];
   return ret;
+}
+
+// Upper-left 3x3
+Mat3 Mat4::sub3() const
+{
+  return Mat3(
+    columns[0].truncated(),
+    columns[1].truncated(),
+    columns[2].truncated());
+}
+
+// Adjoint of the upper-left 3x3 matrix; is transpose of co-factor matrix
+Mat3 Mat4::adj3() const
+{
+  const Mat4& A = *this;
+  return Mat3(
+    A(1,1)*A(2,2)-A(1,2)*A(2,1), A(2,1)*A(0,2)-A(2,2)*A(0,1),
+    A(0,1)*A(1,2)-A(0,2)*A(1,1),
+    A(1,2)*A(2,0)-A(1,0)*A(2,2), A(2,2)*A(0,0)-A(2,0)*A(0,2),
+    A(0,2)*A(1,0)-A(0,0)*A(1,2),
+    A(1,0)*A(2,1)-A(1,1)*A(2,0), A(2,0)*A(0,1)-A(2,1)*A(0,0),
+    A(0,0)*A(1,1)-A(0,1)*A(1,0)
+  );
 }
 
 // Print Mat4
@@ -158,12 +197,6 @@ Vec4 operator*(const Mat4& A, const Vec4& x)
          x[1] * A[1] +
          x[2] * A[2] +
          x[3] * A[3];
-}
-
-// Row-vector transformation : xA
-Vec4 operator*(const Vec4& x, const Mat4& A)
-{
-  return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
 }
 
 } // namespace CEL
