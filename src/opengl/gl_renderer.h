@@ -29,16 +29,12 @@ class GLRenderer : public Renderer {
   };
 
   // a uniform block data per model object
+  // TODO add model transform
   struct ubPerObject {
-    float WVP[4 * 4]; // column-major in GLSL
     float diffuse[4];
 
-    ubPerObject(const Mat4& wvp, const Color& diff)
-     : diffuse {diff.r, diff.g, diff.b, diff.a}
-     {
-      for (int i = 0; i < 16; ++i)
-        WVP[i] = static_cast<float>(wvp(i % 4, i / 4));
-    }
+    ubPerObject(const Color& diff)
+    : diffuse {diff.r, diff.g, diff.b, diff.a} {}
   };
 
   // a uniform block data per frame
@@ -49,7 +45,13 @@ class GLRenderer : public Renderer {
     float diffuse[4];
   };
   struct ubPerFrame {
+    float w2n[4 * 4]; // column-major in GLSL
     Light light;
+
+    ubPerFrame(const Mat4& w2n_col_major) {
+      for (int i = 0; i < 16; ++i)
+        this->w2n[i] = static_cast<float>(w2n_col_major(i % 4, i / 4));
+    }
   };
 
   // Holds GL objects related to a mesh
@@ -59,9 +61,10 @@ class GLRenderer : public Renderer {
     GLuint meshVAO;
     GLuint meshIndexBuffer;
     GLuint meshVertexBuffer;
-    GLuint meshUniformBuffer;
+    ubPerObject meshUniformData;
 
-    BufferedMesh(const Mesh& m) : mesh(m) {};
+    BufferedMesh(const Mesh& m) : mesh(m),
+      meshUniformData{mesh.get_material().diffuse} {};
 
     Mesh::size_type indices_num() const {
       return mesh.get_triangles().size() * 3; }
@@ -101,8 +104,8 @@ private:
 
   // Rendering objects
   std::vector<BufferedMesh> meshes;
-  ubPerFrame g_ubPerFrame;
   GLuint perFrameBuffer;
+  GLuint perObjectBuffer;
 
   // Implementation helpers
   void add_buffered_mesh(const Mesh& mesh, const Mat4& trans);

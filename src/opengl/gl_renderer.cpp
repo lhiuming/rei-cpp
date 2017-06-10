@@ -11,8 +11,17 @@ using namespace std;
 
 static const char* default_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
-"uniform ubPerObject {\n"
+"struct Light {\n"
+"  vec3 dir;\n"
+"  float pad;\n"
+"  vec4 ambient;\n"
+"  vec4 diffuse;\n"
+"};\n"
+"uniform ubPerFrame {\n"
 "  mat4 WVP;\n"
+"  Light light;\n"
+"};\n"
+"uniform ubPerObject {\n"
 "  vec4 diffuseColor;\n"
 "};\n"
 "layout (location = 0) in vec4 vPosition;\n"
@@ -37,7 +46,11 @@ static const char* default_fragment_shader_text =  // fragment shader source
 "  vec4 diffuse;\n"
 "};\n"
 "uniform ubPerFrame {\n"
+"  mat4 WVP;\n"
 "  Light light;\n"
+"};\n"
+"uniform ubPerObject {\n"
+"  vec4 diffuseColor;\n"
 "};\n"
 "in vec4 color;\n"
 "in vec3 normal;\n"
@@ -155,21 +168,21 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
   // Set
   Renderer::set_scene(scene);
 
-  // Inifialize the default global directional light
-  Light dir_light{
-    {0.25f, 0.5f, 1.0f}, 1.0f, // direction
-    {0.3f, 0.3f, 0.3f, 1.0f},  // ambient
-    {0.9f, 0.9f, 0.9f, 1.0f}   // diffuse
-  };
-  g_ubPerFrame.light = dir_light;
+  // Create uniform buffers //
+  // Per frame uniform
   glGenBuffers(1, &(this->perFrameBuffer));
-  glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);
-  glBufferData(GL_UNIFORM_BUFFER, sizeof(ubPerFrame), &(this->g_ubPerFrame),
-    GL_STATIC_DRAW);
-  glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBufferIndex,
+  glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);  // set uniform
+  glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBufferIndex, // bind to slot 0
     this->perFrameBuffer);
-  GLuint ubf_index = glGetUniformBlockIndex(this->program, "ubPerFrame");
-  glUniformBlockBinding(this->program, ubf_index, perFrameBufferIndex);
+  GLuint ubpf_index = glGetUniformBlockIndex(this->program, "ubPerFrame");
+  glUniformBlockBinding(this->program, ubpf_index, perFrameBufferIndex);
+  // Per object uniform
+  glGenBuffers(1, &(this->perObjectBuffer));
+  glBindBuffer(GL_UNIFORM_BUFFER, this->perObjectBuffer); // set uniforom
+  glBindBufferBase(GL_UNIFORM_BUFFER, perObjectBufferIndex, // bind to slot 1
+    this->perObjectBuffer);
+  GLuint ubpo_index = glGetUniformBlockIndex(this->program, "ubPerObject");
+  glUniformBlockBinding(this->program, ubpo_index, perObjectBufferIndex);
 
   // Buffer each mesh
   // NOTE: only supports Mesh currently
@@ -184,6 +197,7 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
 
 void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
 {
+  // Initialize non-GL datas (materials, model transforms )
   BufferedMesh bm(mesh);
 
   // 1. Create a vertex array object
@@ -195,7 +209,7 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
   for (const Mesh::Triangle& it : mesh.get_triangles())
   {
     triangle_indices.push_back(it.a);
-    triangle_indices.push_back(GLuint(it.b));  // Clion bug
+    triangle_indices.push_back(it.b);
     triangle_indices.push_back(it.c);
   }
   glGenBuffers(1, &(bm.meshIndexBuffer));
@@ -244,16 +258,6 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
     stride * sizeof(GLfloat), (GLvoid*)(7 * sizeof(GLfloat)));
   glEnableVertexAttribArray(2);
 
-  // 4. create a uniform buffer for transforms, etc
-  glGenBuffers(1, &(bm.meshUniformBuffer));
-  glBindBuffer(GL_UNIFORM_BUFFER, bm.meshUniformBuffer);
-  glBindBufferBase(GL_UNIFORM_BUFFER, perObjectBufferIndex,
-    bm.meshUniformBuffer);
-  GLuint ub_index = glGetUniformBlockIndex(
-    this->program,
-    "ubPerObject"); // see shader code
-  glUniformBlockBinding(this->program, ub_index, perObjectBufferIndex);
-
   // Push at meshes
   meshes.push_back(bm);
 
@@ -275,9 +279,17 @@ void GLRenderer::render()
   // Activate shader programs
   glUseProgram(this->program);
 
-  // Activate shared uniforom buffer
-  // FIXME: do i need to do this?
+  // Update shared uniform buffer data
+  ubPerFrame ubpf_data{camera->get_w2n()};
+  Light dir_light{ // static global directional light
+    {0.25f, 0.5f, 1.0f}, 1.0f, // direction
+    {0.3f, 0.3f, 0.3f, 1.0f},  // ambient
+    {0.9f, 0.9f, 0.9f, 1.0f}   // diffuse
+  };
+  ubpf_data.light = dir_light;
   glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);
+  glBufferData(GL_UNIFORM_BUFFER, sizeof(ubPerFrame), &ubpf_data,
+    GL_STATIC_DRAW);
 
   // Render all buffered meshes
   render_meshes();
@@ -294,19 +306,16 @@ void GLRenderer::render_meshes()
     glBindVertexArray(buffered_mesh.meshVAO);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffered_mesh.meshIndexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, buffered_mesh.meshVertexBuffer);
-    glBindBuffer(GL_UNIFORM_BUFFER, buffered_mesh.meshUniformBuffer);
 
-    // Send WVP transform to GPU (uniform shader variable)
-    ubPerObject ubpo(camera->get_w2n(),
-      buffered_mesh.mesh.get_material().diffuse);
-    glBufferData(GL_UNIFORM_BUFFER,
-      sizeof(ubPerObject),
-      &ubpo,
-      GL_STATIC_DRAW
-    );
+    // Update per-object uniform (to send mesh material data)
+    ubPerObject ubpo( buffered_mesh.mesh.get_material().diffuse );
+    glBindBuffer(GL_UNIFORM_BUFFER, this->perObjectBuffer);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(ubPerObject),
+      &(buffered_mesh.meshUniformData),
+      GL_STATIC_DRAW);
 
     // Draw them
-    glDrawElements(GL_TRIANGLES, (unsigned int)buffered_mesh.indices_num(),
+    glDrawElements(GL_TRIANGLES, (GLuint)buffered_mesh.indices_num(),
      GL_UNSIGNED_INT, nullptr);
   }
 

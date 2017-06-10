@@ -156,9 +156,13 @@ void GLViewer::run()
 {
   // Make sure the renderer is set corretly
   GLRenderer& gl_renderer = dynamic_cast<GLRenderer&>(*this->renderer);
-  gl_renderer.set_gl_context(window);
+  gl_renderer.set_gl_context(window); // NOTE: must do before anything else
   gl_renderer.set_scene(scene);
   gl_renderer.set_camera(camera);
+
+  #ifndef NDEBUG
+  console << "Viewer loop set-up." << endl;
+  #endif
 
   // Start the loop
   while (!glfwWindowShouldClose(window))

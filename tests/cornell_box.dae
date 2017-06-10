@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 2.78.0 commit date:2017-02-24, commit time:14:33, hash:e92f235</authoring_tool>
+    </contributor>
+    <created>2017-06-10T23:16:52</created>
+    <modified>2017-06-10T23:16:52</modified>
+    <unit name="millimeter" meter="0.001"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_cameras>
+    <camera id="Camera-camera" name="Camera">
+      <optics>
+        <technique_common>
+          <perspective>
+            <xfov sid="xfov">39.14625</xfov>
+            <aspect_ratio>1</aspect_ratio>
+            <znear sid="znear">0.1</znear>
+            <zfar sid="zfar">1500</zfar>
+          </perspective>
+        </technique_common>
+      </optics>
+      <extra>
+        <technique profile="blender">
+          <YF_dofdist>0</YF_dofdist>
+          <shiftx>0</shiftx>
+          <shifty>0</shifty>
+        </technique>
+      </extra>
+    </camera>
+  </library_cameras>
+  <library_images/>
+  <library_effects>
+    <effect id="cbox_Material-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1 1 1 1</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0.4 0.4 0.4 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="index_of_refraction">1</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="cbox_red-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1 1 1 1</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0.5 0 0 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="index_of_refraction">1</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="cbox_green-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1 1 1 1</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0 0.5 0 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="index_of_refraction">1</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="box_Material-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">0 0 0 1</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1 1 1 1</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">0.5 0.5 0.5 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="index_of_refraction">1</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="Emitter-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <lambert>
+            <emission>
+              <color sid="emission">1 1 1 1</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1 1 1 1</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">1 1 1 1</color>
+            </diffuse>
+            <index_of_refraction>
+              <float sid="index_of_refraction">1</float>
+            </index_of_refraction>
+          </lambert>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_materials>
+    <material id="cbox_Material-material" name="cbox_Material">
+      <instance_effect url="#cbox_Material-effect"/>
+    </material>
+    <material id="cbox_red-material" name="cbox_red">
+      <instance_effect url="#cbox_red-effect"/>
+    </material>
+    <material id="cbox_green-material" name="cbox_green">
+      <instance_effect url="#cbox_green-effect"/>
+    </material>
+    <material id="box_Material-material" name="box_Material">
+      <instance_effect url="#box_Material-effect"/>
+    </material>
+    <material id="Emitter-material" name="Emitter">
+      <instance_effect url="#Emitter-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="cornell_box-mesh" name="cornell_box">
+      <mesh>
+        <source id="cornell_box-mesh-positions">
+          <float_array id="cornell_box-mesh-positions-array" count="24">549.6 0 559.2 552.8 0 0 0 0 559.2 0 0 0 0 548.8 0 0 548.8 559.2 556 548.8 559.2 556 548.8 0</float_array>
+          <technique_common>
+            <accessor source="#cornell_box-mesh-positions-array" count="8" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="cornell_box-mesh-normals">
+          <float_array id="cornell_box-mesh-normals-array" count="18">0 1 0 0 -1 0 0 0 -1 1 0 0 -0.9999157 0.01166099 -0.005721986 -0.999983 0.005830764 0</float_array>
+          <technique_common>
+            <accessor source="#cornell_box-mesh-normals-array" count="6" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="cornell_box-mesh-vertices">
+          <input semantic="POSITION" source="#cornell_box-mesh-positions"/>
+        </vertices>
+        <polylist material="cbox_Material-material" count="6">
+          <input semantic="VERTEX" source="#cornell_box-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#cornell_box-mesh-normals" offset="1"/>
+          <vcount>3 3 3 3 3 3 </vcount>
+          <p>0 0 3 0 2 0 5 1 7 1 6 1 5 2 0 2 2 2 0 0 1 0 3 0 5 1 4 1 7 1 5 2 6 2 0 2</p>
+        </polylist>
+        <polylist material="cbox_red-material" count="2">
+          <input semantic="VERTEX" source="#cornell_box-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#cornell_box-mesh-normals" offset="1"/>
+          <vcount>3 3 </vcount>
+          <p>6 4 1 4 0 4 6 5 7 5 1 5</p>
+        </polylist>
+        <polylist material="cbox_green-material" count="2">
+          <input semantic="VERTEX" source="#cornell_box-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#cornell_box-mesh-normals" offset="1"/>
+          <vcount>3 3 </vcount>
+          <p>4 3 2 3 3 3 4 3 5 3 2 3</p>
+        </polylist>
+      </mesh>
+    </geometry>
+    <geometry id="small_box-mesh" name="small_box">
+      <mesh>
+        <source id="small_box-mesh-positions">
+          <float_array id="small_box-mesh-positions-array" count="24">-1 -1 -1 -1 1 -1 1 1 -1 1 -1 -1 -1 -1 1 -1 1 1 1 1 1 1 -1 1</float_array>
+          <technique_common>
+            <accessor source="#small_box-mesh-positions-array" count="8" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="small_box-mesh-normals">
+          <float_array id="small_box-mesh-normals-array" count="18">-1 0 0 0 1 0 1 0 0 0 -1 0 0 0 -1 0 0 1</float_array>
+          <technique_common>
+            <accessor source="#small_box-mesh-normals-array" count="6" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="small_box-mesh-vertices">
+          <input semantic="POSITION" source="#small_box-mesh-positions"/>
+        </vertices>
+        <polylist material="box_Material-material" count="12">
+          <input semantic="VERTEX" source="#small_box-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#small_box-mesh-normals" offset="1"/>
+          <vcount>3 3 3 3 3 3 3 3 3 3 3 3 </vcount>
+          <p>5 0 0 0 4 0 6 1 1 1 5 1 7 2 2 2 6 2 4 3 3 3 7 3 1 4 3 4 0 4 6 5 4 5 7 5 5 0 1 0 0 0 6 1 2 1 1 1 7 2 3 2 2 2 4 3 0 3 3 3 1 4 2 4 3 4 6 5 5 5 4 5</p>
+        </polylist>
+      </mesh>
+    </geometry>
+    <geometry id="large_box-mesh" name="large_box">
+      <mesh>
+        <source id="large_box-mesh-positions">
+          <float_array id="large_box-mesh-positions-array" count="24">-0.5 -0.5 -0.5 -0.5 0.5 -0.5 0.5 0.5 -0.5 0.5 -0.5 -0.5 -0.5 -0.5 0.5 -0.5 0.5 0.5 0.5 0.5 0.5 0.5 -0.5 0.5</float_array>
+          <technique_common>
+            <accessor source="#large_box-mesh-positions-array" count="8" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="large_box-mesh-normals">
+          <float_array id="large_box-mesh-normals-array" count="18">-1 0 0 0 1 0 1 0 0 0 -1 0 0 0 -1 0 0 1</float_array>
+          <technique_common>
+            <accessor source="#large_box-mesh-normals-array" count="6" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="large_box-mesh-vertices">
+          <input semantic="POSITION" source="#large_box-mesh-positions"/>
+        </vertices>
+        <polylist material="box_Material-material" count="12">
+          <input semantic="VERTEX" source="#large_box-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#large_box-mesh-normals" offset="1"/>
+          <vcount>3 3 3 3 3 3 3 3 3 3 3 3 </vcount>
+          <p>5 0 0 0 4 0 6 1 1 1 5 1 7 2 2 2 6 2 4 3 3 3 7 3 1 4 3 4 0 4 6 5 4 5 7 5 5 0 1 0 0 0 6 1 2 1 1 1 7 2 3 2 2 2 4 3 0 3 3 3 1 4 2 4 3 4 6 5 5 5 4 5</p>
+        </polylist>
+      </mesh>
+    </geometry>
+    <geometry id="Light-mesh" name="Light">
+      <mesh>
+        <source id="Light-mesh-positions">
+          <float_array id="Light-mesh-positions-array" count="12">-65.00002 0 -52.49998 -65 0 52.5 65 0 -52.5 65 0 52.5</float_array>
+          <technique_common>
+            <accessor source="#Light-mesh-positions-array" count="4" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Light-mesh-normals">
+          <float_array id="Light-mesh-normals-array" count="3">0 -1 0</float_array>
+          <technique_common>
+            <accessor source="#Light-mesh-normals-array" count="1" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Light-mesh-vertices">
+          <input semantic="POSITION" source="#Light-mesh-positions"/>
+        </vertices>
+        <polylist material="Emitter-material" count="2">
+          <input semantic="VERTEX" source="#Light-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Light-mesh-normals" offset="1"/>
+          <vcount>3 3 </vcount>
+          <p>2 0 1 0 0 0 2 0 3 0 1 0</p>
+        </polylist>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_controllers/>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="cornell_box" name="cornell_box" type="NODE">
+        <matrix sid="transform">-1 1.13999e-14 -1.50996e-7 0 -1.50996e-7 -7.54979e-8 1 0 0 1 7.54979e-8 0 0 0 0 1</matrix>
+        <instance_geometry url="#cornell_box-mesh" name="cornell_box">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="cbox_Material-material" target="#cbox_Material-material"/>
+              <instance_material symbol="cbox_red-material" target="#cbox_red-material"/>
+              <instance_material symbol="cbox_green-material" target="#cbox_green-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+      <node id="small_box" name="small_box" type="NODE">
+        <matrix sid="transform">-79.05503 1.18335e-6 23.59138 -185 23.59138 -6.85313e-6 79.05503 169 3.09363e-6 82.50001 6.22858e-6 82.50002 0 0 0 1</matrix>
+        <instance_geometry url="#small_box-mesh" name="small_box">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="box_Material-material" target="#box_Material-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+      <node id="large_box" name="large_box" type="NODE">
+        <matrix sid="transform">-48.88637 -3.31803e-6 157.5916 -368 157.5916 5.93822e-5 48.88637 351 -2.88495e-5 330 -7.21238e-6 165 0 0 0 1</matrix>
+        <instance_geometry url="#large_box-mesh" name="large_box">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="box_Material-material" target="#box_Material-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+      <node id="Camera" name="Camera" type="NODE">
+        <matrix sid="transform">1 -2.27997e-14 3.01992e-7 -277.9999 3.01992e-7 7.54979e-8 -1 -800 0 1 7.54979e-8 273 0 0 0 1</matrix>
+        <instance_camera url="#Camera-camera"/>
+      </node>
+      <node id="Light" name="Light" type="NODE">
+        <matrix sid="transform">-1 3.82137e-15 8.74228e-8 -278 8.74228e-8 4.37114e-8 1 279.5 0 1 -4.37114e-8 547.8 0 0 0 1</matrix>
+        <instance_geometry url="#Light-mesh" name="Light">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="Emitter-material" target="#Emitter-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

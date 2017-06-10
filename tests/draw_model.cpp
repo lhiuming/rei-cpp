@@ -47,7 +47,8 @@ int main(int argc, char** argv)
   }
   // Set up the scene
   auto s = make_shared<StaticScene>();
-  s->add_model(meshes[0], Mat4::I()); // push it as it-is
+  for (auto& mesh : meshes)
+    s->add_model(mesh, Mat4::I()); // NOTE: they are load in world-space
   console << "Scene set up. " << endl;
 
   // window size
@@ -55,14 +56,16 @@ int main(int argc, char** argv)
   const int height = 480;
 
   // Set up the camera
-  auto c = make_shared<Camera>(Vec3{0, 0, 10}, Vec3{0, 0, -1});
+  auto c = make_shared<Camera>(Vec3{0, 0.4, 10}, Vec3{0, 0, -1});
   c->set_ratio((float)width / height);
   console << "Camera set up." << endl;
+
+  // Make a Renderer
+  auto r = makeRenderer();
 
   // Set up the Viewer and Renderer
   auto v = makeViewer(width, height,
     "Three Triangle (testing color and z-buffer)");
-  auto r = makeRenderer(); // must put after Viewer construction !
   v->set_camera(c);
   v->set_scene(s);
   v->set_renderer(r);
