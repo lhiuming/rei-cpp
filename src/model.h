@@ -11,21 +11,31 @@
  * model.h
  * This module considers how a model is composed.
  *
- * NOTE: A Model object shoule be unique, but possible to have multiple
+ * NOTE: A Model object should be unique, but possible to have multiple
  * "instances" by relating with different transforms. (see scene.h)
  *
+ * TODO: add material
  * TODO: add aggregated model (and animated model)
- * TODO: support move constructors
  * TODO: Support cube and sphere
  */
 
 namespace CEL {
 
 
+// Material class ///////////////////////////////////////////////////////////
+// Just a simple struct.
+////
+
+struct Material {
+
+
+};
+
+
 // Model classes //////////////////////////////////////////////////////////////
 
 // Base class
-// supports polymophism only through RTTI
+// supports polymorphism only through RTTI
 class Model {
 public:
 
@@ -34,7 +44,7 @@ public:
 };
 
 
-// Trianglular Mesh
+// Triangular Mesh
 class Mesh : public Model {
 public:
 
@@ -42,7 +52,7 @@ public:
   struct Vertex {
     Vec4 coord; // Vertex position in right-hand world space
     Vec3 normal; // Vertex normal
-    Color color; // Vertec color
+    Color color; // Vertex color
 
     Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0))
       : coord(pos3, 1.0), normal(), color(c) {};
@@ -53,7 +63,7 @@ public:
   // Triangle template class, details depend on implementation of mesh
   template<typename VertexId>
   struct TriangleImp {
-    VertexId a;  // Iterator to vertices
+    VertexId a;
     VertexId b;
     VertexId c;
 
@@ -63,15 +73,14 @@ public:
   // Type alias
   using size_type = std::vector<Vertex>::size_type;
   using VertexIt = std::vector<Vertex>::iterator;
-  using Triangle = TriangleImp<VertexIt>;
-  using IndexTriangle = TriangleImp<size_type>;
+  using Triangle = TriangleImp<size_type>;
 
-  // Default Constructor : Dont allow empty mesh
+  // Default Constructor : Don't allow empty mesh
   Mesh() = delete;
 
   // Copy controls
   ~Mesh() override = default;
-  Mesh(const Mesh& rhs) = delete; // TODO do the extra work
+  Mesh(const Mesh& rhs) = default;
   Mesh(Mesh&& rhs) = default;
 
   // Constructor with both vertices and triangles of vertex indices
@@ -79,14 +88,14 @@ public:
   Mesh(std::vector<Vertex>&& va, std::vector<size_type>&& ta);
 
   // Constructor alternatives
-  Mesh(std::vector<Vertex>&& va, std::vector<IndexTriangle>&& ta);
+  Mesh(std::vector<Vertex>&& va, std::vector<Triangle>&& ta);
 
   // Primitives queries
   const std::vector<Vertex>& get_vertices() const { return vertices; }
   const std::vector<Triangle>& get_triangles() const { return triangles; }
-  const std::vector<IndexTriangle> get_indices() const;
 
 private:
+
   std::vector<Vertex> vertices;
   std::vector<Triangle> triangles;
 
