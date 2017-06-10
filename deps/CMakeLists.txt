@@ -3,6 +3,9 @@
 
 include(ExternalProject)
 
+# suprress warning for deps
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
+
 #------------------------------------------------------------------------------
 # OpenGL stuffs
 
