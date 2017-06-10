@@ -6,8 +6,9 @@
 /*
  * camera.h
  * Define the Camera class, used to created a viewport and provide world-to-
- * camera transformation. Use Left-Hand coordinate, used to transform 
- * row-vector in Right-Handed world space.
+ * camera transformation. Return column-major matrox to transform row-vetors;
+ * and convert Right-Handed world space coordinates to Left-Hand coordinates
+ * (in camera space or normalize device space / clip space).
  *
  * TODO: add sematic parameters (focus distance, like a real camera)
  * TODO: add depth
@@ -37,7 +38,7 @@ public:
   void zoom(double quantity);
   void move(double right, double up, double fwd);
 
-  // Get transforms (result in Left Hand Coordinate; 
+  // Get transforms (result in Left Hand Coordinate;
   // used to transform row-vector)
   const Mat4& get_w2c() const { return world2camera; }
   const Mat4& get_c2n() const { return camera2normalized; }
@@ -49,7 +50,7 @@ public:
 
 private:
 
-  // Note: position and direction are in right-haneded world space 
+  // Note: position and direction are in right-haneded world space
   Vec3 up = Vec3(0.0, 1.0, 0.0);
   Vec3 position = Vec3(0.0, 0.0, 0.0);
   Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
@@ -63,7 +64,7 @@ private:
   Mat4 world2viewport;    // added a static normalized->viewport step
 
   // helpers to update transforms
-  Vec3 orth_u, orth_v, orth_w;  // unit bases in the world-space; 
+  Vec3 orth_u, orth_v, orth_w;  // unit bases in the world-space;
   void update_w2c();
   void update_c2n();
   void update_w2n();

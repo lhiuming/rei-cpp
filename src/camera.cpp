@@ -78,7 +78,7 @@ void Camera::update_w2c()
   // create a orthogonal coordiante for camera (used in rotation)
   orth_w = direction.normalized(); // `forward direction`
   Vec3 u = cross(orth_w, up); // `right direction`
-  if (u.zero()) u = orth_u; // handle the case of bad-direction 
+  if (u.zero()) u = orth_u; // handle the case of bad-direction
   else orth_u = u.normalized();
   orth_v = cross(u, orth_w).normalized(); // `up direction`
 
@@ -95,7 +95,7 @@ void Camera::update_w2c()
 // Naive computation of left-hand-camera to left-hand-normalized transform
 void Camera::update_c2n()
 {
-  // NOTE: Compute them as column-wise, then transpose before return
+  // NOTE: Compute them as row-major, then transpose before return
 
   // 1. make the view-pymirad into retangular pillar (divided by z disntance)
   // then replace z by -1/z  (NOTE: assuming h == 1), so further is larger
@@ -125,10 +125,10 @@ void Camera::update_c2n()
 void Camera::update_w2n()
 {
   static Mat4 normalized2viewport{
-    1.0, 0.0, 0.0, 0.0, 
+    1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 1.0, 0.0,
-    1.0, 1.0, 1.0, 2.0 
+    1.0, 1.0, 1.0, 2.0
   };
   world2normalized = world2camera * camera2normalized; // they are row-wise
   world2viewport = world2normalized * normalized2viewport;
