@@ -20,11 +20,12 @@ int main()
 
   console << "Created a Mesh" << endl;
 
+  const auto& vertices = mesh.get_vertices();
   for (const auto& tri : mesh.get_triangles())
   {
-    console << tri.a->coord << endl;
-    console << tri.b->coord << endl;
-    console << tri.c->coord << endl;
+    console << vertices[tri.a].coord << endl;
+    console << vertices[tri.b].coord << endl;
+    console << vertices[tri.c].coord << endl;
   }
 
   return 0;

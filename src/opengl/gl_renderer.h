@@ -31,8 +31,11 @@ class GLRenderer : public Renderer {
   // a uniform block data per model object
   struct ubPerObject {
     float WVP[4 * 4]; // column-major in GLSL
+    float diffuse[4];
 
-    ubPerObject(const Mat4& wvp) {
+    ubPerObject(const Mat4& wvp, const Color& diff)
+     : diffuse {diff.r, diff.g, diff.b, diff.a}
+     {
       for (int i = 0; i < 16; ++i)
         WVP[i] = static_cast<float>(wvp(i % 4, i / 4));
     }

@@ -14,22 +14,12 @@
  * NOTE: A Model object should be unique, but possible to have multiple
  * "instances" by relating with different transforms. (see scene.h)
  *
- * TODO: add material
  * TODO: add aggregated model (and animated model)
  * TODO: Support cube and sphere
  */
 
 namespace CEL {
 
-
-// Material class ///////////////////////////////////////////////////////////
-// Just a simple struct.
-////
-
-struct Material {
-
-
-};
 
 
 // Model classes //////////////////////////////////////////////////////////////
@@ -70,9 +60,17 @@ public:
     TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
   };
 
+  // Simple Material class
+  struct Material {
+    std::string name = "CEL_Default";
+    Color diffuse = {0.2, 0.2, 0.2, 1.0};
+    Color ambient = {0.2, 0.2, 0.2, 1.0};
+    Color specular = {0.2, 0.2, 0.2, 1.0};
+    double shineness = 30;
+  };
+
   // Type alias
   using size_type = std::vector<Vertex>::size_type;
-  using VertexIt = std::vector<Vertex>::iterator;
   using Triangle = TriangleImp<size_type>;
 
   // Default Constructor : Don't allow empty mesh
@@ -94,10 +92,17 @@ public:
   const std::vector<Vertex>& get_vertices() const { return vertices; }
   const std::vector<Triangle>& get_triangles() const { return triangles; }
 
+  // Materials
+  void set_material(const Material& mater) { material = mater; }
+  void set_material(Material&& mater) { material = mater; }
+  const Material& get_material() const { return material; }
+
 private:
 
   std::vector<Vertex> vertices;
   std::vector<Triangle> triangles;
+
+  Material material;
 
 };
 

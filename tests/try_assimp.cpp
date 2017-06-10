@@ -115,22 +115,6 @@ void check_material(const aiMaterial& mater)
   console << sp << "Specular: " << specular << endl;
   console << sp << "Shineness: " << shineness << endl;
 
-  return;
-
-  // Other properties
-  console << "    has " << mater.mNumProperties << " props:" << endl;
-  for (int i = 0; i < mater.mNumProperties; ++i)
-  {
-    aiMaterialProperty& prop = *(mater.mProperties[i]);
-    console << sp
-      << "KEY: " << prop.mKey.C_Str() << "; "
-      << "TYPE: " << prop.mType << "; "
-      << "SEMANTIC: " << prop.mSemantic << "; "
-      << "INDEX: " << prop.mIndex << "; "
-      << "DATA: " << prop.mData << "; "
-      << "DATALENGTH: " << prop.mDataLength << "; "
-      << endl;
-  }
 }
 
 int main(int argc, char** argv)

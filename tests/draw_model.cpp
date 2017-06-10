@@ -34,12 +34,16 @@ int main(int argc, char** argv)
   console << "Model read. Get " << meshes.size() << " meshes. " << endl;
 
   // Check the model
+  const auto& vertices = meshes[0]->get_vertices();
   for(const auto& t : meshes[0]->get_triangles())
   {
+    const Mesh::Vertex& a = vertices[t.a];
+    const Mesh::Vertex& b = vertices[t.b];
+    const Mesh::Vertex& c = vertices[t.c];
     console << "triangle: " << endl;
-    console << "  " << t.a->coord << ", " << t.a->color << endl;
-    console << "  " << t.b->coord << ", " << t.b->color << endl;
-    console << "  " << t.c->coord << ", " << t.c->color << endl;
+    console << "  " << a.coord << ", " << a.color << endl;
+    console << "  " << b.coord << ", " << b.color << endl;
+    console << "  " << c.coord << ", " << c.color << endl;
   }
   // Set up the scene
   auto s = make_shared<StaticScene>();

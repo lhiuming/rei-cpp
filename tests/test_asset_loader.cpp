@@ -27,22 +27,31 @@ int main(int argc, char** argv)
 
   // have a look on the mesh
   const Mesh& mesh = *(meshes[0]);
+  // vertices and triangles
+  const auto& vert = mesh.get_vertices();
   for (const auto& t : mesh.get_triangles())
   {
-    console << "Triange: " << endl;
+    console << "Triangle: " << endl;
     console << "coordinate: " << endl;
-    console << "  " << t.a->coord << endl;
-    console << "  " << t.b->coord << endl;
-    console << "  " << t.c->coord << endl;
+    console << "  " << vert[t.a].coord << endl;
+    console << "  " << vert[t.b].coord << endl;
+    console << "  " << vert[t.c].coord << endl;
     console << "normal: " << endl;
-    console << "  " << t.a->normal << endl;
-    console << "  " << t.b->normal << endl;
-    console << "  " << t.c->normal << endl;
+    console << "  " << vert[t.a].normal << endl;
+    console << "  " << vert[t.b].normal << endl;
+    console << "  " << vert[t.c].normal << endl;
     console << "color: " << endl;
-    console << "  " << t.a->color << endl;
-    console << "  " << t.b->color << endl;
-    console << "  " << t.c->color << endl;
+    console << "  " << vert[t.a].color << endl;
+    console << "  " << vert[t.b].color << endl;
+    console << "  " << vert[t.c].color << endl;
   }
+  // materials
+  auto& mat = mesh.get_material();
+  console << "Material: " << endl;
+  console << "diffuse: " << mat.diffuse << endl;
+  console << "ambient: " << mat.ambient << endl;
+  console << "specular:" << mat.specular << endl;
+  console << "shine:   " << mat.shineness << endl;
 
   return 0;
 }

@@ -13,16 +13,19 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
 "uniform ubPerObject {\n"
 "  mat4 WVP;\n"
+"  vec4 diffuseColor;\n"
 "};\n"
 "layout (location = 0) in vec4 vPosition;\n"
 "layout (location = 1) in vec3 vNormal;\n"
 "layout (location = 2) in vec4 vColor;\n"
 "out vec4 color;\n"
 "out vec3 normal;\n"
+"out vec4 diffuse;\n"
 "void main() {\n"
 "  gl_Position = vPosition * WVP;\n"
 "  color = vColor;\n"
 "  normal = vNormal;\n"
+"  diffuse = diffuseColor;\n"
 "}\n";
 
 static const char* default_fragment_shader_text =  // fragment shader source
@@ -38,12 +41,13 @@ static const char* default_fragment_shader_text =  // fragment shader source
 "};\n"
 "in vec4 color;\n"
 "in vec3 normal;\n"
+"in vec4 diffuse;\n"
 "out vec4 fcolor;\n"
 "void main() {\n"
 "  float tint = dot(normalize(light.dir), normalize(normal));\n"
 "  if (tint < 0.3) tint = 0.0;\n"
 "  else if (tint > 0.5) tint = 1.0;\n"
-"  fcolor = color * (light.ambient + tint * light.diffuse);\n"
+"  fcolor = color * (light.ambient + tint * light.diffuse * diffuse);\n"
 "  fcolor.a = 1.0;\n"
 "}\n";
 
@@ -153,7 +157,7 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
 
   // Inifialize the default global directional light
   Light dir_light{
-    {0.25f, 0.5f, 0.2f}, 1.0f, // direction
+    {0.25f, 0.5f, 1.0f}, 1.0f, // direction
     {0.3f, 0.3f, 0.3f, 1.0f},  // ambient
     {0.9f, 0.9f, 0.9f, 1.0f}   // diffuse
   };
@@ -187,18 +191,18 @@ void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
   glBindVertexArray(bm.meshVAO); // activate it
 
   // 2. Send triangle vertices index by Element Buffer object
-  vector<GLuint> triangle_indixes;
-  for (const Mesh::IndexTriangle& it : mesh.get_indices())
+  vector<GLuint> triangle_indices;
+  for (const Mesh::Triangle& it : mesh.get_triangles())
   {
-    triangle_indixes.push_back(it.a);
-    triangle_indixes.push_back(it.b);
-    triangle_indixes.push_back(it.c);
+    triangle_indices.push_back(it.a);
+    triangle_indices.push_back(GLuint(it.b));  // Clion bug
+    triangle_indices.push_back(it.c);
   }
   glGenBuffers(1, &(bm.meshIndexBuffer));
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bm.meshIndexBuffer); // activate
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, // target
     bm.indices_num() * sizeof(GLuint), // size of the buffer
-    &(triangle_indixes[0]), // array to Initialize
+    &(triangle_indices[0]), // array to Initialize
     GL_STATIC_DRAW);
 
   // 3. pass coordinate and colors by creating and linking buffer objects
@@ -293,7 +297,8 @@ void GLRenderer::render_meshes()
     glBindBuffer(GL_UNIFORM_BUFFER, buffered_mesh.meshUniformBuffer);
 
     // Send WVP transform to GPU (uniform shader variable)
-    ubPerObject ubpo(camera->get_w2n());
+    ubPerObject ubpo(camera->get_w2n(),
+      buffered_mesh.mesh.get_material().diffuse);
     glBufferData(GL_UNIFORM_BUFFER,
       sizeof(ubPerObject),
       &ubpo,

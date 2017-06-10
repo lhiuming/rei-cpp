@@ -19,7 +19,7 @@ Mesh::Mesh(vector<Vertex>&& vertex_array, vector<size_type>&& index_array)
   for (size_type i = 0; i < index_array.size(); i += 3)
     triangles.emplace_back(index_array[i    ],
                            index_array[i + 1],
-                           index_array[i + 2]));
+                           index_array[i + 2]);
 }
 
 // Constructor with both vertices and triangles, alternative method
