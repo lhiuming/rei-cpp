@@ -59,8 +59,9 @@ static const char* default_fragment_shader_text =  // fragment shader source
 "void main() {\n"
 "  float tint = dot(normalize(light.dir), normalize(normal));\n"
 "  if (tint < 0.3) tint = 0.0;\n"
-"  else if (tint > 0.5) tint = 1.0;\n"
-"  fcolor = color * (light.ambient + tint * light.diffuse * diffuse);\n"
+"  else if (tint > 0.6) tint = 1.0;\n"
+"  fcolor = (diffuse * 0.7 + color * 0.3) \n"
+"    * (light.ambient + tint * light.diffuse);\n"
 "  fcolor.a = 1.0;\n"
 "}\n";
 
