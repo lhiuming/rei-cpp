@@ -55,6 +55,12 @@ ENDIF()
 add_executable(try_assimp try_assimp.cpp)
 target_link_libraries(try_assimp assimp console algebra)
 
+# copy assimp dll for windows
+IF (MSVC14)
+file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}
+DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
+ENDIF(MSVC14)
+
 #----------------------
 # Test the CEL modules
 #----------------------
@@ -94,13 +100,12 @@ add_executable(three_triangle three_triangle.cpp)
 target_link_libraries(three_triangle
 	model scene camera viewer renderer asset_loader console)
 
-
 # Draw Cube test (model loading overall)
 add_executable(draw_model draw_model.cpp)
 target_link_libraries(draw_model
 	model scene camera viewer renderer asset_loader console)
-# copy assimp dll
-if(MSVC14)
-file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}
-DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
-endif(MSVC14)
+
+# Draw world test (almost everything)
+add_executable(draw_world draw_world)
+target_link_libraries(draw_world
+asset_loader viewer renderer console)

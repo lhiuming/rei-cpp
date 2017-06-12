@@ -29,6 +29,13 @@ namespace CEL {
 class Model {
 public:
 
+  // Public data
+  std::string name = "Model Un-named";
+
+  // Default construct
+  Model(std::string n) : name(n) {}
+
+  // Destructor
   virtual ~Model() = default;
 
 };
@@ -73,36 +80,47 @@ public:
   using size_type = std::vector<Vertex>::size_type;
   using Triangle = TriangleImp<size_type>;
 
-  // Default Constructor : Don't allow empty mesh
-  Mesh() = delete;
+  // Default Constructor : empty mesh
+  Mesh(std::string n = "Mesh Un-named") : Model(n) {}
 
   // Copy controls
   ~Mesh() override = default;
   Mesh(const Mesh& rhs) = default;
   Mesh(Mesh&& rhs) = default;
 
-  // Constructor with both vertices and triangles of vertex indices
-  Mesh(const std::vector<Vertex>& va, const std::vector<size_type>& ta);
-  Mesh(std::vector<Vertex>&& va, std::vector<size_type>&& ta);
+  // Useful queries
+  bool empty() const { return triangles.empty(); }
+  bool vertices_num() const { return vertices.size(); }
+  bool triangle_num() const { return triangles.size(); }
 
-  // Constructor alternatives
-  Mesh(std::vector<Vertex>&& va, std::vector<Triangle>&& ta);
+  // Set data (by vertices index array)
+  void set(std::vector<Vertex>&& va, const std::vector<size_type>& ta);
 
-  // Primitives queries
+  // Set data (by vertives index triplet array)
+  void set(std::vector<Vertex>&& va, std::vector<Triangle>&& ta);
+
+  // Set material
+  void set(const Material& mat) { material = mat; }
+  void set(Material&& mat) { material = std::move(mat); }
+
+  // Basic queries
   const std::vector<Vertex>& get_vertices() const { return vertices; }
   const std::vector<Triangle>& get_triangles() const { return triangles; }
-
-  // Materials
-  void set_material(const Material& mater) { material = mater; }
-  void set_material(Material&& mater) { material = mater; }
   const Material& get_material() const { return material; }
 
 private:
 
   std::vector<Vertex> vertices;
   std::vector<Triangle> triangles;
-
   Material material;
+
+};
+
+
+// Model Aggregates
+class Aggregate : public Model {
+
+  // Dump classs
 
 };
 

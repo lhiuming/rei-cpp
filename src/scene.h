@@ -38,12 +38,13 @@ struct ModelInstance {
 class Scene {
 public:
 
+  // Member types
+  typedef std::vector<ModelInstance> ModelContainer;
+
   // Destructor
   virtual ~Scene() {};
 
   // Get elements
-  // TODO: replace this by a base container type?
-  typedef std::vector<ModelInstance> ModelContainer;
   virtual const ModelContainer& get_models() const = 0;
 
 };
@@ -58,13 +59,15 @@ public:
   StaticScene() {}
 
   // Destructor
-  virtual ~StaticScene() override = default;
+  ~StaticScene() override = default;
 
   // Add elements
   void add_model(const ModelPtr& mp, const Mat4& trans);
 
   // Get models
-  const ModelContainer& get_models() const override;
+  const ModelContainer& get_models() const override {
+    return models;
+  }
 
 private:
 

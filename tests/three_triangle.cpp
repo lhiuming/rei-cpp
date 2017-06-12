@@ -31,8 +31,9 @@ int main()
   Vertex v7({  8,  4, 2 }, {0.f, 0.f, 1.f}, { 0.0f, 0.7f, 0.7f, 1.0f });
   Vertex v8({ -6, -6, 0 }, {0.f, 0.f, 1.f}, { 0.2f, 0.2f, 0.7f, 0.0f });
 
-  Mesh mesh{{v0, v1, v2, v3, v4, v5, v6, v7, v8},
-            { 0,  1,  2,  3,  4,  5,  6,  7,  8}};
+  Mesh mesh;
+  mesh.set( {v0, v1, v2, v3, v4, v5, v6, v7, v8},
+            { 0,  1,  2,  3,  4,  5,  6,  7,  8} );
   console << "Mesh model set up." << endl;
 
   // Set up the scene

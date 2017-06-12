@@ -4,9 +4,13 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <tuple>
 
 #include "algebra.h"
 #include "model.h"
+#include "scene.h"
+#include "camera.h"
+#include "light.h"
 
 /**
  * asset_loader.h
@@ -20,11 +24,30 @@
 namespace CEL {
 
 using MeshPtr = std::shared_ptr<Mesh>;
+using ScenePtr = std::shared_ptr<Scene>;
+using CameraPtr = std::shared_ptr<Camera>;
+using LightPtr = std::shared_ptr<Light>;
 
+// Forward declaration for the implemetation class
+class AssimpLoaderImpl;
+
+// The asset loader interface
 class AssetLoader {
 public:
 
+  // Default constructor
+  AssetLoader();
+
+  // Load all models from the file
   std::vector<MeshPtr> load_meshes(const std::string filename);
+
+  // Load the while 3D file as (scene, camera, lights)
+  std::tuple< ScenePtr, CameraPtr, std::vector<LightPtr> >
+  load_world(const std::string filename);
+
+private:
+
+  std::shared_ptr<AssimpLoaderImpl> impl;
 
 };
 

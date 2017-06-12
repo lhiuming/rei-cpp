@@ -21,11 +21,4 @@ void StaticScene::add_model(const ModelPtr& mp, const Mat4& trans)
   models.push_back(ModelInstance{mp, trans});
 }
 
-// Get the reference to the model container
-const Scene::ModelContainer& StaticScene::get_models() const
-{
-    return models;
-} // end get_models
-
-
 } // namespace CEL
