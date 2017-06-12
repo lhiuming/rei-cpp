@@ -10,88 +10,89 @@
 using namespace std;
 using namespace CEL;
 
-const aiScene* as;
+void print_scene(const aiScene& as);
+void print_material(const aiMaterial& mater, string pre, int idx);
+void print_camera(const aiCamera& cam, string pre, int idx);
+void print_node(const aiNode& node, string pre, const aiScene& as);
+void print_mesh(const aiMesh& mesh, string pre, int idx);
+void print_face(const aiFace& face, string pre, int idx);
 
-void print_face(const aiFace& face)
+
+// vector printer
+ostream& operator<<(ostream& os, const aiVector3D& v)
 {
-  console << "face has vertices ";
-  for (int i = 0; i < face.mNumIndices; ++i)
-  {
-    console << face.mIndices[i] << " ";
+  return os << "vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
+}
+
+
+int main(int argc, char** argv)
+{
+  if (argc < 2)
+    console << "No input model." << endl;
+
+  string filename(argv[1]);
+
+  Assimp::Importer importer;
+  const aiScene* as = importer.ReadFile(filename,
+    aiProcess_Triangulate |  // break-down polygons
+    aiProcess_JoinIdenticalVertices |  // join vertices
+    aiProcess_SortByPType);  // what is this?
+  if (as) {
+    console << "Read path : " << filename << endl;
+    print_scene(*as);
   }
+
+  return 0;
+}
+
+void print_scene(const aiScene& as)
+{
+  string pre = "";
+
+  // print overview
+  console << pre << "the scene contains ";
+  console << as.mNumCameras << " cameras, ";
+  console << as.mNumLights << " lights, ";
+  console << as.mNumMaterials << " materials, ";
+  console << as.mNumMeshes << " meshes, ";
+  console << as.mNumTextures << " textures, ";
+  console << as.mNumAnimations << " animation";
   console << endl;
+
+  // print materials with index
+  for (int i = 0; i < as.mNumMaterials; ++i)
+    print_material(*(as.mMaterials[i]), pre, i);
+
+  // print camera with index
+  for (int i = 0; i < as.mNumCameras; ++i)
+    print_camera(*(as.mCameras[i]), pre, i);
+
+  // print from root node
+  print_node(*(as.mRootNode), pre, as);
+
 }
 
-void print_mesh(const aiMesh& mesh)
+void print_material(const aiMaterial& mater, string pre, int idx)
 {
-  console << "mesh has ";
-  console << mesh.GetNumColorChannels() << " color chs, ";
-  console << mesh.HasVertexColors(0) << " has color set, ";
-  console << mesh.mMaterialIndex << "-th material, ";
-  console << mesh.mNumFaces << " faces, ";
-  console << mesh.mNumBones << " bones, ";
-  console << mesh.mNumUVComponents[0] << " texture uv componets, ";
-  console << mesh.mNumVertices << " vertices, ";
-  console << mesh.mPrimitiveTypes << " primitive types";
-  console << endl;
-
-  // print each face
-  for (int i = 0; i < mesh.mNumFaces; ++i) {
-    console << "        ";
-    print_face(mesh.mFaces[i]);
-  }
-  // sample vertex data
-  if (mesh.mNumFaces > 0)
-  {
-    const aiFace& face0 = mesh.mFaces[0];
-    console << "        " << "sample data (first vertex):" << endl;
-    const aiVector3D& v = mesh.mVertices[face0.mIndices[0]];
-    const aiVector3D& n = mesh.mNormals[face0.mIndices[0]];
-    console << "        ";
-    console << "coord: " << v.x << "," << v.y << "," << v.z << endl;
-    console << "        ";
-    console << "normal: " << n.x << "," << n.y << "," << n.z << endl;
-  }
-}
-
-void check_model(const aiNode& node)
-{
-  // check the content of this node
-  console << "Node " << node.mName.C_Str()
-          << " has " << node.mNumMeshes << " meshes, ";
-  console << node.mNumChildren << " children." << endl;
-
-  // print the meshes if any
-  for (int i = 0; i < node.mNumMeshes; ++i) {
-    unsigned int mesh_ind = node.mMeshes[i];
-    console << "    ";
-    print_mesh(*(as->mMeshes[mesh_ind]));
-  }
-
-  // continue for all child nodes
-  for(int a = 0; a < node.mNumChildren; ++a)
-    check_model( *(node.mChildren[a]) );
-}
-
-void check_material(const aiMaterial& mater)
-{
-  string sp = "    ";
+  pre += to_string(idx) + string("[material]");
 
   // Material name
   aiString mater_name;
   mater.Get(AI_MATKEY_NAME, mater_name);
-  console << "  > Material " << mater_name.C_Str() << endl;
+  console << pre << "name: " << mater_name.C_Str() << endl;
+
+  pre += string(" ");
 
   // Shading model
   int shading_model;
   mater.Get(AI_MATKEY_SHADING_MODEL, shading_model);
   switch (shading_model) {
     case aiShadingMode_Phong:
-      console << sp << "Using Phone shaing;" << endl; break;
+      console << pre << "Using Phone shaing;" << endl; break;
     case aiShadingMode_Gouraud:
-      console << sp << "Using Gouraud shading;" << endl; break;
+      console << pre << "Using Gouraud shading;" << endl; break;
     default:
-      console << sp << "Using unidentified shading;" << endl; break;
+      console << pre << "Using unidentified shading;" << endl; break;
   }
 
   // Key-Value pairs
@@ -110,51 +111,86 @@ void check_material(const aiMaterial& mater)
   Vec3 specular(spec.r, spec.g, spec.b);
   double shineness = shine;
 
-  console << sp << "Diffuse: " << diffuse << endl;
-  console << sp << "AMbient: " << ambient << endl;
-  console << sp << "Specular: " << specular << endl;
-  console << sp << "Shineness: " << shineness << endl;
+  console << pre << "Diffuse: " << diffuse << endl;
+  console << pre << "Ambient: " << ambient << endl;
+  console << pre << "Specular: " << specular << endl;
+  console << pre << "Shineness: " << shineness << endl;
 
 }
 
-int main(int argc, char** argv)
+
+void print_camera(const aiCamera& cam, string pre, int idx)
 {
-  // Check the input file name
-  if (argc < 2) {
-    console << "Not input .dae file." << endl;
-    return -1;
-  }
-  string filename{argv[1]};
-  console << "Filename is " << filename << endl;
+  pre += string("[camera]");
 
-  Assimp::Importer importer;
+  console << pre << "name: " << cam.mName.C_Str() << endl;
+  console << pre << "  aspect: " << cam.mAspect << endl;
+  console << pre << "  z-near = " << cam.mClipPlaneNear << ", "
+      << "z-far = " << cam.mClipPlaneFar << endl;
+  console << pre << "  angle: " << cam.mHorizontalFOV << endl;
+  console << pre << "pos : " << cam.mPosition << endl;
+  console << pre << "look at : " << cam.mLookAt << endl;
+  console << pre << "up : " << cam.mUp << endl;
+}
 
-  // Read the cube.dae file
-  if ( (as = importer.ReadFile(filename,
-    aiProcess_Triangulate |
-    aiProcess_JoinIdenticalVertices |
-    aiProcess_SortByPType)) )
-    {
-    console << "Read .dae successfully" << endl;
 
-    console << "The scene containts ";
-    console << as->mNumCameras << " cameras, ";
-    console << as->mNumLights << " lights, ";
-    console << as->mNumMaterials << " materials, ";
-    console << as->mNumMeshes << " meshes, ";
-    console << as->mNumTextures << " textures";
-    console << endl;
+void print_node(const aiNode& node, string pre, const aiScene& as)
+{
+  pre = pre + string("[n]");
 
-    console << "Check materials : " << endl;
-    for (int i = 0; i < as->mNumMaterials; ++i) {
-      check_material(*(as->mMaterials[i]));
-    }
+  // check the content of this node
+  console << pre << "name: " << node.mName.C_Str() << endl;
+  console << pre << "  mesh num: " << node.mNumMeshes << endl;
+  console << pre << "  child num:" << node.mNumChildren << endl;
 
-    console << "Ready to check the model : " << endl;
-    check_model(*(as->mRootNode));
-  } else {
-    console << "Read .dae failed" << endl;
+  // print the meshes if any
+  for (int i = 0; i < node.mNumMeshes; ++i) {
+    unsigned int mesh_ind = node.mMeshes[i];
+    print_mesh(*(as.mMeshes[mesh_ind]), pre, i);
   }
 
-  return 0;
+  // continue for all child nodes
+  for(int a = 0; a < node.mNumChildren; ++a)
+    print_node( *(node.mChildren[a]) , pre, as);
+}
+
+void print_mesh(const aiMesh& mesh, string pre, int idx)
+{
+  pre += to_string(idx) + string("[mesh]");
+
+  console << pre << "mesh has ";
+  console << mesh.GetNumColorChannels() << " color chs, ";
+  console << mesh.HasVertexColors(0) << " has color set, ";
+  console << mesh.mMaterialIndex << "-th material, ";
+  console << mesh.mNumFaces << " faces, ";
+  console << mesh.mNumBones << " bones, ";
+  console << mesh.mNumUVComponents[0] << " texture uv componets, ";
+  console << mesh.mNumVertices << " vertices, ";
+  console << mesh.mPrimitiveTypes << " primitive types";
+  console << endl;
+
+  // print each face
+  for (int i = 0; i < mesh.mNumFaces; ++i) {
+    print_face(mesh.mFaces[i], pre, i);
+  }
+  // sample vertex data
+  if (mesh.mNumFaces > 0)
+  {
+    const aiFace& face0 = mesh.mFaces[0];
+    console << pre << "sample data:";
+    console << "coord = " <<  mesh.mVertices[face0.mIndices[0]];
+    console << "normal = " << mesh.mNormals[face0.mIndices[0]] << endl;
+  }
+}
+
+void print_face(const aiFace& face, string pre, int idx)
+{
+  pre += to_string(idx) + string("[face]");
+
+  console << pre << "face has vertices ";
+  for (int i = 0; i < face.mNumIndices; ++i)
+  {
+    console << face.mIndices[i] << " ";
+  }
+  console << endl;
 }
