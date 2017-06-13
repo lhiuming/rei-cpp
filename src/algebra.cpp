@@ -1,7 +1,7 @@
 // source of math.h
 #include "algebra.h"
 
-#include <iostream>
+#include "console.h"
 
 using namespace std;
 
@@ -125,19 +125,28 @@ Mat4 Mat4::T() const
   return ret;
 }
 
+// Determinant
+double Mat4::det() const
+{
+  // Laplacian expansion
+  return dot(
+    columns[0],
+    Vec4(cofactor(0, 0), cofactor(1, 0), cofactor(2, 0), cofactor(3, 0))
+  );
+}
+
 // Inverse a matrix
 void Mat4::inverse(Mat4& A)
 {
-  // TODO : real implementation
+  // TODO : better implementation
   A = A.inv();
 }
 
 // Inversed version of self
 Mat4 Mat4::inv() const
 {
-  // TODO: implement me ?
-  cerr << "Warm: used a un-implemented method: Mat4::inv" << endl;
-  return I();
+  // Kind of low efficiency
+  return (1.0 / det()) * adjoint();
 }
 
 // Matrix multiplication, or transform composition
@@ -175,6 +184,40 @@ Mat3 Mat4::adj3() const
   );
 }
 
+// Minor (reduced determinant)
+double Mat4::minor(int i, int j) const
+{
+  // Now I really wish to learn meta-programming ... this is UGLY
+  auto A = [=](int r, int c) -> double {
+    return (*this)( (r >= i) ? (r + 1) : r,  (c >= j) ? (c + 1) : c );
+  };
+  return A(0,0) * ( A(1,1) * A(2,2) - A(1,2) * A(2,1) )
+       + A(1,0) * ( A(2,1) * A(0,2) - A(2,2) * A(0,1) )
+       + A(2,0) * ( A(0,1) * A(1,2) - A(0,2) * A(1,1) );
+}
+
+// Cofactor (signed minor)
+double Mat4::cofactor(int i, int j) const
+{
+  // return pow(-1, i+j) * minor(i, j)
+  if ((i+j) & 1) return -1 * minor(i, j);
+  return minor(i, j);
+}
+
+// Adjoint Matrix 4D
+Mat4 Mat4::adjoint() const
+{
+  // NOTE : simple transpose of cofactor matrix
+  return Mat4(
+    cofactor(0,0), cofactor(1,0), cofactor(2,0), cofactor(3,0),
+    cofactor(0,1), cofactor(1,1), cofactor(2,1), cofactor(3,1),
+    cofactor(0,2), cofactor(1,2), cofactor(2,2), cofactor(3,2),
+    cofactor(0,3), cofactor(1,3), cofactor(2,3), cofactor(3,3)
+  );
+}
+
+
+
 // Print Mat4
 std::ostream& operator<<(std::ostream& os, const Mat4& m)
 {
@@ -190,13 +233,5 @@ std::ostream& operator<<(std::ostream& os, const Mat4& m)
   return os;
 }
 
-// Column-vector transformation : Ax
-Vec4 operator*(const Mat4& A, const Vec4& x)
-{ // linear combination of columns
-  return x[0] * A[0] +
-         x[1] * A[1] +
-         x[2] * A[2] +
-         x[3] * A[3];
-}
 
 } // namespace CEL

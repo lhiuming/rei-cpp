@@ -79,5 +79,11 @@ int main()
   console << "A * I = " << A * Mat4::I() << endl;
   console << "A * A = " << A * A << endl;
 
+  seg("inversion");
+  console << "A.minor(0, 1) = " << A.minor(0, 1) << endl;
+  console << "A.cofactor(0, 1) = " << A.cofactor(0, 1) << endl;
+  console << "A.inv() = " << A.inv() << endl;
+  console << "A * A.inv() = " << A * A.inv() << endl;
+
   return 0;
 }

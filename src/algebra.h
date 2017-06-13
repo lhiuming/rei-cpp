@@ -233,6 +233,9 @@ struct Mat4 {
   static void transpose(Mat4& A);
   Mat4 T() const;
 
+  // Matric determinant (by Laplacian expansion)
+  double det() const;
+
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat4& A);
   Mat4 inv() const;
@@ -249,13 +252,34 @@ struct Mat4 {
   // Adjoint of the upper-left 3x3 matrix; useful for normal transform
   Mat3 adj3() const;
 
+  // Minor (reduced determinant)
+  double minor(int i, int j) const;
+
+  // Cofactor (signed minor)
+  double cofactor(int i, int j) const;
+
+  // Adjoint Mat4
+  Mat4 adjoint() const;
+
 };
 
 // Print 4D matrix
 std::ostream& operator<<(std::ostream& os, const Mat4& m);
 
+// Scalar multiplication
+inline Mat4 operator*(const Mat4& A, double c) {
+  return Mat4(A[0] * c, A[1] * c, A[2] * c, A[3] * c);
+}
+inline Mat4 operator*(double c, const Mat4& A) { return A * c; }
+
 // Column-vector transformation : Ax
-Vec4 operator*(const Mat4& A, const Vec4& x);
+inline Vec4 operator*(const Mat4& A, const Vec4& x)
+{ // linear combination of columns
+  return x[0] * A[0] +
+         x[1] * A[1] +
+         x[2] * A[2] +
+         x[3] * A[3];
+}
 
 // Row-vector transformation : xA
 inline Vec4 operator*(const Vec4& x, const Mat4& A) {
