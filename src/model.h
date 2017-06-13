@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <ostream>
 
 #include "algebra.h"
 #include "color.h"
@@ -37,6 +38,12 @@ public:
 
   // Destructor
   virtual ~Model() = default;
+
+  // Debug info
+  virtual std::string summary() const { return "Base Model."; }
+  friend std::ostream& operator<<(std::ostream& os, const Model& m) {
+    return os << m.summary();
+  }
 
 };
 
@@ -107,6 +114,9 @@ public:
   const std::vector<Vertex>& get_vertices() const { return vertices; }
   const std::vector<Triangle>& get_triangles() const { return triangles; }
   const Material& get_material() const { return material; }
+
+  // Debug info
+  std::string summary() const override;
 
 private:
 

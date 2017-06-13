@@ -81,4 +81,4 @@ target_link_libraries(viewer viewer_imp)
 
 # assert loader
 add_library(asset_loader asset_loader.cpp asset_loader.h)
-target_link_libraries(asset_loader assimp color model console)
+target_link_libraries(asset_loader assimp color model camera scene console)

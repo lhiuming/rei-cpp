@@ -31,10 +31,14 @@ class GLRenderer : public Renderer {
   // a uniform block data per model object
   // TODO add model transform
   struct ubPerObject {
+    float m2w[4 * 4]; // modle to world transform
     float diffuse[4];
 
-    ubPerObject(const Color& diff)
-    : diffuse {diff.r, diff.g, diff.b, diff.a} {}
+    ubPerObject(const Color& diff, const Mat4& w)
+    : diffuse {diff.r, diff.g, diff.b, diff.a} {
+      for (int i = 0; i < 16; ++i)
+        m2w[i] = static_cast<float>(w(i % 4, i / 4));
+    }
   };
 
   // a uniform block data per frame
@@ -58,13 +62,13 @@ class GLRenderer : public Renderer {
   // TODO: make a more automonous class (auto alloc/release GL resouces)
   struct BufferedMesh {
     const Mesh& mesh;
+    ubPerObject meshUniformData; // world matrix, diffuse
     GLuint meshVAO;
     GLuint meshIndexBuffer;
     GLuint meshVertexBuffer;
-    ubPerObject meshUniformData;
 
-    BufferedMesh(const Mesh& m) : mesh(m),
-      meshUniformData{mesh.get_material().diffuse} {};
+    BufferedMesh(const Mesh& m, const Mat4& trans) : mesh(m),
+      meshUniformData(mesh.get_material().diffuse, trans) {};
 
     Mesh::size_type indices_num() const {
       return mesh.get_triangles().size() * 3; }

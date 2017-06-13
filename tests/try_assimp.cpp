@@ -24,6 +24,17 @@ ostream& operator<<(ostream& os, const aiVector3D& v)
   return os << "vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
 }
 
+// matric printer
+ostream& operator<<(ostream& os, const aiMatrix4x4& aim)
+{
+  return os << Mat4(
+    aim.a1, aim.b1, aim.c1, aim.d1,
+    aim.a2, aim.b2, aim.c2, aim.d2,
+    aim.a3, aim.b3, aim.c3, aim.d3,
+    aim.a4, aim.b4, aim.c4, aim.d4
+  );
+}
+
 
 int main(int argc, char** argv)
 {
@@ -142,6 +153,7 @@ void print_node(const aiNode& node, string pre, const aiScene& as)
   console << pre << "name: " << node.mName.C_Str() << endl;
   console << pre << "  mesh num: " << node.mNumMeshes << endl;
   console << pre << "  child num:" << node.mNumChildren << endl;
+  console << pre << "  node trans: " << node.mTransformation << endl;
 
   // print the meshes if any
   for (int i = 0; i < node.mNumMeshes; ++i) {

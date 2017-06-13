@@ -43,7 +43,7 @@ int main()
 
   // Set up the camera
   auto c = make_shared<Camera>(Vec3{0.0, 2.0, 20.0});
-  c->set_ratio(720.0 / 480.0);
+  c->set_aspect(720.0 / 480.0);
   console << "Camera set up." << endl;
 
   // Set up the Viewer and Renderer

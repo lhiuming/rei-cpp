@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 
   // Set up the camera
   auto c = make_shared<Camera>(Vec3{0, 0.4, 10}, Vec3{0, 0, -1});
-  c->set_ratio((float)width / height);
+  c->set_aspect((float)width / height);
   console << "Camera set up." << endl;
 
   // Make a Renderer

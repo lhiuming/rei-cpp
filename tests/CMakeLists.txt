@@ -85,7 +85,8 @@ target_link_libraries(test_camera camera console)
 
 # Test asset_loader
 add_executable(test_asset_loader test_asset_loader.cpp)
-target_link_libraries(test_asset_loader asset_loader model console)
+target_link_libraries(test_asset_loader
+asset_loader scene camera model console)
 
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
@@ -106,6 +107,6 @@ target_link_libraries(draw_model
 	model scene camera viewer renderer asset_loader console)
 
 # Draw world test (almost everything)
-add_executable(draw_world draw_world)
+add_executable(draw_world draw_world.cpp)
 target_link_libraries(draw_world
 asset_loader viewer renderer console)

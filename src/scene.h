@@ -38,14 +38,27 @@ struct ModelInstance {
 class Scene {
 public:
 
+  // Name for convinient
+  std::string name;
+
   // Member types
   typedef std::vector<ModelInstance> ModelContainer;
+
+  // Default constructor
+  Scene(std::string n = "Un-named Scene") : name(n) {}
 
   // Destructor
   virtual ~Scene() {};
 
   // Get elements
   virtual const ModelContainer& get_models() const = 0;
+
+  // Debug info
+  virtual std::string summary() const { return "Base Scene"; }
+
+  friend std::ostream& operator<<(std::ostream& os, const Scene& s) {
+    return os << s.summary();
+  }
 
 };
 
@@ -56,18 +69,26 @@ class StaticScene : public Scene {
 public:
 
   // Default constructor; an empty scene
-  StaticScene() {}
+  StaticScene(std::string n = "Un-named StaticScene") : Scene(n) {}
 
   // Destructor
   ~StaticScene() override = default;
 
   // Add elements
-  void add_model(const ModelPtr& mp, const Mat4& trans);
+  void add_model(ModelInstance&& mi) {
+    models.emplace_back(std::move(mi));
+  }
+  void add_model(const ModelPtr& mp, const Mat4& trans) {
+    models.push_back({mp, trans});
+  }
 
   // Get models
   const ModelContainer& get_models() const override {
     return models;
   }
+
+  // Debug info
+  std::string summary() const override;
 
 private:
 

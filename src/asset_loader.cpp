@@ -47,6 +47,7 @@ private:
   ModelInstance load_model(const aiNode& node, Mat4 scene_trans);
 
   // Utilities
+  static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
   static Mesh::Material make_material(const aiMaterial&);
   static MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans,
@@ -78,8 +79,8 @@ int AssimpLoaderImpl::load_file(const string filename)
 
   // Nodes
   const aiNode& root_node = *(as->mRootNode);
-  console << "  Primary Nodes (" << root_node.mNumChildren << ") : ";
-    console << root_node.mChildren[0]->mName.C_Str() << ", ";
+  console << "  Primary Nodes(" << root_node.mNumChildren << "): ";
+    console << root_node.mChildren[0]->mName.C_Str();
   for (int i = 1; i < root_node.mNumChildren; ++i)
     console << ", " << root_node.mChildren[i]->mName.C_Str();
   console << endl;
@@ -104,6 +105,7 @@ vector<MeshPtr> AssimpLoaderImpl::load_meshes()
   // Collect meshes
   vector<MeshPtr> ret;
   int read_count = collect_mesh(as->mRootNode, ret, Mat4::I());
+  console << "Loaded meshes : " << read_count << endl;
 
   return ret;
 }
@@ -111,21 +113,26 @@ vector<MeshPtr> AssimpLoaderImpl::load_meshes()
 // Load as CEL::Scene ( StaticScene )
 ScenePtr AssimpLoaderImpl::load_scene()
 {
-  // Put meshes
   const aiNode& root_node = *(as->mRootNode);
+  auto ret = make_shared<StaticScene>(root_node.mName.C_Str());
+
+  // Load model from each child nodes
   Mat4 coordinate_trans = make_Mat4(root_node.mTransformation);
-  auto ret = make_shared<StaticScene>();
   for (int i = 0; i < root_node.mNumChildren; ++i)
   {
     const aiNode& child = *(root_node.mChildren[i]);
     string name{ child.mName.C_Str() };
     if (name == "Camera") {
-      console << "AssetLoader Warning: Skip a camera node in scene" << endl;
+      console << "AssetLoader: Skip a Camera node in scene";
+      console << "(" << child.mNumMeshes << " meshes)" << endl;
     } else if (name == "Light") {
-      console << "AssetLoader Warning: Skip a light node in scene" << endl;
+      console << "AssetLoader: Skip a Light node in scene";
+      console << "(" << child.mNumMeshes << " meshes)" << endl;
     } else {
-      // Load the model
-      ret->add_model( load_model(child, coordinate_trans));
+      // Load the model without instance-transform
+      auto mi = load_model(child, coordinate_trans);
+      if (mi.pmodel.get()) // check if no real mesh loaded
+        ret->add_model(std::move(mi));
     }
   }
 
@@ -134,7 +141,25 @@ ScenePtr AssimpLoaderImpl::load_scene()
 
 CameraPtr AssimpLoaderImpl::load_camera()
 {
+  // Check numbers of camera
+  if (as->mNumCameras < 1)
+  {
+    console << "AssetLoader Warning: No Camera. Use default." << endl;
+    return make_shared<Camera>(Vec3{0, 0, 10}, Vec3{0, 0, -1});
+  }
+  if (as->mNumCameras > 1)
+    console << "AssetLoader Warning: Multiple camera. Use the first." << endl;
 
+  // Convert the first camera
+  const aiCamera& cam = *(as->mCameras[0]);
+  Vec3 pos = make_Vec3(cam.mPosition);
+  Vec3 target = make_Vec3(cam.mLookAt);
+  auto ret = make_shared<Camera>(pos, target - pos);
+  ret->set_params(cam.mAspect, cam.mHorizontalFOV * 180.0,
+    cam.mClipPlaneNear, cam.mClipPlaneFar);
+
+  console << "Loaded camera : " << cam.mName.C_Str() << endl;
+  return ret;
 }
 
 
@@ -169,52 +194,65 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node,
 }
 
 ModelInstance
-AssimpLoaderImpl::load_model(const aiNode& node, Mat4 scene_trans)
+AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans)
 {
-  if (node.mChildren > 0)
+  // Correct the world-transfor to fit in right-hand coordinate_trans
+  Mat4 old_W = make_Mat4(node.mTransformation);
+  Mat4 W = coordinate_trans.inv() * old_W * coordinate_trans;
+
+  ModelPtr mp = nullptr;
+
+  // Build Hiearchy model
+  if (node.mNumChildren > 0)
   {
     // TODO : make Hiearchy
-    console << "AssetLoader Warnning: need hiearachy" << endl;
-    return ModelInstance{};
+    console << "AssetLoader Warnning: need hiearachy";
+    console << "(name = " << node.mName.C_Str()
+      << "chile = " << node.mNumChildren << ")" << endl;
+    return ModelInstance{nullptr, W};
   }
 
-  if (node.mNumMeshes < 1) // No mesh
+  // Build Non Hiearchy model
+  if (node.mNumMeshes < 1) // Nothing here
   {
-    console << "AssetLoader Warnning: empty node" << endl;
-    return ModelInstance{};
-  }
-  if (node.mNumMeshes == 1) // Plain Mesh
+    console << "AssetLoader Warnning: empty node";
+    console << "(name = " << node.mName.C_Str() << ")" << endl;
+  } else if (node.mNumMeshes == 1) // Mesh
   {
-    // Make a mesh
-    ModelPtr mp = make_mesh(*(as->mMeshes[node.mMeshes[0]]),
-      scene_trans, this->materials_list)
-    // Return a instance
-    Mat4 old_world_trans = make_Mat4(node->mTransformation);
-    Mat4 true_world_trans = scene_trans.T() * old_world_trans * scene_trans;
-    return ModelInstance{mp, true_world_trans};
+    // Make a mesh fron aiMesh
+    mp = make_mesh(*(as->mMeshes[node.mMeshes[0]]),
+      coordinate_trans, this->materials_list);
+    console << "AssetLoader: loaded node name = "
+      << node.mName.C_Str() << ")" << endl;
   }
   else // Mesh aggrerate
   {
     // TODO
-    console << "AssetLoader Warnning: need aggregate" << endl;
-    return ModelInstance{};
+    console << "AssetLoader Warnning: need aggregate";
+    console << "(name = " << node.mName.C_Str()
+      << ", meshnum = " << node.mNumMeshes << ")" << endl;
   }
 
-
   // Return an instance
-  return ModelInstance
+  return ModelInstance{mp, W};
 }
 
 
 
 // Utilities ////
 
-// Convert from siMatrix4x4 to CEL::Mat4
+// Convert from aiVector3D to CEL::Vec3
+inline Vec3 AssimpLoaderImpl::make_Vec3(const aiVector3D& v)
+{
+  return Vec3(v.x, v.y, v.z);
+}
+
+
+// Convert from aiMatrix4x4 to CEL::Mat4
 inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim)
 {
-  Mat4 ret;
   // NOTE: aiMatrix4x4 {a1, a2, a3 ... } is row-major,
-  // So transposed to fit column-maojr Mat4
+  // So transposed here to fit column-major Mat4
   return Mat4(
     aim.a1, aim.b1, aim.c1, aim.d1,
     aim.a2, aim.b2, aim.c2, aim.d2,
@@ -342,8 +380,9 @@ AssetLoader::load_world(const std::string filename)
 {
   impl->load_file(filename);
   ScenePtr sp = impl->load_scene();
+  CameraPtr cp = impl->load_camera();
 
-  return make_tuple(sp, CameraPtr(), std::vector<LightPtr>());
+  return make_tuple(sp, cp, std::vector<LightPtr>());
 }
 
 

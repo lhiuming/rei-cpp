@@ -18,10 +18,11 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "  vec4 diffuse;\n"
 "};\n"
 "uniform ubPerFrame {\n"
-"  mat4 WVP;\n"
+"  mat4 VP;\n"
 "  Light light;\n"
 "};\n"
 "uniform ubPerObject {\n"
+"  mat4 world;\n"
 "  vec4 diffuseColor;\n"
 "};\n"
 "layout (location = 0) in vec4 vPosition;\n"
@@ -31,7 +32,7 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "out vec3 normal;\n"
 "out vec4 diffuse;\n"
 "void main() {\n"
-"  gl_Position = vPosition * WVP;\n"
+"  gl_Position = vPosition * world * VP;\n"
 "  color = vColor;\n"
 "  normal = vNormal;\n"
 "  diffuse = diffuseColor;\n"
@@ -46,10 +47,11 @@ static const char* default_fragment_shader_text =  // fragment shader source
 "  vec4 diffuse;\n"
 "};\n"
 "uniform ubPerFrame {\n"
-"  mat4 WVP;\n"
+"  mat4 VP;\n"
 "  Light light;\n"
 "};\n"
 "uniform ubPerObject {\n"
+"  mat4 world;\n"
 "  vec4 diffuseColor;\n"
 "};\n"
 "in vec4 color;\n"
@@ -199,7 +201,7 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
 void GLRenderer::add_buffered_mesh(const Mesh& mesh, const Mat4& trans)
 {
   // Initialize non-GL datas (materials, model transforms )
-  BufferedMesh bm(mesh);
+  BufferedMesh bm(mesh, trans);
 
   // 1. Create a vertex array object
   glGenVertexArrays(1, &(bm.meshVAO)); // get an vao id
@@ -309,15 +311,14 @@ void GLRenderer::render_meshes()
     glBindBuffer(GL_ARRAY_BUFFER, buffered_mesh.meshVertexBuffer);
 
     // Update per-object uniform (to send mesh material data)
-    ubPerObject ubpo( buffered_mesh.mesh.get_material().diffuse );
     glBindBuffer(GL_UNIFORM_BUFFER, this->perObjectBuffer);
     glBufferData(GL_UNIFORM_BUFFER, sizeof(ubPerObject),
-      &(buffered_mesh.meshUniformData),
+      &(buffered_mesh.meshUniformData),  // here is the data
       GL_STATIC_DRAW);
 
     // Draw them
     glDrawElements(GL_TRIANGLES, (GLuint)buffered_mesh.indices_num(),
-     GL_UNSIGNED_INT, nullptr);
+      GL_UNSIGNED_INT, nullptr);
   }
 
 }

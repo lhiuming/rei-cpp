@@ -1,7 +1,7 @@
 // source of scene.h
 #include "scene.h"
 
-#include <iostream>
+#include <sstream>
 #include <vector>
 #include <memory>
 
@@ -15,10 +15,19 @@ namespace CEL {
 // Static scene ///////////////////////////////////////////////////////////////
 ////
 
-// Add a model
-void StaticScene::add_model(const ModelPtr& mp, const Mat4& trans)
+string StaticScene::summary() const
 {
-  models.push_back(ModelInstance{mp, trans});
+  ostringstream oss;
+  oss << "Scene name: " << name
+      << ", with " << models.size() << " models" << endl;
+  for (const auto& mi : models) {
+    oss << "  " << *(mi.pmodel);
+    oss << "  with trans: " << mi.transform << endl;
+  }
+
+  return oss.str();
 }
+
+
 
 } // namespace CEL

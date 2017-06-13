@@ -107,7 +107,7 @@ void GLViewer::register_callbacks()
   BufferFunc bf = [=](int width, int height) -> void
   {
     this->renderer->set_buffer_size(width, height);
-    this->camera->set_ratio((double)width / height);
+    this->camera->set_aspect((double)width / height);
   };
   ScrollFunc sf = [=](double dx, double dy) -> void
   {

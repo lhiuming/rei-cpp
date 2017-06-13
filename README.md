@@ -6,8 +6,7 @@ Project under construction
 
 - Rendering
   - add model loading, and support general mesh and material
-    - load material
-    - merge identical pointers to make real mesh
+    - fix blender normal loading 
 	- Add interaction in D3DViewer
   - loading complete scene (lights, multiple meshes)
     - test with cornel box

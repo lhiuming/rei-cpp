@@ -1,12 +1,13 @@
 // source of camera.h
 #include "camera.h"
 
-#include <iostream> // debug
 #include <algorithm>
+
+#include "console.h"
 
 using namespace std;
 
-const double PI = 3.141592653589793238463; // copied from web
+const double PI = 3.141592653589793238463; // copied from web :P
 
 namespace CEL {
 
@@ -16,13 +17,9 @@ Camera::Camera()
   update_transforms();
 };
 
-// Initialize with pos and dir
-Camera::Camera(const Vec3& pos) : position(pos)
-{
-  update_transforms();
-}
-Camera::Camera(const Vec3& pos, const Vec3& dir)
- : position(pos), direction(dir)
+// Initialize with pos, dir and up
+Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
+: up(up), position(pos), direction(dir)
 {
   update_transforms();
 }
@@ -36,20 +33,40 @@ void Camera::set_target(const Vec3& target)
   update_transforms();
 }
 
-// update ratio
-void Camera::set_ratio(double ratio)
+// update aspect
+void Camera::set_aspect(double aspect)
 {
-  this->ratio = ratio;
+  this->aspect = aspect;
   update_c2n();
   update_w2n();
 }
+
+// update a bunch parameters
+void Camera::set_params(double aspect, double angle,
+  double znear, double zfar)
+{
+  this->aspect = aspect;
+  this->angle = min(max(angle, 5.0), 160.0);
+  this->znear = znear;
+  this->zfar = zfar;
+
+  if ( (angle < 5.0) || (angle > 160.0) )
+  {
+    console << "Camera Warning: unusual angle : " << angle
+            << ", clipped." << endl;
+  }
+
+  update_c2n();
+  update_w2n();
+}
+
 
 
 // Dynamics Configurations //
 
 void Camera::zoom(double q)
 {
-  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * ratio));
+  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * aspect));
   update_c2n();
   update_w2n();
 }
@@ -112,7 +129,7 @@ void Camera::update_c2n()
 
   // 3. normalize each dimension (x, y, z)
   double pillar_half_width = tan(angle / 2 * (PI / 180.0)); // use radian
-  double pillar_half_height = pillar_half_width / ratio;
+  double pillar_half_height = pillar_half_width / aspect;
   double pillar_half_depth = (1.0 / znear - 1.0 / zfar) / 2.0;
   Mat4 C(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height,
               1.0 / pillar_half_depth, 1.0));
@@ -133,5 +150,24 @@ void Camera::update_w2n()
   world2normalized = world2camera * camera2normalized; // they are row-wise
   world2viewport = world2normalized * normalized2viewport;
 }
+
+
+// Debug print
+std::ostream& operator<<(std::ostream& os, const Camera& cam)
+{
+  os << "Camrea:" << endl;
+  os << "  position : " << cam.position << endl;
+  os << "  direction: " << cam.direction << endl;
+  os << "  up       : " << cam.up << std::endl;
+  os << "  params: "
+     << "fov-angle = " << cam.angle
+     << ", aspect = " << cam.aspect
+     << ", z-near = " << cam.znear
+     << ", z-fat = " << cam.zfar
+     << endl;
+
+  return os;
+}
+
 
 } // namespace CEL
