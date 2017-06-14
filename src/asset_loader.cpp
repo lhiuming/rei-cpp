@@ -43,6 +43,10 @@ private:
   vector<Mesh::Material> materials_list;
 
   // Helpers Functions //
+
+  tuple<const aiNode*, Mat4>
+  find_node(const aiNode* root, const string& node_name);
+
   int collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans);
   ModelInstance load_model(const aiNode& node, Mat4 scene_trans);
 
@@ -150,12 +154,21 @@ CameraPtr AssimpLoaderImpl::load_camera()
   if (as->mNumCameras > 1)
     console << "AssetLoader Warning: Multiple camera. Use the first." << endl;
 
-  // Convert the first camera
+  // Find the node of the first camera (for transform)
   const aiCamera& cam = *(as->mCameras[0]);
-  Vec3 pos = make_Vec3(cam.mPosition);
-  Vec3 target = make_Vec3(cam.mLookAt);
-  auto ret = make_shared<Camera>(pos, target - pos);
-  ret->set_params(cam.mAspect, cam.mHorizontalFOV * 180.0,
+  auto cam_node = find_node(as->mRootNode, cam.mName.C_Str());
+  if (!get<0>(cam_node))
+    console << "AssetLoader Wranining: failed to find the camera node" << endl;
+
+  // Convert the first camera
+  Mat4& trans = get<1>(cam_node);
+  Vec3 pos = Vec4(make_Vec3(cam.mPosition), 1.0) * trans;
+  Vec3 dir = (Vec4(make_Vec3(cam.mLookAt), 0.0) * trans).truncated();
+  Vec3 up = (Vec4(make_Vec3(cam.mUp), 0.0) * trans).truncated();
+  auto ret = make_shared<Camera>(pos, dir, up);
+  ret->set_params(
+    cam.mAspect,
+    cam.mHorizontalFOV * (180.0 / 3.14),  // radian -> degree
     cam.mClipPlaneNear, cam.mClipPlaneFar);
 
   console << "Loaded camera : " << cam.mName.C_Str() << endl;
@@ -164,6 +177,32 @@ CameraPtr AssimpLoaderImpl::load_camera()
 
 
 // Big Helpers Functions ////
+
+// Find the node with given name; return the node and accumulated transform.
+tuple<const aiNode*, Mat4>
+AssimpLoaderImpl::find_node(const aiNode* root, const string& node_name)
+{
+  // Find the node with given name, starting from the root
+
+  // Check name of this node
+  string root_name = root->mName.C_Str();
+  if (root_name == node_name) {
+    return make_tuple(root, make_Mat4(root->mTransformation));
+  }
+
+  // Check child nodes
+  for (int i = 0; i < root->mNumChildren; ++i)
+  {
+    auto ret = find_node(root->mChildren[i], node_name);
+    if (get<0>(ret) != nullptr) {
+      get<1>(ret) =  get<1>(ret) * make_Mat4(root->mTransformation);
+      return ret;
+    }
+  }
+
+  // not found
+  return make_tuple(nullptr, Mat4::I());
+}
 
 
 // Convert from asMesh to a CEL::Mesh, and add to `models` [out]

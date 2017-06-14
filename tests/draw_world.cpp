@@ -29,21 +29,21 @@ int main(int argc, char** argv)
   AssetLoader loader;
   auto world_element = loader.load_world(fn);
   ScenePtr s = get<0>(world_element);
-  //CameraPtr c = get<1>(world_element);  // Assimp camera is not correct
-  CameraPtr c = make_shared<Camera>(Vec3(0.0, 0.0, 10));
+  CameraPtr c = get<1>(world_element);
+  //CameraPtr c = make_shared<Camera>(Vec3(0.0, 0.0, 10));
   console << "World loaded." << endl;
 
   // check the things
   console << "-- Check the loaded world --" << endl;
   console << "Summary of the Scene: \n    " << *s;
-  console << "Summary of Camera: \n    " << *c;
+  console << "Summary of Camera: \n    "  << *c;
 
   // Make a Renderer
   auto r = makeRenderer();
 
   // Set up the Viewer and Renderer
-  const int width = 480;
-  int height = width / c->get_aspect();
+  const int height = 480;
+  int width = height * c->get_aspect();
   auto v = makeViewer(width, height, "Draw World from file");
   v->set_camera(c);
   v->set_scene(s);
