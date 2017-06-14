@@ -5,12 +5,12 @@ Project under construction
 ## todos
 
 - Rendering
-  - add model loading, and support general mesh and material
-    - fix blender normal loading 
-	- Add interaction in D3DViewer
   - loading complete scene (lights, multiple meshes)
+    - load glsl shade from file
+    - add area light
     - test with cornel box
     - add key-press shading-switching
+	- Add interaction in D3DViewer
   - add shadow maps and global light
   - add doxygen documentation
   - make a true mesh (use half-edge or winged-triangle?)
