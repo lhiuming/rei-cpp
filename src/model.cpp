@@ -35,12 +35,14 @@ string Mesh::summary() const
       << ", vertices : " << vertices.size()
       << ", triangles: " << triangles.size()
       << endl;
+  oss << "  material: " << material << endl;
   oss << "  first 3 vertices: " << endl;
   for (int i = 0; i < 3; ++i)
   {
     auto v = vertices[i];
     oss << "    coord: " << v.coord << endl;
     oss << "    normal: " << v.normal << endl;
+    oss << "    color:  " << v.color << endl;
   }
 
   return oss.str();

@@ -61,7 +61,7 @@ add_library(color color.cpp color.h)
 
 # model
 add_library(model model.cpp model.h)
-target_link_libraries(model algebra console)
+target_link_libraries(model algebra color console)
 
 # scene
 add_library(scene scene.cpp scene.h)

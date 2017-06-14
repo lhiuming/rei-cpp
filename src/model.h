@@ -81,6 +81,12 @@ public:
     Color ambient = {0.2, 0.2, 0.2, 1.0};
     Color specular = {0.2, 0.2, 0.2, 1.0};
     double shineness = 30;
+
+    friend std::ostream& operator<<(std::ostream& os, Material mat) {
+      return os << "name = " << mat.name
+        << ", diff = " << mat.diffuse
+        << ", ambi = " << mat.ambient;
+    }
   };
 
   // Type alias

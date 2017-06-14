@@ -34,12 +34,9 @@ struct Vec3 {
   const double& operator[](int i) const { return (&x)[i]; }
 
   // Scalar multiplications
-  Vec3& operator*=(double c) {
-    x *= x; y *= c; z *= c; return *this; }
-  Vec3 operator*(double c) const {
-    return Vec3(x * c, y * c, z * c); }
-  Vec3 operator-() const { // negation: -X
-    return Vec3(-x, -y, -z); }
+  Vec3& operator*=(double c) { x *= x; y *= c; z *= c; return *this; }
+  Vec3 operator*(double c) const { return Vec3(x * c, y * c, z * c); }
+  Vec3 operator-() const { return Vec3(-x, -y, -z); }
 
   // Vector arithmatics
   Vec3 operator+(const Vec3& rhs) const { // addition
@@ -111,9 +108,18 @@ struct Mat3 {
   double& operator()(int i, int j) { return columns[j][i]; }
   const double& operator()(int i, int j) const { return columns[j][i]; }
 
+  // Scalar multiplication
+  Mat3& operator*=(double c) {
+    columns[0] *= c; columns[1] *= c; columns[2] *= c; return *this; }
+  Mat3 operator*(double c) const { Mat3 ret{*this}; return ret *= c; }
+
+
   // Matrix transposition
   static void transpose(Mat3& A); // TODO
   Mat3 T() const; // TODO
+
+  // Determinant
+  double det() const;
 
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat3& A); // TODO
@@ -123,6 +129,9 @@ struct Mat3 {
 
 // Print 3D matrix
 std::ostream& operator<<(std::ostream& os, const Mat3& m); // TODO
+
+// Scalar multiplication from left
+inline Mat3 operator*(double c, const Mat3& A) { return A * c; }
 
 // Column-vector transformation : Ax
 Vec3 operator*(const Mat3& A, const Vec3& x); // TODO

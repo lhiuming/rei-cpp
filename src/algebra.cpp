@@ -42,6 +42,16 @@ ostream& operator<<(ostream& os, const Vec3& v)
 // Member and Non-member functions.
 ////
 
+
+double Mat3::det() const
+{
+  const Mat3& A = *this;
+  return A(0,0) * ( A(1,1) * A(2,2) - A(1,2) * A(2,1) )
+       + A(1,0) * ( A(2,1) * A(0,2) - A(2,2) * A(0,1) )
+       + A(2,0) * ( A(0,1) * A(1,2) - A(0,2) * A(1,1) );
+}
+
+
 // Print Mat3
 std::ostream& operator<<(std::ostream& os, const Mat3& m)
 {
@@ -170,16 +180,18 @@ Mat3 Mat4::sub3() const
     columns[2].truncated());
 }
 
-// Adjoint of the upper-left 3x3 matrix; is transpose of co-factor matrix
+// Cofactor matrix of the upper-left 3x3 matrix;
+// NOTE: equal to transposed-adjoint matrix; useful for transforming normals
 Mat3 Mat4::adj3() const
 {
   const Mat4& A = *this;
   return Mat3(
-    A(1,1)*A(2,2)-A(1,2)*A(2,1), A(2,1)*A(0,2)-A(2,2)*A(0,1),
-    A(0,1)*A(1,2)-A(0,2)*A(1,1),
-    A(1,2)*A(2,0)-A(1,0)*A(2,2), A(2,2)*A(0,0)-A(2,0)*A(0,2),
-    A(0,2)*A(1,0)-A(0,0)*A(1,2),
-    A(1,0)*A(2,1)-A(1,1)*A(2,0), A(2,0)*A(0,1)-A(2,1)*A(0,0),
+    A(1,1)*A(2,2)-A(1,2)*A(2,1), A(1,2)*A(2,0)-A(1,0)*A(2,2), A(1,0)*A(2,1)-A(1,1)*A(2,0),
+
+    A(2,1)*A(0,2)-A(2,2)*A(0,1), A(2,2)*A(0,0)-A(2,0)*A(0,2),
+    A(2,0)*A(0,1)-A(2,1)*A(0,0),
+
+    A(0,1)*A(1,2)-A(0,2)*A(1,1), A(0,2)*A(1,0)-A(0,0)*A(1,2),
     A(0,0)*A(1,1)-A(0,1)*A(1,0)
   );
 }
@@ -207,7 +219,7 @@ double Mat4::cofactor(int i, int j) const
 // Adjoint Matrix 4D
 Mat4 Mat4::adjoint() const
 {
-  // NOTE : simple transpose of cofactor matrix
+  // NOTE : just transpose of cofactor matrix
   return Mat4(
     cofactor(0,0), cofactor(1,0), cofactor(2,0), cofactor(3,0),
     cofactor(0,1), cofactor(1,1), cofactor(2,1), cofactor(3,1),

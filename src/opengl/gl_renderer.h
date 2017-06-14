@@ -10,6 +10,7 @@
 #include "../scene.h"
 #include "../model.h"
 #include "../renderer.h" // base class
+#include "../console.h"
 
 /*
  * opengl/renderer.h
@@ -31,20 +32,29 @@ class GLRenderer : public Renderer {
   // a uniform block data per model object
   // TODO add model transform
   struct ubPerObject {
-    float m2w[4 * 4]; // modle to world transform
+    float world[4 * 4]; // model to world transform
+    float normal_world[4 * 4]; // normal transform
     float diffuse[4];
 
     ubPerObject(const Color& diff, const Mat4& w)
-    : diffuse {diff.r, diff.g, diff.b, diff.a} {
-      for (int i = 0; i < 16; ++i)
-        m2w[i] = static_cast<float>(w(i % 4, i / 4));
+    : diffuse {diff.r, diff.g, diff.b, diff.a}
+    {
+      // convert world-transform
+      for (int i = 0; i < 16; ++i) // c-major to c-major
+        world[i] = static_cast<float>(w(i % 4, i / 4));
+      // convert world-transform for normals
+      Mat3 normal_w = w.adj3();
+      for (int i = 0; i < 16; ++i) {
+        if ( (i % 4 == 3) || (i/4 == 3)) continue;
+        normal_world[i] = static_cast<float>(normal_w(i % 4, i / 4));
+      }
     }
   };
 
   // a uniform block data per frame
   struct Light {
     float dir[3];
-    float pad; // De we need this in GLSL ?
+    float pad; // FIXME : Better way for alignment handling
     float ambient[4];
     float diffuse[4];
   };
@@ -102,7 +112,7 @@ private:
   GLFWwindow* window; // manged by GLViewer
   GLuint program; // object id for a unified pass-through shader
 
-  // Uniform Buffer slot assignment
+  // Uniform Buffer slot assignment for binding
   GLuint perFrameBufferIndex = 0;
   GLuint perObjectBufferIndex = 1;
 

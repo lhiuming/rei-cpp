@@ -13,7 +13,7 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "#version 410 core\n"
 "struct Light {\n"
 "  vec3 dir;\n"
-"  float pad;\n"
+"  //float pad;\n"
 "  vec4 ambient;\n"
 "  vec4 diffuse;\n"
 "};\n"
@@ -23,26 +23,26 @@ static const char* default_vertex_shader_text =  // vertiex shader source
 "};\n"
 "uniform ubPerObject {\n"
 "  mat4 world;\n"
-"  vec4 diffuseColor;\n"
+"  mat4 normal_w; \n"
+"  vec4 material_diffuse;\n"
 "};\n"
 "layout (location = 0) in vec4 vPosition;\n"
 "layout (location = 1) in vec3 vNormal;\n"
 "layout (location = 2) in vec4 vColor;\n"
 "out vec4 color;\n"
 "out vec3 normal;\n"
-"out vec4 diffuse;\n"
 "void main() {\n"
 "  gl_Position = vPosition * world * VP;\n"
 "  color = vColor;\n"
-"  normal = vNormal;\n"
-"  diffuse = diffuseColor;\n"
+"  normal = vec3( vec4(vNormal, 0.0) * normal_w );\n"
+"  //normal = vec3(normal_w[2]);\n"
 "}\n";
 
 static const char* default_fragment_shader_text =  // fragment shader source
 "#version 410 core\n"
 "struct Light {\n"
 "  vec3 dir;\n"
-"  float pad;\n"
+"  //float pad;\n"
 "  vec4 ambient;\n"
 "  vec4 diffuse;\n"
 "};\n"
@@ -52,19 +52,20 @@ static const char* default_fragment_shader_text =  // fragment shader source
 "};\n"
 "uniform ubPerObject {\n"
 "  mat4 world;\n"
-"  vec4 diffuseColor;\n"
+"  mat4 normal_w; \n"
+"  vec4 material_diffuse;\n"
 "};\n"
 "in vec4 color;\n"
 "in vec3 normal;\n"
-"in vec4 diffuse;\n"
 "out vec4 fcolor;\n"
 "void main() {\n"
 "  float tint = dot(normalize(light.dir), normalize(normal));\n"
-"  if (tint < 0.3) tint = 0.0;\n"
-"  else if (tint > 0.6) tint = 1.0;\n"
-"  fcolor = (diffuse * 0.7 + color * 0.3) \n"
-"    * (light.ambient + tint * light.diffuse);\n"
+"  //if (tint < 0.3) tint = 0.0;\n"
+"  //else if (tint > 0.6) tint = 1.0;\n"
+"  fcolor = (material_diffuse * 0.7 + color * 0.3) \n"
+"    * ( light.ambient + tint * light.diffuse);\n"
 "  fcolor.a = 1.0;\n"
+"  //fcolor.rgb = normalize(normal);\n"// debug
 "}\n";
 
 namespace CEL {
@@ -174,14 +175,14 @@ void GLRenderer::set_scene(shared_ptr<const Scene> scene)
   // Create uniform buffers //
   // Per frame uniform
   glGenBuffers(1, &(this->perFrameBuffer));
-  glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);  // set uniform
+  //glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);  // set uniform
   glBindBufferBase(GL_UNIFORM_BUFFER, perFrameBufferIndex, // bind to slot 0
     this->perFrameBuffer);
   GLuint ubpf_index = glGetUniformBlockIndex(this->program, "ubPerFrame");
   glUniformBlockBinding(this->program, ubpf_index, perFrameBufferIndex);
   // Per object uniform
   glGenBuffers(1, &(this->perObjectBuffer));
-  glBindBuffer(GL_UNIFORM_BUFFER, this->perObjectBuffer); // set uniforom
+  //glBindBuffer(GL_UNIFORM_BUFFER, this->perObjectBuffer); // set uniforom
   glBindBufferBase(GL_UNIFORM_BUFFER, perObjectBufferIndex, // bind to slot 1
     this->perObjectBuffer);
   GLuint ubpo_index = glGetUniformBlockIndex(this->program, "ubPerObject");
@@ -285,9 +286,10 @@ void GLRenderer::render()
   // Update shared uniform buffer data
   ubPerFrame ubpf_data{camera->get_w2n()};
   Light dir_light{ // static global directional light
-    {0.25f, 0.5f, 1.0f}, 1.0f, // direction
-    {0.3f, 0.3f, 0.3f, 1.0f},  // ambient
-    {0.9f, 0.9f, 0.9f, 1.0f}   // diffuse
+    {0.2f, 0.5f, 1.0f}, // direction
+    1.0f, // pad
+    {0.0f, 0.0f, 0.3f, 1.0f},  // ambient
+    {0.8f, 0.1f, 0.1f, 1.0f}   // diffuse
   };
   ubpf_data.light = dir_light;
   glBindBuffer(GL_UNIFORM_BUFFER, this->perFrameBuffer);
