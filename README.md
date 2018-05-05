@@ -1,6 +1,8 @@
 # Cel
 
-Project under construction
+Project under construction.
+
+Current State: this project is totally stalled now ;)
 
 ## todos
 
