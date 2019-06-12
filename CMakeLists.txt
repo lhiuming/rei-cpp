@@ -12,6 +12,9 @@ set(BUILD_DIRECT3D true)
 
 set(core_data_name "CoreData")
 
+# some IDE related config
+SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON) 
+
 
 #----------------
 # Set up Compiler
