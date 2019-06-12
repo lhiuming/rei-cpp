@@ -90,7 +90,7 @@ void D3DRenderer::compile_shader()
 
   // Compiling 
   hr = D3DCompileFromFile(
-    L"direct3d/shader.hlsl",  // shader file name 
+    L"CoreData/shader/shader.hlsl",  // shader file name 
     0, // shader macros
     0, // shader includes  
     "VS", // shader entry pointer
@@ -101,7 +101,7 @@ void D3DRenderer::compile_shader()
   );
   if (FAILED(hr)) throw runtime_error("Vertex Shader compile FAILED");
   hr = D3DCompileFromFile(
-    L"direct3d/shader.hlsl",
+    L"CoreData/shader/shader.hlsl",
     0, 0,
     "PS", "ps_4_0",
     0, 0,
@@ -294,7 +294,7 @@ void D3DRenderer::add_mesh_buffer(const ModelInstance& modelIns)
   Vec3 default_normal{ 1.0, 1.0, 1.0 };
   for (const auto& v : mesh.get_vertices())
     vertices.emplace_back(v.coord, v.color, default_normal);
-  for (const auto& t : mesh.get_indices())
+  for (const auto& t : mesh.get_triangles())
   {
     indices.push_back(t.a);
     indices.push_back(t.b);

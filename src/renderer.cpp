@@ -4,10 +4,10 @@
 #include <iostream>
 #include <memory>
 
-#ifdef USE_OPENGL
+#ifdef OPENGL_ENABLED
 #include "opengl/gl_renderer.h"
 #endif
-#ifdef USE_DIRECT3D
+#ifdef DIRECT3D_ENABLED
 #include "direct3d/d3d_renderer.h"
 #endif
 
@@ -24,10 +24,10 @@ Renderer::Renderer()
 // A cross-platform renderer factory
 shared_ptr<Renderer> makeRenderer()
 {
-  #ifdef USE_OPENGL
+  #ifdef OPENGL_ENABLED
   return make_shared<GLRenderer>();
   #endif
-  #ifdef USE_DIRECT3D
+  #ifdef DIRECT3D_ENABLED
   return make_shared<D3DRenderer>();
   #endif
 }

@@ -1,6 +1,8 @@
 #ifndef CEL_OPENGL_GL_RENDERER_H
 #define CEL_OPENGL_GL_RENDERER_H
 
+#if OPENGL_ENABLED
+
 #include <cstddef>
 
 #include <GL/glew.h>    // it includes GL; must before glfw
@@ -128,5 +130,7 @@ private:
 };
 
 } // namespace CEL
+
+#endif // OPENGL_ENABLED
 
 #endif

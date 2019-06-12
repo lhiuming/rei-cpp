@@ -1,4 +1,6 @@
 // source of pixels.h
+#if OPENGL_ENABLED
+
 #include "pixels.h"
 
 #include <iostream>
@@ -463,3 +465,5 @@ void gl_terminate()
 }
 
 } // namespace CEL
+
+#endif // OPENGL_ENABLED

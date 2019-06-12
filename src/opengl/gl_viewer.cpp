@@ -1,4 +1,5 @@
 // source of gl_viewer.h
+#if OPENGL_ENABLED
 #include "gl_viewer.h"
 
 //#include <cmath>
@@ -243,5 +244,6 @@ void GLViewer::glfw_init_auto()
   return;
 }
 
-
 } // namespace CEL
+
+#endif // OPENGL_ENABLED

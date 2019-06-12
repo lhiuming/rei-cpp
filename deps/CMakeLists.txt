@@ -9,7 +9,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
 #------------------------------------------------------------------------------
 # OpenGL stuffs
 
-IF (UNIX)
+if(BUILD_OPENGL)
 
 # OpenGL
 find_package(OpenGL REQUIRED)
@@ -59,30 +59,30 @@ set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/glfw)
 
 # set the collective library
-set(GL_LIBRARY glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
+set(opengl_libs glew glfw ${OPENGL_gl_LIBRARY} CACHE STRING "")
 
-ENDIF (UNIX)
+endif()
 
 
 #------------------------------------------------------------------------------
 # Direct3D stuffs
 
-IF (WIN32)
+if(BUILD_DIRECT3D)
 
 # find the window sdk path
 # TODO: support more version
-find_path(WIN_SDK_DIR NAMES Include/um/d3d11.h
-	HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/"
-	)
+# TODO for new windows, the lib is in standrad search path, no need to find
+find_path(WIN_SDK_DIR NAMES Include/um/d3d11.h HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/" )
 
 # copy the d3dcompiler dll
+# toco replace this
 file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
 	DESTINATION  ${PROJECT_BINARY_DIR}/lib
 	)
 
-set(DirectX11_LIBRARY d3d11.lib d3dcompiler.lib CACHE STRING "")
+set(direct3d_libs d3d11.lib d3dcompiler.lib CACHE STRING "")
 
-ENDIF (WIN32)
+endif()
 
 
 #------------------------------------------------------------------------------

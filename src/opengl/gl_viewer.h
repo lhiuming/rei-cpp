@@ -1,6 +1,8 @@
 #ifndef CEL_OPENGL_GL_VIEWER_H
 #define CEL_OPENGL_GL_VIEWER_H
 
+#if OPENGL_ENABLED
+
 #include <cstddef>
 
 #include <string>
@@ -79,5 +81,7 @@ private:
 
 } // namespace CEL
 
+#endif // OPENGL_ENABLED
 
 #endif
+

@@ -1,6 +1,8 @@
 #ifndef CEL_PIXELS_H
 #define CEL_PIXELS_H
 
+#if OPENGL_ENABLED
+
 #include <cstdlib>  // for size_t
 #include <functional> // for std::function
 
@@ -160,5 +162,7 @@ int gl_close_window(WindowID window);
 void gl_terminate();
 
 } // namespace CEL
+
+#endif // OPENGL_ENABLED
 
 #endif // CEL_PIXELS_H

@@ -1,10 +1,14 @@
 # All unit test for the Cel project
 
+# Rei headers
+# TODO create a include folder along side src
+include_directories(${PROJECT_SOURCE_DIR}/src)
+
 #---------------------------------------
 # Test the GL deps and related libraries
 #---------------------------------------
 
-IF (UNIX)
+IF (BUILD_OPENGL)
 
 # GL libraries
 set(GL_LIBS glew glfw ${OPENGL_gl_LIBRARY})
@@ -27,7 +31,7 @@ ENDIF()
 # Test the D3D libraries
 #-----------------------
 
-IF(WIN32)
+IF(BUILD_DIRECTX)
 
 add_executable(test_d3d11 WIN32 test_d3d11.cpp)
 target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
@@ -57,14 +61,14 @@ target_link_libraries(try_assimp assimp console algebra)
 
 # copy assimp dll for windows
 IF (MSVC14)
-file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME}
-DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
+#file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME} DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 ENDIF(MSVC14)
 
 #----------------------
 # Test the CEL modules
 #----------------------
 
+#[[
 include_directories(${CELENGINE_SOURCE_DIR}/src)
 
 # Test algebra
@@ -91,22 +95,25 @@ asset_loader scene camera model console)
 # Test viewer
 add_executable(test_viewer test_viewer.cpp)
 target_link_libraries(test_viewer viewer camera scene renderer console)
+]]
 
 #-----------------------------
-# Testing modules integration
+# Sample Projects 
+# Serves to test modules integration
 #-----------------------------
 
 # Three triangle test (for color and z-buffer)
 add_executable(three_triangle three_triangle.cpp)
-target_link_libraries(three_triangle
-	model scene camera viewer renderer asset_loader console)
+target_link_libraries(three_triangle ${core_library})
+add_custom_command(TARGET three_triangle POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${core_data_path}" "$<TARGET_FILE_DIR:three_triangle>/${core_data_name}")
+if(MSVC)
+	set_property(TARGET three_triangle PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:three_triangle>")
+endif()
 
 # Draw Cube test (model loading overall)
 add_executable(draw_model draw_model.cpp)
-target_link_libraries(draw_model
-	model scene camera viewer renderer asset_loader console)
+target_link_libraries(draw_model ${core_library})
 
 # Draw world test (almost everything)
 add_executable(draw_world draw_world.cpp)
-target_link_libraries(draw_world
-asset_loader viewer renderer console)
+target_link_libraries(draw_world ${core_library})

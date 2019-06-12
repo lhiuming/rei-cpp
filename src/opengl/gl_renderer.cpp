@@ -1,3 +1,4 @@
+#if OPENGL_ENABLED
 // source of renderer.h (in opengl/)
 #include "gl_renderer.h"
 
@@ -327,3 +328,5 @@ void GLRenderer::render_meshes()
 
 
 } // namespace CEL
+
+#endif // OPENGL_ENABLED
