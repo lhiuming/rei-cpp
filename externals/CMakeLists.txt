@@ -67,17 +67,7 @@ endif(BUILD_OPENGL)
 
 if(BUILD_DIRECT3D)
 
-	# find the window sdk path
-	# TODO: support more version
-	# TODO for new windows, the lib is in standrad search path, no need to find
-	find_path(WIN_SDK_DIR NAMES Include/um/d3d11.h HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/8.1/" )
-
-	# copy the d3dcompiler dll
-	# toco replace this
-	file(COPY ${WIN_SDK_DIR}/Redist/D3D/x86/d3dcompiler_47.dll
-		DESTINATION  ${PROJECT_BINARY_DIR}/lib
-	)
-
+	# for new windows (10), the lib is in standrad search path, no need to find
 	set(direct3d_libs d3d11.lib d3dcompiler.lib CACHE STRING "")
 
 endif(BUILD_DIRECT3D)

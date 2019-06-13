@@ -53,7 +53,7 @@ endif()
 #------------------------------
 # Resolve external dependencies
 
-add_subdirectory_with_folder("Externals" deps)
+add_subdirectory_with_folder("Externals" externals)
 
 
 #-----------------------

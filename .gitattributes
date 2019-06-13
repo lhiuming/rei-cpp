@@ -1,3 +1,1 @@
-deps/* linguist-vendored
-include/GL/* linguist-vendored
-include/GLFW/* linguist-vendored
+externals/* linguist-vendored
