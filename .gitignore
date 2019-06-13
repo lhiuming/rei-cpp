@@ -43,6 +43,7 @@
 /build
 /cmake-build-debug
 
-# Visual Studio & CLion caches
+# IDE caches
 /.vs
 /.idea
+/.vscode
