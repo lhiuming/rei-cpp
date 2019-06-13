@@ -55,10 +55,6 @@ ENDIF()
 add_executable(try_assimp try_assimp.cpp)
 target_link_libraries(try_assimp assimp ${core_library})
 
-# copy assimp dll for windows
-IF (MSVC14)
-#file(COPY ${PROJECT_BINARY_DIR}/lib/${ASSIMP_OUTPUT_NAME} DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
-ENDIF(MSVC14)
 
 #----------------------
 # Test the CEL modules

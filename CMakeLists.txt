@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.1)
+cmake_minimum_required (VERSION 3.13)
 # TODO rename this
 project (CELENGINE)
 
@@ -12,16 +12,19 @@ option(BUILD_DIRECT3D "Build Rei with Direct3D support" ON)
 
 set(core_data_name "CoreData")
 
-# some IDE related config
 if(PROJECT_NAME STREQUAL ${CMAKE_PROJECT_NAME})
-SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON) 
-define_property(
-    TARGET
-    PROPERTY FOLDER
-    INHERITED
-    BRIEF_DOCS "Set the folder name."
-    FULL_DOCS  "Use to organize targets in an IDE."
-)
+	set(is_top_project true)
+endif()
+
+# Organize targets in IDE
+if(is_top_project)
+	SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON) 
+	define_property(
+		TARGET 
+		PROPERTY FOLDER INHERITED
+		BRIEF_DOCS "Set the folder name."
+    	FULL_DOCS  "Use to organize targets in an IDE."
+	)
 endif()
 function(add_subdirectory_with_folder _folder_name _folder)
     add_subdirectory(${_folder} ${ARGN})
@@ -68,10 +71,12 @@ source_group(TREE "${PROJECT_SOURCE_DIR}/src" FILES ${core_header})
 
 # Build the library
 # NOTE: headers are added to source list for IDE file grouping
+# NOTE: only support static linking
 # TODO: set up dedicated public include dir for core_library
 set(core_library "rei")
 add_library(${core_library} STATIC ${core_source} ${core_header})
 target_include_directories(${core_library} PUBLIC ${PROJECT_SOURCE_DIR}/src)
+
 # Link Graphic api libraries
 set(graphic_api_libs "")
 if (BUILD_OPENGL)
@@ -84,6 +89,7 @@ if (BUILD_DIRECT3D)
 endif()
 message("Build with graphic API libraries: ${graphic_api_libs}")
 target_link_libraries(${core_library} PRIVATE ${graphic_api_libs})
+
 # Link assimp
 target_link_libraries(${core_library} PRIVATE assimp)
 

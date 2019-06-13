@@ -76,14 +76,14 @@ endif(BUILD_DIRECT3D)
 #------------------------------------------------------------------------------
 # Assimp (using native CmakeLists.txt provide in the source)
 
-set(ASSIMP_BUILD_NONFREE_C4D_IMPORTER OFF CACHE BOOL "")
-set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "")
-set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "")
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "")
-set(NO_EXPORT ON CACHE BOOL "")
-set(OPT_BUILD_PACKAGES OFF CACHE BOOL "")
-set(BUILD_SHARED_LIBS OFF)
+# need to set cache for lower version cmake, which is used by assimp
+set(ASSIMP_BUILD_NONFREE_C4D_IMPORTER OFF CACHE BOOL "Assimp stripping") 
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "Assimp stripping")
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "Assimp stripping")
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Assimp stripping")
+set(NO_EXPORT ON CACHE BOOL "Assimp stripping") 
+set(OPT_BUILD_PACKAGES OFF CACHE BOOL "Assimp stripping") 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable dyanmic linking for assimp")
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/assimp EXCLUDE_FROM_ALL)
 # populate the include directory property, a.k.a modernizing this legacy target
 target_include_directories(assimp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/assimp/include) 
-
