@@ -1,19 +1,29 @@
 cmake_minimum_required (VERSION 3.13)
-# TODO rename this
-project (CELENGINE)
+project (REI)
 
 
 #-----------------------
 # Project configurations
 
 # todo add system detection and build config
-option(BUILD_OPENGL "Build Rei with OpenGL support" OFF)
-option(BUILD_DIRECT3D "Build Rei with Direct3D support" ON)
+option(BUILD_OPENGL "Build REI with OpenGL support" OFF)
+option(BUILD_DIRECT3D "Build REI with Direct3D support" ON)
+
+option(BUILD_SAMPLES "Build REI with samples projects" ON)
 
 set(core_data_name "CoreData")
 
 if(PROJECT_NAME STREQUAL ${CMAKE_PROJECT_NAME})
 	set(is_top_project true)
+	set(BUILD_SAMPLES ON)
+endif()
+
+# Setup runtime folder
+if (is_top_project)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/bin)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE${PROJECT_SOURCE_DIR}/bin)
+	set(CMAKE_DEBUG_POSTFIX "-debug")
 endif()
 
 # Organize targets in IDE
@@ -95,7 +105,7 @@ target_link_libraries(${core_library} PRIVATE assimp)
 
 # Export the core data list to a variable
 # TODO bind this property to rei library targer 
-set(core_data_path "${CMAKE_CURRENT_BINARY_DIR}/${core_data_name}")
+set(core_data_path "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${core_data_name}")
 set(core_data_sources "")
 if(BUILD_OPENGL)
 	list(APPEND core_data_sources "${PROJECT_SOURCE_DIR}/src/opengl/shader")
@@ -116,11 +126,15 @@ endforeach()
 # todo move sample to sample-projects folders
 
 #enable_testing ()
-add_subdirectory_with_folder("Tests" tests)
+if(BUILD_SAMPLES)
+	add_subdirectory_with_folder("Tests" tests)
+endif()
 
 
 #----------------------
 # Build sample projects
 
 # todo seperate samples from tests
+if(BUILD_SAMPLES)
 #add_subdirectory_with_folder("Samples" samples)
+endif()
