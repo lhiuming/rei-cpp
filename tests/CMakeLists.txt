@@ -1,9 +1,5 @@
 # All unit test for the Cel project
 
-# Rei headers
-# TODO create a include folder along side src
-include_directories(${PROJECT_SOURCE_DIR}/src)
-
 #---------------------------------------
 # Test the GL deps and related libraries
 #---------------------------------------
@@ -57,7 +53,7 @@ ENDIF()
 
 # assimp
 add_executable(try_assimp try_assimp.cpp)
-target_link_libraries(try_assimp assimp console algebra)
+target_link_libraries(try_assimp assimp ${core_library})
 
 # copy assimp dll for windows
 IF (MSVC14)
