@@ -5,9 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "camera.h"
 #include "renderer.h"
 #include "scene.h"
-#include "camera.h"
 
 /**
  * viewer.h
@@ -20,9 +20,7 @@
 namespace CEL {
 
 class Viewer {
-
 public:
-
   // Default counstructor
   Viewer() {};
 
@@ -33,29 +31,22 @@ public:
   virtual ~Viewer() {};
 
   // Configuration
-  void set_renderer(std::shared_ptr<Renderer> renderer) {
-    this->renderer = renderer; }
-  void set_scene(std::shared_ptr<Scene> scene) {
-    this->scene = scene; }
-  void set_camera(std::shared_ptr<Camera> cam) {
-    this->camera = cam; }
+  void set_renderer(std::shared_ptr<Renderer> renderer) { this->renderer = renderer; }
+  void set_scene(std::shared_ptr<Scene> scene) { this->scene = scene; }
+  void set_camera(std::shared_ptr<Camera> cam) { this->camera = cam; }
 
   // Start the update&render loop
   virtual void run() = 0;
 
 protected:
-
   std::shared_ptr<Renderer> renderer; // a pointer to a renderer
   std::shared_ptr<Scene> scene;       // a pointer to a scene
   std::shared_ptr<Camera> camera;     // a pointer to a camera
-
 };
 
 // A cross-platform viewer factory
-std::shared_ptr<Viewer>
-makeViewer(size_t window_w, size_t window_h, std::string title);
+std::shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, std::string title);
 
 } // namespace CEL
-
 
 #endif

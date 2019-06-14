@@ -1,9 +1,9 @@
 #ifndef CEL_MODEL_H
 #define CEL_MODEL_H
 
-#include <vector>
 #include <memory>
 #include <ostream>
+#include <vector>
 
 #include "algebra.h"
 #include "color.h"
@@ -21,15 +21,12 @@
 
 namespace CEL {
 
-
-
 // Model classes //////////////////////////////////////////////////////////////
 
 // Base class
 // supports polymorphism only through RTTI
 class Model {
 public:
-
   // Public data
   std::string name = "Model Un-named";
 
@@ -41,31 +38,26 @@ public:
 
   // Debug info
   virtual std::string summary() const { return "Base Model."; }
-  friend std::ostream& operator<<(std::ostream& os, const Model& m) {
-    return os << m.summary();
-  }
-
+  friend std::ostream& operator<<(std::ostream& os, const Model& m) { return os << m.summary(); }
 };
-
 
 // Triangular Mesh
 class Mesh : public Model {
 public:
-
   // Simple Vertex class
   struct Vertex {
-    Vec4 coord; // Vertex position in right-hand world space
+    Vec4 coord;  // Vertex position in right-hand world space
     Vec3 normal; // Vertex normal
     Color color; // Vertex color
 
     Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0))
-      : coord(pos3, 1.0), normal(), color(c) {};
+        : coord(pos3, 1.0), normal(), color(c) {};
     Vertex(const Vec3& pos3, const Vec3& nor, const Color& c)
-      : coord(pos3, 1.0), normal(nor), color(c) {};
+        : coord(pos3, 1.0), normal(nor), color(c) {};
   };
 
   // Triangle template class, details depend on implementation of mesh
-  template<typename VertexId>
+  template <typename VertexId>
   struct TriangleImp {
     VertexId a;
     VertexId b;
@@ -83,9 +75,8 @@ public:
     double shineness = 30;
 
     friend std::ostream& operator<<(std::ostream& os, Material mat) {
-      return os << "name = " << mat.name
-        << ", diff = " << mat.diffuse
-        << ", ambi = " << mat.ambient;
+      return os << "name = " << mat.name << ", diff = " << mat.diffuse
+                << ", ambi = " << mat.ambient;
     }
   };
 
@@ -125,21 +116,15 @@ public:
   std::string summary() const override;
 
 private:
-
   std::vector<Vertex> vertices;
   std::vector<Triangle> triangles;
   Material material;
-
 };
-
 
 // Model Aggregates
 class Aggregate : public Model {
-
   // Dump classs
-
 };
-
 
 } // namespace CEL
 

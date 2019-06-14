@@ -2,15 +2,15 @@
 #define CEL_ASSET_LOADER_H
 
 #include <memory>
-#include <vector>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "algebra.h"
-#include "model.h"
-#include "scene.h"
 #include "camera.h"
 #include "light.h"
+#include "model.h"
+#include "scene.h"
 
 /**
  * asset_loader.h
@@ -34,7 +34,6 @@ class AssimpLoaderImpl;
 // The asset loader interface
 class AssetLoader {
 public:
-
   // Default constructor
   AssetLoader();
 
@@ -42,13 +41,10 @@ public:
   std::vector<MeshPtr> load_meshes(const std::string filename);
 
   // Load the while 3D file as (scene, camera, lights)
-  std::tuple< ScenePtr, CameraPtr, std::vector<LightPtr> >
-  load_world(const std::string filename);
+  std::tuple<ScenePtr, CameraPtr, std::vector<LightPtr> > load_world(const std::string filename);
 
 private:
-
   std::shared_ptr<AssimpLoaderImpl> impl;
-
 };
 
 } // namespace CEL

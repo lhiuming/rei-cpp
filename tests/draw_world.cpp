@@ -4,18 +4,16 @@
 #pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 #endif
 
-#include <scene.h>
 #include <asset_loader.h>
-#include <renderer.h>
-#include <viewer.h>
 #include <console.h>
-
+#include <renderer.h>
+#include <scene.h>
+#include <viewer.h>
 
 using namespace std;
 using namespace CEL;
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   // Read the .dae model
   string fn;
   if (argc > 1) {
@@ -30,13 +28,13 @@ int main(int argc, char** argv)
   auto world_element = loader.load_world(fn);
   ScenePtr s = get<0>(world_element);
   CameraPtr c = get<1>(world_element);
-  //CameraPtr c = make_shared<Camera>(Vec3(0.0, 0.0, 10));
+  // CameraPtr c = make_shared<Camera>(Vec3(0.0, 0.0, 10));
   console << "World loaded." << endl;
 
   // check the things
   console << "-- Check the loaded world --" << endl;
   console << "Summary of the Scene: \n    " << *s;
-  console << "Summary of Camera: \n    "  << *c;
+  console << "Summary of Camera: \n    " << *c;
 
   // Make a Renderer
   auto r = makeRenderer();
@@ -56,7 +54,6 @@ int main(int argc, char** argv)
   console << "Program closing." << endl;
 
   return 0;
-
 
   return 0;
 }

@@ -5,18 +5,18 @@
 
 #include <cstddef>
 
+#include <functional> // for std::function
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
-#include <functional> // for std::function
 
-#include <GL/glew.h>    // must include before glfw
+#include <GL/glew.h> // must include before glfw
 #include <GLFW/glfw3.h>
 
 #include "gl_renderer.h"
 
-#include "../scene.h"
 #include "../camera.h"
+#include "../scene.h"
 #include "../viewer.h" // the base class
 
 /*
@@ -33,9 +33,7 @@
 namespace CEL {
 
 class GLViewer : public Viewer {
-
 public:
-
   // Default counstructor : not allowed
   GLViewer() = delete;
 
@@ -49,7 +47,6 @@ public:
   void run() override;
 
 private:
-
   // GL interface object
   GLFWwindow* window;
 
@@ -60,15 +57,15 @@ private:
   double last_i, last_j; // used for mouse callback
 
   // Shared between instances
-  using BufferFunc = std::function<void (int w, int h)>;
-  using ScrollFunc = std::function<void (double dx, double dy)>;
-  using CursorFunc = std::function<void (double i, double j)>;
-  using MouseFunc = std::function<void (int button, int action, int modkey)>;
+  using BufferFunc = std::function<void(int w, int h)>;
+  using ScrollFunc = std::function<void(double dx, double dy)>;
+  using CursorFunc = std::function<void(double i, double j)>;
+  using MouseFunc = std::function<void(int button, int action, int modkey)>;
   struct CallbackMemo {
     BufferFunc buffer_callback; // a unique buffer size callback
     ScrollFunc scroll_callback; // a unique scroll callback
     CursorFunc cursor_callback; // a unique cursor position callback
-    MouseFunc mouse_callback; // a unique mouse button callback
+    MouseFunc mouse_callback;   // a unique mouse button callback
   };
   static std::map<GLFWwindow*, CallbackMemo> memo_table;
   static void glfw_init_auto();
@@ -84,4 +81,3 @@ private:
 #endif // OPENGL_ENABLED
 
 #endif
-

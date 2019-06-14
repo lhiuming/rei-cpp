@@ -1,8 +1,8 @@
 #ifndef CEL_ALGEBRA_H
 #define CEL_ALGEBRA_H
 
-#include <ostream>
 #include <cmath>
+#include <ostream>
 
 /*
  * algebra.h
@@ -34,22 +34,37 @@ struct Vec3 {
   const double& operator[](int i) const { return (&x)[i]; }
 
   // Scalar multiplications
-  Vec3& operator*=(double c) { x *= x; y *= c; z *= c; return *this; }
+  Vec3& operator*=(double c) {
+    x *= x;
+    y *= c;
+    z *= c;
+    return *this;
+  }
   Vec3 operator*(double c) const { return Vec3(x * c, y * c, z * c); }
   Vec3 operator-() const { return Vec3(-x, -y, -z); }
 
   // Vector arithmatics
   Vec3 operator+(const Vec3& rhs) const { // addition
-    return Vec3(x + rhs.x, y + rhs.y, z + rhs.z); }
+    return Vec3(x + rhs.x, y + rhs.y, z + rhs.z);
+  }
   Vec3& operator+=(const Vec3& rhs) {
-    x += rhs.x; y += rhs.y; z += rhs.z; return *this; }
+    x += rhs.x;
+    y += rhs.y;
+    z += rhs.z;
+    return *this;
+  }
   Vec3 operator-(const Vec3& rhs) const { // subtraction
-    return Vec3(x - rhs.x, y - rhs.y, z - rhs.z); }
+    return Vec3(x - rhs.x, y - rhs.y, z - rhs.z);
+  }
   Vec3& operator-=(const Vec3& rhs) {
-    x -= rhs.x; y -= rhs.y; z -= rhs.z; return *this; }
+    x -= rhs.x;
+    y -= rhs.y;
+    z -= rhs.z;
+    return *this;
+  }
 
   // Nroms
-  double norm2() const { return x*x + y*y + z*z; }
+  double norm2() const { return x * x + y * y + z * z; }
   double norm() const { return std::sqrt(norm2()); }
 
   // Normalization
@@ -58,9 +73,7 @@ struct Vec3 {
 
   // Value check
   bool zero() const { return (x == 0) && (y == 0) && (z == 0); }
-  bool operator==(const Vec3& rhs) const {
-    return (x == rhs.x) && (y == rhs.y) && (z == rhs.z); }
-
+  bool operator==(const Vec3& rhs) const { return (x == rhs.x) && (y == rhs.y) && (z == rhs.z); }
 };
 
 // Scalar multiplications from left
@@ -75,7 +88,6 @@ Vec3 cross(const Vec3& a, const Vec3& b);
 // Print 3D vector
 std::ostream& operator<<(std::ostream& os, const Vec3& v);
 
-
 // Mat3 ///////////////////////////////////////////////////////////////////////
 // 3x3 matrix. Very limited.
 ////
@@ -87,15 +99,14 @@ struct Mat3 {
   Mat3() {};
 
   // Construct by columns
-  Mat3(const Vec3& c1, const Vec3& c2, const Vec3& c3) : columns{c1, c2, c3} {}
-  Mat3(Vec3&& c1, Vec3&& c2, Vec3&& c3) : columns{c1, c2, c3} {}
+  Mat3(const Vec3& c1, const Vec3& c2, const Vec3& c3) : columns {c1, c2, c3} {}
+  Mat3(Vec3&& c1, Vec3&& c2, Vec3&& c3) : columns {c1, c2, c3} {}
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat3(const double rows[9]); // TODO
-  Mat3(double a00, double a01, double a02,
-       double a10, double a11, double a12,
-       double a20, double a21, double a22)
-  : columns{ {a00, a10, a20}, {a01, a11, a21}, {a02, a12, a22} } {}
+  Mat3(double a00, double a01, double a02, double a10, double a11, double a12, double a20,
+    double a21, double a22)
+      : columns {{a00, a10, a20}, {a01, a11, a21}, {a02, a12, a22}} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   Mat3(const Vec3& diag); // TODO
@@ -110,28 +121,35 @@ struct Mat3 {
 
   // Scalar multiplication
   Mat3& operator*=(double c) {
-    columns[0] *= c; columns[1] *= c; columns[2] *= c; return *this; }
-  Mat3 operator*(double c) const { Mat3 ret{*this}; return ret *= c; }
-
+    columns[0] *= c;
+    columns[1] *= c;
+    columns[2] *= c;
+    return *this;
+  }
+  Mat3 operator*(double c) const {
+    Mat3 ret {*this};
+    return ret *= c;
+  }
 
   // Matrix transposition
   static void transpose(Mat3& A); // TODO
-  Mat3 T() const; // TODO
+  Mat3 T() const;                 // TODO
 
   // Determinant
   double det() const;
 
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat3& A); // TODO
-  Mat3 inv() const; // TODO
-
+  Mat3 inv() const;             // TODO
 };
 
 // Print 3D matrix
 std::ostream& operator<<(std::ostream& os, const Mat3& m); // TODO
 
 // Scalar multiplication from left
-inline Mat3 operator*(double c, const Mat3& A) { return A * c; }
+inline Mat3 operator*(double c, const Mat3& A) {
+  return A * c;
+}
 
 // Column-vector transformation : Ax
 Vec3 operator*(const Mat3& A, const Vec3& x); // TODO
@@ -140,7 +158,6 @@ Vec3 operator*(const Mat3& A, const Vec3& x); // TODO
 inline Vec3 operator*(const Vec3& x, const Mat3& A) {
   return Vec3(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]));
 }
-
 
 // Vec4 ///////////////////////////////////////////////////////////////////////
 // A general 4D vector; useful for homogenous coordinates of 3D points.
@@ -172,21 +189,38 @@ struct Vec4 {
 
   // Scalar multiplications
   Vec4& operator*=(double c) {
-    x *= x; y *= c; z *= c; h *= c; return *this; }
-  Vec4 operator*(double c) const {
-    return Vec4(x * c, y * c, z * c, h * c); }
+    x *= x;
+    y *= c;
+    z *= c;
+    h *= c;
+    return *this;
+  }
+  Vec4 operator*(double c) const { return Vec4(x * c, y * c, z * c, h * c); }
   Vec4 operator-() const { // negation: -X
-    return Vec4(-x, -y, -z, -h); }
+    return Vec4(-x, -y, -z, -h);
+  }
 
   // Vector arithmatics
   Vec4 operator+(const Vec4& rhs) const { // addition
-    return Vec4(x + rhs.x, y + rhs.y, z + rhs.z, h + rhs.h); }
+    return Vec4(x + rhs.x, y + rhs.y, z + rhs.z, h + rhs.h);
+  }
   Vec4& operator+=(const Vec4& rhs) {
-    x += rhs.x; y += rhs.y; z += rhs.z; h += rhs.h; return *this; }
+    x += rhs.x;
+    y += rhs.y;
+    z += rhs.z;
+    h += rhs.h;
+    return *this;
+  }
   Vec4 operator-(const Vec4& rhs) const { // subtraction
-    return Vec4(x - rhs.x, y - rhs.y, z - rhs.z, h - rhs.h); }
+    return Vec4(x - rhs.x, y - rhs.y, z - rhs.z, h - rhs.h);
+  }
   Vec4& operator-=(const Vec4& rhs) {
-    x -= rhs.x; y -= rhs.y; z -= rhs.z; h -= rhs.h; return *this; }
+    x -= rhs.x;
+    y -= rhs.y;
+    z -= rhs.z;
+    h -= rhs.h;
+    return *this;
+  }
 };
 
 // Scalar multiplications from left
@@ -197,7 +231,6 @@ double dot(const Vec4& a, const Vec4& b);
 
 // print 4D vector
 std::ostream& operator<<(std::ostream& os, const Vec4& v);
-
 
 // Mat4 ///////////////////////////////////////////////////////////////////////
 // 4x4 matrix. Useful to represent affine transformation in homogenous
@@ -211,21 +244,16 @@ struct Mat4 {
   Mat4() {};
 
   // Construct by columns
-  Mat4(const Vec4& c1, const Vec4& c2, const Vec4& c3, const Vec4& c4)
-  : columns{c1, c2, c3, c4} {}
-  Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4)
-  : columns{c1, c2, c3, c4} {}
+  Mat4(const Vec4& c1, const Vec4& c2, const Vec4& c3, const Vec4& c4) : columns {c1, c2, c3, c4} {}
+  Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
-  Mat4(double a00, double a01, double a02, double a03,
-       double a10, double a11, double a12, double a13,
-       double a20, double a21, double a22, double a23,
-       double a30, double a31, double a32, double a33 )
-  : columns{
-    Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31),
-    Vec4(a02, a12, a22, a32), Vec4(a03, a13, a23, a33)
-  } {}
+  Mat4(double a00, double a01, double a02, double a03, double a10, double a11, double a12,
+    double a13, double a20, double a21, double a22, double a23, double a30, double a31, double a32,
+    double a33)
+      : columns {Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31), Vec4(a02, a12, a22, a32),
+          Vec4(a03, a13, a23, a33)} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   Mat4(const Vec4& diag);
@@ -250,7 +278,7 @@ struct Mat4 {
   Mat4 inv() const;
 
   // Identity matrix
-  static Mat4 I() { return Mat4( Vec4(1.0, 1.0, 1.0, 1.0) ); }
+  static Mat4 I() { return Mat4(Vec4(1.0, 1.0, 1.0, 1.0)); }
 
   // Matrix multiplication, or transform composition
   Mat4 operator*(const Mat4& rhs) const;
@@ -269,7 +297,6 @@ struct Mat4 {
 
   // Adjoint Mat4
   Mat4 adjoint() const;
-
 };
 
 // Print 4D matrix
@@ -279,15 +306,13 @@ std::ostream& operator<<(std::ostream& os, const Mat4& m);
 inline Mat4 operator*(const Mat4& A, double c) {
   return Mat4(A[0] * c, A[1] * c, A[2] * c, A[3] * c);
 }
-inline Mat4 operator*(double c, const Mat4& A) { return A * c; }
+inline Mat4 operator*(double c, const Mat4& A) {
+  return A * c;
+}
 
 // Column-vector transformation : Ax
-inline Vec4 operator*(const Mat4& A, const Vec4& x)
-{ // linear combination of columns
-  return x[0] * A[0] +
-         x[1] * A[1] +
-         x[2] * A[2] +
-         x[3] * A[3];
+inline Vec4 operator*(const Mat4& A, const Vec4& x) { // linear combination of columns
+  return x[0] * A[0] + x[1] * A[1] + x[2] * A[2] + x[3] * A[3];
 }
 
 // Row-vector transformation : xA

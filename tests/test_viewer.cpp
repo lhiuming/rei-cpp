@@ -4,16 +4,15 @@
 #pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 #endif
 
+#include <console.h>
 #include <renderer.h>
 #include <scene.h>
 #include <viewer.h>
-#include <console.h>
 
 using namespace std;
 using namespace CEL;
 
-int main()
-{
+int main() {
   // construction
   auto pv = makeViewer(360, 280, "test viewer");
   Viewer& v = *pv;

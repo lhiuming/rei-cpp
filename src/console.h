@@ -19,35 +19,30 @@ class DebugStreambuf : public std::streambuf {
 public:
   virtual int_type overflow(int_type c = EOF) {
     if (c != EOF) {
-    #ifdef USE_MSVC
-      char_type buf[] = { traits_type::to_char_type(c), '\0' };
+#ifdef USE_MSVC
+      char_type buf[] = {traits_type::to_char_type(c), '\0'};
       OutputDebugString(buf);
-    #else
+#else
       std::cout.put(c);
-    #endif
+#endif
     }
     return c;
   }
 };
 
-
 // The ostream type that print to the console.
 class Logger : public std::ostream {
-
   // Base alias
   using Base = std::ostream;
 
 public:
-
   Logger() : Base(&dbgstream) {}
 
   // Formatted print
   void printf();
 
 private:
-
   DebugStreambuf dbgstream; // platform-adpted output stream buffer
-
 };
 
 // A gobal Logger

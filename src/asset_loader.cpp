@@ -1,9 +1,9 @@
 // source of asset_loader.h
 #include "asset_loader.h"
 
-#include <assimp/Importer.hpp>      // C++ importer interface
-#include <assimp/scene.h>           // Output data structure
-#include <assimp/postprocess.h>     // Post processing flags
+#include <assimp/postprocess.h> // Post processing flags
+#include <assimp/scene.h>       // Output data structure
+#include <assimp/Importer.hpp>  // C++ importer interface
 
 #include "console.h"
 
@@ -19,7 +19,6 @@ namespace CEL {
 // NOTE: works almost like a namespace :P
 class AssimpLoaderImpl {
 public:
-
   // Default constructor
   AssimpLoaderImpl() : importer() {}
 
@@ -37,15 +36,13 @@ public:
   vector<LightPtr> load_lights(); // TODO
 
 private:
-
   Assimp::Importer importer;
   const aiScene* as; // current loaded aiScene
   vector<Mesh::Material> materials_list;
 
   // Helpers Functions //
 
-  tuple<const aiNode*, Mat4>
-  find_node(const aiNode* root, const string& node_name);
+  tuple<const aiNode*, Mat4> find_node(const aiNode* root, const string& node_name);
 
   int collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans);
   ModelInstance load_model(const aiNode& node, Mat4 scene_trans);
@@ -54,21 +51,19 @@ private:
   static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
   static Mesh::Material make_material(const aiMaterial&);
-  static MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans,
-    const vector<Mesh::Material>& maters);
+  static MeshPtr make_mesh(
+    const aiMesh& mesh, const Mat4 trans, const vector<Mesh::Material>& maters);
 };
-
 
 // Main Interfaces //
 
 // Load the file as aiScene
-int AssimpLoaderImpl::load_file(const string filename)
-{
+int AssimpLoaderImpl::load_file(const string filename) {
   // Load as assimp scene
   this->as = importer.ReadFile(filename,
-    aiProcess_Triangulate |            // break-down polygons
-    aiProcess_JoinIdenticalVertices |  // join vertices
-    aiProcess_SortByPType              // FIXME: what is this?
+    aiProcess_Triangulate |             // break-down polygons
+      aiProcess_JoinIdenticalVertices | // join vertices
+      aiProcess_SortByPType             // FIXME: what is this?
   );
   if (as == nullptr) // Read failed
   {
@@ -84,7 +79,7 @@ int AssimpLoaderImpl::load_file(const string filename)
   // Nodes
   const aiNode& root_node = *(as->mRootNode);
   console << "  Primary Nodes(" << root_node.mNumChildren << "): ";
-    console << root_node.mChildren[0]->mName.C_Str();
+  console << root_node.mChildren[0]->mName.C_Str();
   for (int i = 1; i < root_node.mNumChildren; ++i)
     console << ", " << root_node.mChildren[i]->mName.C_Str();
   console << endl;
@@ -102,10 +97,8 @@ int AssimpLoaderImpl::load_file(const string filename)
   return 0;
 }
 
-
 // Load all meshes into world-space
-vector<MeshPtr> AssimpLoaderImpl::load_meshes()
-{
+vector<MeshPtr> AssimpLoaderImpl::load_meshes() {
   // Collect meshes
   vector<MeshPtr> ret;
   int read_count = collect_mesh(as->mRootNode, ret, Mat4::I());
@@ -115,17 +108,15 @@ vector<MeshPtr> AssimpLoaderImpl::load_meshes()
 }
 
 // Load as CEL::Scene ( StaticScene )
-ScenePtr AssimpLoaderImpl::load_scene()
-{
+ScenePtr AssimpLoaderImpl::load_scene() {
   const aiNode& root_node = *(as->mRootNode);
   auto ret = make_shared<StaticScene>(root_node.mName.C_Str());
 
   // Load model from each child nodes
   Mat4 coordinate_trans = make_Mat4(root_node.mTransformation);
-  for (int i = 0; i < root_node.mNumChildren; ++i)
-  {
+  for (int i = 0; i < root_node.mNumChildren; ++i) {
     const aiNode& child = *(root_node.mChildren[i]);
-    string name{ child.mName.C_Str() };
+    string name {child.mName.C_Str()};
     if (name == "Camera") {
       console << "AssetLoader: Skip a Camera node in scene";
       console << "(" << child.mNumMeshes << " meshes)" << endl;
@@ -143,13 +134,11 @@ ScenePtr AssimpLoaderImpl::load_scene()
   return ret;
 }
 
-CameraPtr AssimpLoaderImpl::load_camera()
-{
+CameraPtr AssimpLoaderImpl::load_camera() {
   // Check numbers of camera
-  if (as->mNumCameras < 1)
-  {
+  if (as->mNumCameras < 1) {
     console << "AssetLoader Warning: No Camera. Use default." << endl;
-    return make_shared<Camera>(Vec3{0, 0, 10}, Vec3{0, 0, -1});
+    return make_shared<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
   }
   if (as->mNumCameras > 1)
     console << "AssetLoader Warning: Multiple camera. Use the first." << endl;
@@ -157,8 +146,7 @@ CameraPtr AssimpLoaderImpl::load_camera()
   // Find the node of the first camera (for transform)
   const aiCamera& cam = *(as->mCameras[0]);
   auto cam_node = find_node(as->mRootNode, cam.mName.C_Str());
-  if (!get<0>(cam_node))
-    console << "AssetLoader Wranining: failed to find the camera node" << endl;
+  if (!get<0>(cam_node)) console << "AssetLoader Wranining: failed to find the camera node" << endl;
 
   // Convert the first camera
   Mat4& trans = get<1>(cam_node);
@@ -166,36 +154,30 @@ CameraPtr AssimpLoaderImpl::load_camera()
   Vec3 dir = make_Vec3(cam.mLookAt) * trans.sub3();
   Vec3 up = make_Vec3(cam.mUp) * trans.sub3();
   auto ret = make_shared<Camera>(pos, dir, up);
-  ret->set_params(
-    cam.mAspect,
-    cam.mHorizontalFOV * (180.0 / 3.14),  // radian -> degree
+  ret->set_params(cam.mAspect,
+    cam.mHorizontalFOV * (180.0 / 3.14), // radian -> degree
     cam.mClipPlaneNear, cam.mClipPlaneFar);
 
   console << "Loaded camera : " << cam.mName.C_Str() << endl;
   return ret;
 }
 
-
 // Big Helpers Functions ////
 
 // Find the node with given name; return the node and accumulated transform.
-tuple<const aiNode*, Mat4>
-AssimpLoaderImpl::find_node(const aiNode* root, const string& node_name)
-{
+tuple<const aiNode*, Mat4> AssimpLoaderImpl::find_node(
+  const aiNode* root, const string& node_name) {
   // Find the node with given name, starting from the root
 
   // Check name of this node
   string root_name = root->mName.C_Str();
-  if (root_name == node_name) {
-    return make_tuple(root, make_Mat4(root->mTransformation));
-  }
+  if (root_name == node_name) { return make_tuple(root, make_Mat4(root->mTransformation)); }
 
   // Check child nodes
-  for (int i = 0; i < root->mNumChildren; ++i)
-  {
+  for (int i = 0; i < root->mNumChildren; ++i) {
     auto ret = find_node(root->mChildren[i], node_name);
     if (get<0>(ret) != nullptr) {
-      get<1>(ret) =  get<1>(ret) * make_Mat4(root->mTransformation);
+      get<1>(ret) = get<1>(ret) * make_Mat4(root->mTransformation);
       return ret;
     }
   }
@@ -204,23 +186,17 @@ AssimpLoaderImpl::find_node(const aiNode* root, const string& node_name)
   return make_tuple(nullptr, Mat4::I());
 }
 
-
 // Convert from asMesh to a CEL::Mesh, and add to `models` [out]
-int AssimpLoaderImpl::collect_mesh(const aiNode* node,
-  vector<MeshPtr>& models, Mat4 trans)
-{
+int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans) {
   int mesh_count = 0;
 
   // Add the mesh to `models`, with accumulated transform
   trans = make_Mat4(node->mTransformation) * trans;
-  for (int i = 0; i < node->mNumMeshes; ++i)
-  {
+  for (int i = 0; i < node->mNumMeshes; ++i) {
     // Convert the aiMesh stored in aiScene
     unsigned int mesh_ind = node->mMeshes[i];
 
-    models.push_back(
-      make_mesh(*(as->mMeshes[mesh_ind]), trans, materials_list)
-    );
+    models.push_back(make_mesh(*(as->mMeshes[mesh_ind]), trans, materials_list));
     ++mesh_count;
   }
 
@@ -229,12 +205,9 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node,
     mesh_count += collect_mesh(node->mChildren[i], models, trans);
 
   return mesh_count;
-
 }
 
-ModelInstance
-AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans)
-{
+ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
   // Correct the world-transfor to fit in right-hand coordinate_trans
   Mat4 old_W = make_Mat4(node.mTransformation);
   Mat4 W = coordinate_trans.inv() * old_W * coordinate_trans;
@@ -242,13 +215,11 @@ AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans)
   ModelPtr mp = nullptr;
 
   // Build Hiearchy model
-  if (node.mNumChildren > 0)
-  {
+  if (node.mNumChildren > 0) {
     // TODO : make Hiearchy
     console << "AssetLoader Warnning: need hiearachy";
-    console << "(name = " << node.mName.C_Str()
-      << "chile = " << node.mNumChildren << ")" << endl;
-    return ModelInstance{nullptr, W};
+    console << "(name = " << node.mName.C_Str() << "chile = " << node.mNumChildren << ")" << endl;
+    return ModelInstance {nullptr, W};
   }
 
   // Build Non Hiearchy model
@@ -259,50 +230,36 @@ AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans)
   } else if (node.mNumMeshes == 1) // Mesh
   {
     // Make a mesh fron aiMesh
-    mp = make_mesh(*(as->mMeshes[node.mMeshes[0]]),
-      coordinate_trans, this->materials_list);
-    console << "AssetLoader: loaded node name = "
-      << node.mName.C_Str() << ")" << endl;
-  }
-  else // Mesh aggrerate
+    mp = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
+    console << "AssetLoader: loaded node name = " << node.mName.C_Str() << ")" << endl;
+  } else // Mesh aggrerate
   {
     // TODO
     console << "AssetLoader Warnning: need aggregate";
-    console << "(name = " << node.mName.C_Str()
-      << ", meshnum = " << node.mNumMeshes << ")" << endl;
+    console << "(name = " << node.mName.C_Str() << ", meshnum = " << node.mNumMeshes << ")" << endl;
   }
 
   // Return an instance
-  return ModelInstance{mp, W};
+  return ModelInstance {mp, W};
 }
-
-
 
 // Utilities ////
 
 // Convert from aiVector3D to CEL::Vec3
-inline Vec3 AssimpLoaderImpl::make_Vec3(const aiVector3D& v)
-{
+inline Vec3 AssimpLoaderImpl::make_Vec3(const aiVector3D& v) {
   return Vec3(v.x, v.y, v.z);
 }
 
-
 // Convert from aiMatrix4x4 to CEL::Mat4
-inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim)
-{
+inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim) {
   // NOTE: aiMatrix4x4 {a1, a2, a3 ... } is row-major,
   // So transposed here to fit column-major Mat4
-  return Mat4(
-    aim.a1, aim.b1, aim.c1, aim.d1,
-    aim.a2, aim.b2, aim.c2, aim.d2,
-    aim.a3, aim.b3, aim.c3, aim.d3,
-    aim.a4, aim.b4, aim.c4, aim.d4
-  );
+  return Mat4(aim.a1, aim.b1, aim.c1, aim.d1, aim.a2, aim.b2, aim.c2, aim.d2, aim.a3, aim.b3,
+    aim.c3, aim.d3, aim.a4, aim.b4, aim.c4, aim.d4);
 }
 
 // Convert all aiMaterial to Mesh::Material
-Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater)
-{
+Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   Mesh::Material ret;
 
   // Material name
@@ -315,9 +272,9 @@ Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater)
   mater.Get(AI_MATKEY_SHADING_MODEL, shading_model);
 
   // Key-Value pairs
-  aiColor3D dif(0.f,0.f,0.f);
-  aiColor3D amb(0.f,0.f,0.f);
-  aiColor3D spec(0.f,0.f,0.f);
+  aiColor3D dif(0.f, 0.f, 0.f);
+  aiColor3D amb(0.f, 0.f, 0.f);
+  aiColor3D spec(0.f, 0.f, 0.f);
   float shine = 0.0;
 
   mater.Get(AI_MATKEY_COLOR_AMBIENT, amb);
@@ -334,9 +291,8 @@ Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater)
 }
 
 // Convert a aiMesh to Mesh and return a shared pointer
-MeshPtr AssimpLoaderImpl::make_mesh(const aiMesh& mesh, const Mat4 trans,
-  const vector<Mesh::Material>& mat_list)
-{
+MeshPtr AssimpLoaderImpl::make_mesh(
+  const aiMesh& mesh, const Mat4 trans, const vector<Mesh::Material>& mat_list) {
   // Some little check
   if (mesh.GetNumColorChannels() > 1)
     console << "AssetLoader Warning: mesh has multiple color channels" << endl;
@@ -349,8 +305,7 @@ MeshPtr AssimpLoaderImpl::make_mesh(const aiMesh& mesh, const Mat4 trans,
   // Convert all vertex (with coordinates, normals, and colors)
   vector<Mesh::Vertex> va;
   Mat3 trans_normal = trans.adj3();
-  for (int i = 0; i < mesh.mNumVertices; ++i)
-  {
+  for (int i = 0; i < mesh.mNumVertices; ++i) {
     // Coordinates & Normal (store in world-space)
     const aiVector3D& v = mesh.mVertices[i];
     const aiVector3D& n = mesh.mNormals[i]; // NOTE: pertain scaling !
@@ -361,26 +316,22 @@ MeshPtr AssimpLoaderImpl::make_mesh(const aiMesh& mesh, const Mat4 trans,
     // NOTE: the mesh may containt multiple color set
     const int color_set = 0;
     Color color;
-    if (mesh.HasVertexColors(color_set))
-    {
+    if (mesh.HasVertexColors(color_set)) {
       const aiColor4D& c = mesh.mColors[color_set][i];
       color = Color(c.r, c.g, c.b, c.a);
-    }
-    else
-    {
-      color = Color{ 0.5f, 0.5f, 0.5f, 1.0f };
+    } else {
+      color = Color {0.5f, 0.5f, 0.5f, 1.0f};
     }
 
     // Push to vertex array
-    va.push_back( Mesh::Vertex(coord, normal, color) );
+    va.push_back(Mesh::Vertex(coord, normal, color));
 
   } // end for all vertex
 
   // Encode all triangle (face) as vertex index
   using Triangle = typename Mesh::Triangle;
   vector<Mesh::Triangle> ta;
-  for (int i = 0; i < mesh.mNumFaces; ++i)
-  {
+  for (int i = 0; i < mesh.mNumFaces; ++i) {
     const aiFace& face = mesh.mFaces[i];
     assert(face.mNumIndices == 3);
     Triangle it {face.mIndices[0], face.mIndices[1], face.mIndices[2]};
@@ -394,36 +345,29 @@ MeshPtr AssimpLoaderImpl::make_mesh(const aiMesh& mesh, const Mat4 trans,
 
 } // end make_mesh
 
-
 // AssetLoader /////////////////////////////////////////////////////////////
 // Member functions are all just wappers!
 ////
 
 // Default constructor; make a AssimpLoaderImpl
-AssetLoader::AssetLoader()
-{
+AssetLoader::AssetLoader() {
   this->impl = make_shared<AssimpLoaderImpl>();
 }
 
-
 // Load all models from the file
-vector<MeshPtr> AssetLoader::load_meshes(const std::string filename)
-{
+vector<MeshPtr> AssetLoader::load_meshes(const std::string filename) {
   impl->load_file(filename);
   return impl->load_meshes();
 }
 
 // Load the while 3D file as (scene, camera, lights)
-tuple< ScenePtr, CameraPtr, std::vector<LightPtr> >
-AssetLoader::load_world(const std::string filename)
-{
+tuple<ScenePtr, CameraPtr, std::vector<LightPtr> > AssetLoader::load_world(
+  const std::string filename) {
   impl->load_file(filename);
   ScenePtr sp = impl->load_scene();
   CameraPtr cp = impl->load_camera();
 
   return make_tuple(sp, cp, std::vector<LightPtr>());
 }
-
-
 
 } // namespace CEL

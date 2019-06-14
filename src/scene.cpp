@@ -1,9 +1,9 @@
 // source of scene.h
 #include "scene.h"
 
+#include <memory>
 #include <sstream>
 #include <vector>
-#include <memory>
 
 #include "algebra.h"
 #include "model.h"
@@ -15,11 +15,9 @@ namespace CEL {
 // Static scene ///////////////////////////////////////////////////////////////
 ////
 
-string StaticScene::summary() const
-{
+string StaticScene::summary() const {
   ostringstream oss;
-  oss << "Scene name: " << name
-      << ", with " << models.size() << " models" << endl;
+  oss << "Scene name: " << name << ", with " << models.size() << " models" << endl;
   for (const auto& mi : models) {
     oss << "  " << *(mi.pmodel);
     oss << "  with trans: " << mi.transform << endl;
@@ -27,7 +25,5 @@ string StaticScene::summary() const
 
   return oss.str();
 }
-
-
 
 } // namespace CEL

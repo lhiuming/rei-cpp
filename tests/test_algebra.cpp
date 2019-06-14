@@ -1,9 +1,9 @@
 // Test the math model
 
-#include <iostream>
-#include <string>
 #include <algebra.h>
 #include <console.h>
+#include <iostream>
+#include <string>
 
 using namespace std;
 using namespace CEL;
@@ -12,9 +12,7 @@ void seg(const string s) {
   console << "--- " << s << " ---" << endl;
 }
 
-int main()
-{
-
+int main() {
   // Test Vec3 //
   seg(" >>> Vec3 <<< ");
 
@@ -58,10 +56,14 @@ int main()
 
   seg("construction");
   Vec4 x(0, 1, 0, -1);
-  Vec4 y(1, 0, 0,  1);
-  Vec4 z(0, 0, 5,  0);
-  Vec4 h(0, 0, 0,  1);
-  Mat4 A; A[0] = x; A[1] = y; A[2] = z; A[3] = h;
+  Vec4 y(1, 0, 0, 1);
+  Vec4 z(0, 0, 5, 0);
+  Vec4 h(0, 0, 0, 1);
+  Mat4 A;
+  A[0] = x;
+  A[1] = y;
+  A[2] = z;
+  A[3] = h;
   console << "x = " << x << endl;
   console << "A = " << A << endl;
 
@@ -72,8 +74,8 @@ int main()
   console << "Mat4::I() = " << Mat4::I() << endl;
 
   seg("transform");
-  console << "A x = " << A*x << endl;
-  console << "x A = " << x*A << endl;
+  console << "A x = " << A * x << endl;
+  console << "x A = " << x * A << endl;
 
   seg("composition");
   console << "A * I = " << A * Mat4::I() << endl;

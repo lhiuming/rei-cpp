@@ -12,9 +12,7 @@
 namespace CEL {
 
 class Light {
-
   // Dump
-
 };
 
 } // namespace CEL

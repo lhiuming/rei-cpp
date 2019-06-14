@@ -1,109 +1,106 @@
-# All unit test for the Cel project
+#All unit test for the Cel project
 
-#---------------------------------------
-# Test the GL deps and related libraries
-#---------------------------------------
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+#Test the GL deps and related libraries
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
 
-IF (BUILD_OPENGL)
+IF(BUILD_OPENGL)
 
-# GL libraries
+#GL libraries
 set(GL_LIBS glew glfw ${OPENGL_gl_LIBRARY})
 
-# we can use for each to compile a bunch of similar test programs
+#we can use for each to compile a bunch of similar test programs
 set(GL_lib_test play_with_glfw hello_rectangle hello_texture)
 foreach(program ${GL_lib_test})
   add_executable(${program} ${program}.cpp)
   target_link_libraries(${program} ${GL_LIBS})
 endforeach(program)
 
-# Test pixels
+#Test pixels
 #add_executable(test_pixels test_pixels.cpp)
 #target_link_libraries(test_pixels pixels)
 
 ENDIF()
 
-
-#-----------------------
-# Test the D3D libraries
-#-----------------------
+#-- -- -- -- -- -- -- -- -- -- -- -
+#Test the D3D libraries
+#-- -- -- -- -- -- -- -- -- -- -- -
 
 IF(BUILD_DIRECTX)
 
 add_executable(test_d3d11 WIN32 test_d3d11.cpp)
 target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
 
-# copy the shader file
+#copy the shader file
 file(COPY ${CMAKE_CURRENT_ROOT_DIR}test_effects.hlsl
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 
-# copy the .dll for all tests
+#copy the.dll for all tests
 file(COPY ${PROJECT_BINARY_DIR}/lib/d3dcompiler_47.dll
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")
 
-# also copy the Core shaders for testing
+#also copy the Core shaders for testing
 file(COPY ${PROJECT_SOURCE_DIR}/src/direct3d/shader.hlsl
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}/direct3d")
 
 ENDIF()
 
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+#Test some utility libraries
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -
 
-#-----------------------------
-# Test some utility libraries
-#-----------------------------
-
-# assimp
+#assimp
 add_executable(try_assimp try_assimp.cpp)
 target_link_libraries(try_assimp assimp ${core_library})
 
-
-#----------------------
-# Test the CEL modules
-#----------------------
+#-- -- -- -- -- -- -- -- -- -- --
+#Test the CEL modules
+#-- -- -- -- -- -- -- -- -- -- --
 
 #[[
 include_directories(${CELENGINE_SOURCE_DIR}/src)
 
-# Test algebra
+#Test algebra
 add_executable(test_algebra test_algebra.cpp)
 target_link_libraries(test_algebra algebra console)
 
-# Test color
+#Test color
 add_executable(test_color test_color.cpp)
 target_link_libraries(test_color color console)
 
-# Test model
+#Test model
 add_executable(test_model test_model.cpp)
 target_link_libraries(test_model model console)
 
-# Test camera
+#Test camera
 add_executable(test_camera test_camera.cpp)
 target_link_libraries(test_camera camera console)
 
-# Test asset_loader
+#Test asset_loader
 add_executable(test_asset_loader test_asset_loader.cpp)
 target_link_libraries(test_asset_loader
 asset_loader scene camera model console)
 
-# Test viewer
+#Test viewer
 add_executable(test_viewer test_viewer.cpp)
 target_link_libraries(test_viewer viewer camera scene renderer console)
 ]]
 
-#-----------------------------
-# Sample Projects 
-# Serves to test modules integration
-#-----------------------------
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+#Sample Projects
+#Serves to test modules integration
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -
 
-# Three triangle test (for color and z-buffer)
+#Three triangle test(for color and z - buffer)
 add_executable(three_triangle three_triangle.cpp)
 target_link_libraries(three_triangle ${core_library})
 set_property(TARGET three_triangle PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# Draw Cube test (model loading overall)
+#Draw Cube test(model loading overall)
 add_executable(draw_model draw_model.cpp)
 target_link_libraries(draw_model ${core_library})
 set_property(TARGET draw_model PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# Draw world test (almost everything)
+#Draw world test(almost everything)
 add_executable(draw_world draw_world.cpp)
 target_link_libraries(draw_world ${core_library})

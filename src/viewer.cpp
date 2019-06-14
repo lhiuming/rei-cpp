@@ -1,8 +1,8 @@
 // Source of viewer.h
 #include "viewer.h"
 
-#include <string>
 #include <memory>
+#include <string>
 
 #ifdef OPENGL_ENABLED
 #include "opengl/gl_viewer.h"
@@ -16,14 +16,13 @@ using namespace std;
 namespace CEL {
 
 // A cross-platform viewer factory
-shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, string title)
-{
-  #ifdef OPENGL_ENABLED
+shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, string title) {
+#ifdef OPENGL_ENABLED
   return make_shared<GLViewer>(window_w, window_h, title);
-  #endif
-  #ifdef DIRECT3D_ENABLED
+#endif
+#ifdef DIRECT3D_ENABLED
   return make_shared<D3DViewer>(window_w, window_h, title);
-  #endif
+#endif
 }
 
 } // namespace CEL

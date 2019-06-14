@@ -3,7 +3,7 @@
 
 #if OPENGL_ENABLED
 
-#include <cstdlib>  // for size_t
+#include <cstdlib>    // for size_t
 #include <functional> // for std::function
 
 #include <GL/glew.h>    // must include before glfw
@@ -39,15 +39,13 @@ int gl_init();
  *   height: height of the window
  *   title: the title of the window
  */
-WindowID gl_open_window(std::size_t width, std::size_t height,
-  const char* title);
+WindowID gl_open_window(std::size_t width, std::size_t height, const char* title);
 
 /*
  * gl_get_buffer_size -- Retrive the most up-to-datebuffer size for the given
  * window. Useful for preparing a pixel buffer.
  */
-void gl_get_buffer_size(WindowID window,
-  std::size_t &width, std::size_t &height);
+void gl_get_buffer_size(WindowID window, std::size_t& width, std::size_t& height);
 
 /*
  * gl_draw -- Render the pixel buffer on the OpenGL windows and display it.
@@ -59,8 +57,7 @@ void gl_get_buffer_size(WindowID window,
  * For example, you should map (x, y) to the buffer index doing like:
  *     pixels[y * width + x] = a_pixel_color_data
  */
-void gl_draw(WindowID window, char unsigned *pixels,
-  std::size_t buffer_w, std::size_t buffer_h);
+void gl_draw(WindowID window, char unsigned* pixels, std::size_t buffer_w, std::size_t buffer_h);
 
 /*
  * Some constants for writing callback function.
@@ -68,21 +65,21 @@ void gl_draw(WindowID window, char unsigned *pixels,
 enum Button : int {
   MOUSE_LEFT = GLFW_MOUSE_BUTTON_LEFT,
   MOUSE_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE,
-  MOUSE_RIGHT = GLFW_MOUSE_BUTTON_RIGHT };
-enum Action : int {
-  PRESS = GLFW_PRESS,
-  RELEASE = GLFW_RELEASE };
+  MOUSE_RIGHT = GLFW_MOUSE_BUTTON_RIGHT
+};
+enum Action : int { PRESS = GLFW_PRESS, RELEASE = GLFW_RELEASE };
 enum ModKey : int {
   ALT = GLFW_MOD_ALT,
   CTL = GLFW_MOD_CONTROL,
   SHIFT = GLFW_MOD_SHIFT,
-  SUPER = GLFW_MOD_SUPER };
+  SUPER = GLFW_MOD_SUPER
+};
 
 /*
  * gl_set_buffer_resize_callback -- Set the callback function when the
  * framebuffer is resized by the user or system.
  */
-using BufferFunc = std::function<void (int w, int h)>;
+using BufferFunc = std::function<void(int w, int h)>;
 void gl_set_buffer_callback(WindowID window, BufferFunc func);
 
 /*
@@ -95,7 +92,7 @@ void gl_set_key_callback(WindowID window);
 /*
  * gl_set_scroll_callback -- Similar to above. Unique for a window.
  */
-using ScrollFunc = std::function<void (double dx, double dy)>;
+using ScrollFunc = std::function<void(double dx, double dy)>;
 void gl_set_scroll_callback(WindowID window, ScrollFunc func);
 
 /*
@@ -108,13 +105,13 @@ void gl_set_mouse_pos_callback();
  * Use Botton, Action and ModKey value in the callable object.
  * TODO: test me
  */
-using MouseFunc = std::function<void (int button, int action, int modkey)>;
+using MouseFunc = std::function<void(int button, int action, int modkey)>;
 void gl_set_mouse_callback(WindowID window, MouseFunc func);
 
 /*
  * gl_set_cursor_callback -- Similar to above. Unique for a window.
  */
-using CursorFunc = std::function<void (double i, double j)>;
+using CursorFunc = std::function<void(double i, double j)>;
 void gl_set_cursor_callback(WindowID window, CursorFunc);
 
 /*

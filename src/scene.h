@@ -37,7 +37,6 @@ struct ModelInstance {
 // Base Scene
 class Scene {
 public:
-
   // Name for convinient
   std::string name;
 
@@ -56,18 +55,12 @@ public:
   // Debug info
   virtual std::string summary() const { return "Base Scene"; }
 
-  friend std::ostream& operator<<(std::ostream& os, const Scene& s) {
-    return os << s.summary();
-  }
-
+  friend std::ostream& operator<<(std::ostream& os, const Scene& s) { return os << s.summary(); }
 };
-
 
 // Static Scene
 class StaticScene : public Scene {
-
 public:
-
   // Default constructor; an empty scene
   StaticScene(std::string n = "Un-named StaticScene") : Scene(n) {}
 
@@ -75,25 +68,17 @@ public:
   ~StaticScene() override = default;
 
   // Add elements
-  void add_model(ModelInstance&& mi) {
-    models.emplace_back(std::move(mi));
-  }
-  void add_model(const ModelPtr& mp, const Mat4& trans) {
-    models.push_back({mp, trans});
-  }
+  void add_model(ModelInstance&& mi) { models.emplace_back(std::move(mi)); }
+  void add_model(const ModelPtr& mp, const Mat4& trans) { models.push_back({mp, trans}); }
 
   // Get models
-  const ModelContainer& get_models() const override {
-    return models;
-  }
+  const ModelContainer& get_models() const override { return models; }
 
   // Debug info
   std::string summary() const override;
 
 private:
-
   std::vector<ModelInstance> models;
-
 };
 
 } // namespace CEL

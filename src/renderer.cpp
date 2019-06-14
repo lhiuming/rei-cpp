@@ -16,20 +16,16 @@ using namespace std;
 namespace CEL {
 
 // Default constructor
-Renderer::Renderer()
-{
-
-}
+Renderer::Renderer() {}
 
 // A cross-platform renderer factory
-shared_ptr<Renderer> makeRenderer()
-{
-  #ifdef OPENGL_ENABLED
+shared_ptr<Renderer> makeRenderer() {
+#ifdef OPENGL_ENABLED
   return make_shared<GLRenderer>();
-  #endif
-  #ifdef DIRECT3D_ENABLED
+#endif
+#ifdef DIRECT3D_ENABLED
   return make_shared<D3DRenderer>();
-  #endif
+#endif
 }
 
 } // namespace CEL

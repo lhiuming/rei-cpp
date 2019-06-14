@@ -6,20 +6,18 @@
 
 #include <iostream>
 
-#include <model.h>
 #include <asset_loader.h>
-#include <scene.h>
 #include <camera.h>
-#include <renderer.h>
-#include <viewer.h>
 #include <console.h>
-
+#include <model.h>
+#include <renderer.h>
+#include <scene.h>
+#include <viewer.h>
 
 using namespace std;
 using namespace CEL;
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
   // Read the .dae model
   string fn;
   if (argc > 1) {
@@ -35,8 +33,7 @@ int main(int argc, char** argv)
 
   // Check the model
   const auto& vertices = meshes[0]->get_vertices();
-  for(const auto& t : meshes[0]->get_triangles())
-  {
+  for (const auto& t : meshes[0]->get_triangles()) {
     const Mesh::Vertex& a = vertices[t.a];
     const Mesh::Vertex& b = vertices[t.b];
     const Mesh::Vertex& c = vertices[t.c];
@@ -56,7 +53,7 @@ int main(int argc, char** argv)
   const int height = 480;
 
   // Set up the camera
-  auto c = make_shared<Camera>(Vec3{0, 0.4, 10}, Vec3{0, 0, -1});
+  auto c = make_shared<Camera>(Vec3 {0, 0.4, 10}, Vec3 {0, 0, -1});
   c->set_aspect((float)width / height);
   console << "Camera set up." << endl;
 
@@ -64,8 +61,7 @@ int main(int argc, char** argv)
   auto r = makeRenderer();
 
   // Set up the Viewer and Renderer
-  auto v = makeViewer(width, height,
-    "Three Triangle (testing color and z-buffer)");
+  auto v = makeViewer(width, height, "Three Triangle (testing color and z-buffer)");
   v->set_camera(c);
   v->set_scene(s);
   v->set_renderer(r);

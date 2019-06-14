@@ -12,7 +12,6 @@ namespace CEL {
 
 class Color {
 public:
-
   // Color components. All ranges in [0, 1].
   float r;
   float g;
@@ -27,7 +26,6 @@ public:
 
   // Scalar Multiplication. Useful for interpolation
   Color operator*(float c) { return Color(r * c, g * c, b * c, a * c); }
-
 };
 
 // Print out the color
