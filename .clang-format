@@ -1,0 +1,24 @@
+BasedOnStyle: Google
+
+IndentWidth: 2
+ContinuationIndentWidth: 2
+UseTab: Never
+ColumnLimit: 100
+
+#BreakBeforeBraces: Attach
+
+AccessModifierOffset: -2
+DerivePointerAlignment: false
+PointerAlignment: Left
+SpacesBeforeTrailingComments: 1
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: true
+BreakBeforeBinaryOperators: All
+
+#IndentPPDirectives: BeforeHash # not support until 9
+AlignAfterOpenBracket: DontAlign
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false 
+AllowShortFunctionsOnASingleLine: Inline 
+#AllowAllArgumentsOnNextLine: true # not support until 9
