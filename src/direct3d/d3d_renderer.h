@@ -1,5 +1,5 @@
-#ifndef CEL_DIRECT3D_D3D_RENDERER_H
-#define CEL_DIRECT3D_D3D_RENDERER_H
+#ifndef REI_DIRECT3D_D3D_RENDERER_H
+#define REI_DIRECT3D_D3D_RENDERER_H
 
 #include <cstddef>
 
@@ -18,7 +18,7 @@
  * Implement a Direct3D11-based renderer.
  */
 
-namespace CEL {
+namespace rei {
 
 class D3DRenderer : public Renderer {
   // Vertex Structure and Input Data Layout
@@ -61,10 +61,10 @@ class D3DRenderer : public Renderer {
 
     cbPerObject() {}
     void update(const Mat4& wvp, const Mat4& world = Mat4::I()) {
-      WVP = CEL_to_D3D(wvp);
-      World = CEL_to_D3D(world);
+      WVP = REI_to_D3D(wvp);
+      World = REI_to_D3D(world);
     }
-    static DirectX::XMMATRIX CEL_to_D3D(const Mat4& A) {
+    static DirectX::XMMATRIX REI_to_D3D(const Mat4& A) {
       return DirectX::XMMatrixSet( // must transpose
         A(0, 0), A(1, 0), A(2, 0), A(3, 0), A(0, 1), A(1, 1), A(2, 1), A(3, 1), A(0, 2), A(1, 2),
         A(2, 2), A(3, 2), A(0, 3), A(1, 3), A(2, 3), A(3, 3));
@@ -162,6 +162,6 @@ private:
   double cube_rot = 0.0;
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

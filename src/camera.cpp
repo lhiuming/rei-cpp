@@ -9,7 +9,7 @@ using namespace std;
 
 const double PI = 3.141592653589793238463; // copied from web :P
 
-namespace CEL {
+namespace rei {
 
 // Default constructor
 Camera::Camera() {
@@ -141,4 +141,4 @@ std::ostream& operator<<(std::ostream& os, const Camera& cam) {
   return os;
 }
 
-} // namespace CEL
+} // namespace REI

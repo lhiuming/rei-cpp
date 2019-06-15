@@ -15,7 +15,7 @@
 #include <viewer.h>
 
 using namespace std;
-using namespace CEL;
+using namespace rei;
 
 int main(int argc, char** argv) {
   // Read the .dae model

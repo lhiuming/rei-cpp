@@ -1,5 +1,5 @@
-#ifndef CEL_COLOR_H
-#define CEL_COLOR_H
+#ifndef REI_COLOR_H
+#define REI_COLOR_H
 
 #include <ostream>
 
@@ -8,7 +8,7 @@
  * Define how color is stored and computed.
  */
 
-namespace CEL {
+namespace rei {
 
 class Color {
 public:
@@ -31,6 +31,6 @@ public:
 // Print out the color
 std::ostream& operator<<(std::ostream& os, const Color& col);
 
-} // namespace CEL
+} // namespace REI
 
 #endif

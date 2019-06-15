@@ -13,7 +13,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // A cross-platform viewer factory
 shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, string title) {
@@ -25,4 +25,4 @@ shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, string title) {
 #endif
 }
 
-} // namespace CEL
+} // namespace REI

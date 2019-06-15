@@ -1,5 +1,5 @@
-#ifndef CEL_VIEWER_H
-#define CEL_VIEWER_H
+#ifndef REI_VIEWER_H
+#define REI_VIEWER_H
 
 #include <cstddef>
 #include <string>
@@ -17,7 +17,7 @@
  * Implementation is platform-specific. (see opengl/viewer.h and d3d/viewer.h)
  */
 
-namespace CEL {
+namespace rei {
 
 class Viewer {
 public:
@@ -47,6 +47,6 @@ protected:
 // A cross-platform viewer factory
 std::shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, std::string title);
 
-} // namespace CEL
+} // namespace REI
 
 #endif

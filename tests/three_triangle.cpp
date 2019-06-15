@@ -14,7 +14,7 @@
 #include <viewer.h>
 
 using namespace std;
-using namespace CEL;
+using namespace rei;
 
 int main() {
   using Vertex = typename Mesh::Vertex;

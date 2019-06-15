@@ -1,8 +1,8 @@
 // Source of console.h
 #include "console.h"
 
-namespace CEL {
+namespace rei {
 
 Logger console;
 
-} // namespace CEL
+} // namespace REI

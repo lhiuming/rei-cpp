@@ -1,5 +1,5 @@
-#ifndef CEL_LIGHT_H
-#define CEL_LIGHT_H
+#ifndef REI_LIGHT_H
+#define REI_LIGHT_H
 
 /*
  * light.h
@@ -9,12 +9,12 @@
  * TODO: add point light.
  */
 
-namespace CEL {
+namespace rei {
 
 class Light {
   // Dump
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

@@ -12,7 +12,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace REI {
 
 /////////////////////////////////////////////////////////////////////////////
 // Private stuffs
@@ -61,10 +61,10 @@ struct Canvas {
   GLuint program; // a unique shader program object id
   GLuint texture; // a unique texture object id
 
-  CEL::BufferFunc buffer_call; // a unique buffer size callback
-  CEL::ScrollFunc scroll_call; // a unique scroll callback
-  CEL::MouseFunc mouse_call;   // a unique mouse button callback
-  CEL::CursorFunc cursor_call; // a unique cursor position callback
+  REI::BufferFunc buffer_call; // a unique buffer size callback
+  REI::ScrollFunc scroll_call; // a unique scroll callback
+  REI::MouseFunc mouse_call;   // a unique mouse button callback
+  REI::CursorFunc cursor_call; // a unique cursor position callback
 
   // constructor
   Canvas() {}
@@ -423,6 +423,6 @@ void gl_terminate() {
   glfwTerminate();
 }
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED

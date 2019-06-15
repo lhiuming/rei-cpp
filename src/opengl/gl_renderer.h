@@ -1,5 +1,5 @@
-#ifndef CEL_OPENGL_GL_RENDERER_H
-#define CEL_OPENGL_GL_RENDERER_H
+#ifndef REI_OPENGL_GL_RENDERER_H
+#define REI_OPENGL_GL_RENDERER_H
 
 #if OPENGL_ENABLED
 
@@ -18,11 +18,11 @@
  * opengl/renderer.h
  * Implement a OpenGL-based renderer.
  *
- * TODO: implement fantastic CEL shading
+ * TODO: implement fantastic REI shading
  * TODO: design some internal model format for rendering (for more fancy fx)
  */
 
-namespace CEL {
+namespace REI {
 
 class GLRenderer : public Renderer {
   // a VertexElement class to pass data in VS
@@ -122,7 +122,7 @@ private:
   void render_meshes();
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED
 

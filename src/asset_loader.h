@@ -1,5 +1,5 @@
-#ifndef CEL_ASSET_LOADER_H
-#define CEL_ASSET_LOADER_H
+#ifndef REI_ASSET_LOADER_H
+#define REI_ASSET_LOADER_H
 
 #include <memory>
 #include <string>
@@ -21,7 +21,7 @@
  * dependency.
  */
 
-namespace CEL {
+namespace rei {
 
 using MeshPtr = std::shared_ptr<Mesh>;
 using ScenePtr = std::shared_ptr<Scene>;
@@ -47,6 +47,6 @@ private:
   std::shared_ptr<AssimpLoaderImpl> impl;
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

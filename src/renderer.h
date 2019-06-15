@@ -1,5 +1,5 @@
-#ifndef CEL_RENDERER_H
-#define CEL_RENDERER_H
+#ifndef REI_RENDERER_H
+#define REI_RENDERER_H
 
 #include <cstddef>
 
@@ -13,7 +13,7 @@
  * (see opengl/renderer.h and d3d/renderer.h)
  */
 
-namespace CEL {
+namespace rei {
 
 // Renderer ///////////////////////////////////////////////////////////////////
 // The base class
@@ -48,6 +48,6 @@ protected:
 // A cross-platform renderer factory
 std::shared_ptr<Renderer> makeRenderer();
 
-} // namespace CEL
+} // namespace REI
 
 #endif

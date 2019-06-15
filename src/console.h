@@ -1,5 +1,5 @@
-#ifndef CEL_CONSOLE_H
-#define CEL_CONSOLE_H
+#ifndef REI_CONSOLE_H
+#define REI_CONSOLE_H
 
 #include <iostream>
 
@@ -12,7 +12,7 @@
  * Define a logging function to print debug information to the console.
  */
 
-namespace CEL {
+namespace rei {
 
 // Stream buffer that write to Visual Studio Debut Output
 class DebugStreambuf : public std::streambuf {
@@ -48,6 +48,6 @@ private:
 // A gobal Logger
 extern Logger console;
 
-} // namespace CEL
+} // namespace REI
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef CEL_ALGEBRA_H
-#define CEL_ALGEBRA_H
+#ifndef REI_ALGEBRA_H
+#define REI_ALGEBRA_H
 
 #include <cmath>
 #include <ostream>
@@ -11,7 +11,7 @@
  * TODO: support move
  */
 
-namespace CEL {
+namespace rei {
 
 // Vec3 //////////////////////////////////////////////////////////////////////
 // A general 3D vector class
@@ -320,6 +320,6 @@ inline Vec4 operator*(const Vec4& x, const Mat4& A) {
   return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
 }
 
-} // namespace CEL
+} // namespace REI
 
 #endif

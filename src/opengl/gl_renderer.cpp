@@ -69,7 +69,7 @@ static const char* default_fragment_shader_text = // fragment shader source
   "  //fcolor.rgb = normalize(normal);\n" // debug
   "}\n";
 
-namespace CEL {
+namespace REI {
 
 // Default constructor
 GLRenderer::GLRenderer() : Renderer() {
@@ -301,6 +301,6 @@ void GLRenderer::render_meshes() {
   }
 }
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED

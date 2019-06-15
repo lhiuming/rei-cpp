@@ -1,5 +1,5 @@
-#ifndef CEL_OPENGL_GL_VIEWER_H
-#define CEL_OPENGL_GL_VIEWER_H
+#ifndef REI_OPENGL_GL_VIEWER_H
+#define REI_OPENGL_GL_VIEWER_H
 
 #if OPENGL_ENABLED
 
@@ -26,11 +26,11 @@
  * infomation to render the window.
  *
  * TODO: add a key-response mapping input for construction viewer.
- * TODO: let CEL to have a HUD instance, to render on-screen text
+ * TODO: let REI to have a HUD instance, to render on-screen text
  * TODO: make this thread-safe, since you support multiple window !
  */
 
-namespace CEL {
+namespace REI {
 
 class GLViewer : public Viewer {
 public:
@@ -76,7 +76,7 @@ private:
   static void glfw_mouse_callback(GLFWwindow*, int, int, int);
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED
 

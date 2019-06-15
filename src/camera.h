@@ -1,5 +1,5 @@
-#ifndef CEL_CAMERA_H
-#define CEL_CAMERA_H
+#ifndef REI_CAMERA_H
+#define REI_CAMERA_H
 
 #include "algebra.h"
 
@@ -15,7 +15,7 @@
  * TODO: support tiltering ?
  */
 
-namespace CEL {
+namespace rei {
 
 class Camera {
 public:
@@ -77,6 +77,6 @@ private:
   }
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

@@ -7,7 +7,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Mesh ////
 
@@ -42,4 +42,4 @@ string Mesh::summary() const {
   return oss.str();
 }
 
-} // namespace CEL
+} // namespace REI

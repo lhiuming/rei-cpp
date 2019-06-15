@@ -5,7 +5,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Vec3 ///////////////////////////////////////////////////////////////////////
 ////
@@ -209,4 +209,4 @@ std::ostream& operator<<(std::ostream& os, const Mat4& m) {
   return os;
 }
 
-} // namespace CEL
+} // namespace REI

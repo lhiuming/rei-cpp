@@ -1,5 +1,5 @@
-#ifndef CEL_DIRECT3D_D3D_VIEWER_H
-#define CEL_DIRECT3D_D3D_VIEWER_H
+#ifndef REI_DIRECT3D_D3D_VIEWER_H
+#define REI_DIRECT3D_D3D_VIEWER_H
 
 #include <cstddef>
 
@@ -21,7 +21,7 @@
  * infomation to render the window.
  */
 
-namespace CEL {
+namespace rei {
 
 class D3DViewer : public Viewer {
 public:
@@ -42,7 +42,7 @@ private:
   std::string title = "No Title";
 
   // Windows interface object
-  LPCTSTR WndClassName = "CEL_Viewer_Window";
+  LPCTSTR WndClassName = "REI_Viewer_Window";
   HWND hwnd;
 
   // D3D interface object
@@ -63,6 +63,6 @@ private:
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

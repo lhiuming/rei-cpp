@@ -1,7 +1,7 @@
 // source of color.h
 #include "color.h"
 
-namespace CEL {
+namespace rei {
 
 // Print
 std::ostream& operator<<(std::ostream& os, const Color& col) {
@@ -9,4 +9,4 @@ std::ostream& operator<<(std::ostream& os, const Color& col) {
   return os;
 }
 
-} // namespace CEL
+} // namespace REI

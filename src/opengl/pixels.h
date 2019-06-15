@@ -1,5 +1,5 @@
-#ifndef CEL_PIXELS_H
-#define CEL_PIXELS_H
+#ifndef REI_PIXELS_H
+#define REI_PIXELS_H
 
 #if OPENGL_ENABLED
 
@@ -19,7 +19,7 @@
  * TODO: make this thread-safe
  */
 
-namespace CEL {
+namespace REI {
 
 /*
  * Use WindowID to identify different drawable window. This interface supports
@@ -158,8 +158,8 @@ int gl_close_window(WindowID window);
  */
 void gl_terminate();
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED
 
-#endif // CEL_PIXELS_H
+#endif // REI_PIXELS_H

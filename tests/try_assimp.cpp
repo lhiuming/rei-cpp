@@ -8,7 +8,7 @@
 #include <assimp/Importer.hpp>  // C++ importer interface
 
 using namespace std;
-using namespace CEL;
+using namespace rei;
 
 void print_scene(const aiScene& as);
 void print_material(const aiMaterial& mater, string pre, int idx);

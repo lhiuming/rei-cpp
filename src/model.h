@@ -1,5 +1,5 @@
-#ifndef CEL_MODEL_H
-#define CEL_MODEL_H
+#ifndef REI_MODEL_H
+#define REI_MODEL_H
 
 #include <memory>
 #include <ostream>
@@ -19,7 +19,7 @@
  * TODO: Support cube and sphere
  */
 
-namespace CEL {
+namespace rei {
 
 // Model classes //////////////////////////////////////////////////////////////
 
@@ -68,7 +68,7 @@ public:
 
   // Simple Material class
   struct Material {
-    std::string name = "CEL_Default";
+    std::string name = "REI_Default";
     Color diffuse = {0.2, 0.2, 0.2, 1.0};
     Color ambient = {0.2, 0.2, 0.2, 1.0};
     Color specular = {0.2, 0.2, 0.2, 1.0};
@@ -126,6 +126,6 @@ class Aggregate : public Model {
   // Dump classs
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

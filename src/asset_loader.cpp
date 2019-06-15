@@ -9,7 +9,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // AssimpLoaderImpl //////////////////////////////////////////////////////////
 // Private Class to this modules. Effectively separates the assimp header
@@ -107,7 +107,7 @@ vector<MeshPtr> AssimpLoaderImpl::load_meshes() {
   return ret;
 }
 
-// Load as CEL::Scene ( StaticScene )
+// Load as REI::Scene ( StaticScene )
 ScenePtr AssimpLoaderImpl::load_scene() {
   const aiNode& root_node = *(as->mRootNode);
   auto ret = make_shared<StaticScene>(root_node.mName.C_Str());
@@ -186,7 +186,7 @@ tuple<const aiNode*, Mat4> AssimpLoaderImpl::find_node(
   return make_tuple(nullptr, Mat4::I());
 }
 
-// Convert from asMesh to a CEL::Mesh, and add to `models` [out]
+// Convert from asMesh to a REI::Mesh, and add to `models` [out]
 int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans) {
   int mesh_count = 0;
 
@@ -245,12 +245,12 @@ ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_t
 
 // Utilities ////
 
-// Convert from aiVector3D to CEL::Vec3
+// Convert from aiVector3D to REI::Vec3
 inline Vec3 AssimpLoaderImpl::make_Vec3(const aiVector3D& v) {
   return Vec3(v.x, v.y, v.z);
 }
 
-// Convert from aiMatrix4x4 to CEL::Mat4
+// Convert from aiMatrix4x4 to REI::Mat4
 inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim) {
   // NOTE: aiMatrix4x4 {a1, a2, a3 ... } is row-major,
   // So transposed here to fit column-major Mat4
@@ -370,4 +370,4 @@ tuple<ScenePtr, CameraPtr, std::vector<LightPtr> > AssetLoader::load_world(
   return make_tuple(sp, cp, std::vector<LightPtr>());
 }
 
-} // namespace CEL
+} // namespace REI

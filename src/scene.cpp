@@ -10,7 +10,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Static scene ///////////////////////////////////////////////////////////////
 ////
@@ -26,4 +26,4 @@ string StaticScene::summary() const {
   return oss.str();
 }
 
-} // namespace CEL
+} // namespace REI

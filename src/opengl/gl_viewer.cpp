@@ -11,7 +11,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace REI {
 
 // Static variables
 std::map<GLFWwindow*, GLViewer::CallbackMemo> GLViewer::memo_table {};
@@ -220,6 +220,6 @@ void GLViewer::glfw_init_auto() {
   return;
 }
 
-} // namespace CEL
+} // namespace REI
 
 #endif // OPENGL_ENABLED

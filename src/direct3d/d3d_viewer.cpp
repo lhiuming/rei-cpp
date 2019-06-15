@@ -8,7 +8,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Constructor
 D3DViewer::D3DViewer(size_t window_w, size_t window_h, string title)
@@ -244,4 +244,4 @@ LRESULT CALLBACK D3DViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
   return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-} // namespace CEL
+} // namespace REI

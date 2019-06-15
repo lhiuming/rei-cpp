@@ -1,5 +1,5 @@
-#ifndef CEL_SCENE_H
-#define CEL_SCENE_H
+#ifndef REI_SCENE_H
+#define REI_SCENE_H
 
 #include <memory>
 
@@ -15,7 +15,7 @@
  * TODO: add audio
  */
 
-namespace CEL {
+namespace rei {
 
 // Instance ///////////////////////////////////////////////////////////////////
 ////
@@ -81,6 +81,6 @@ private:
   std::vector<ModelInstance> models;
 };
 
-} // namespace CEL
+} // namespace REI
 
 #endif

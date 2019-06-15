@@ -5,7 +5,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Default Constructor
 D3DRenderer::D3DRenderer() {
@@ -405,4 +405,4 @@ void D3DRenderer::render_meshes() {
   }
 }
 
-} // namespace CEL
+} // namespace REI

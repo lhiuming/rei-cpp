@@ -13,7 +13,7 @@
 
 using namespace std;
 
-namespace CEL {
+namespace rei {
 
 // Default constructor
 Renderer::Renderer() {}
@@ -28,4 +28,4 @@ shared_ptr<Renderer> makeRenderer() {
 #endif
 }
 
-} // namespace CEL
+} // namespace REI
