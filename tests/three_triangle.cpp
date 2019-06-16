@@ -11,7 +11,9 @@
 #include <model.h>
 #include <renderer.h>
 #include <scene.h>
-#include <viewer.h>
+
+#include <app_utils/app.h>
+#include <debug.h>
 
 using namespace std;
 using namespace rei;
@@ -44,18 +46,14 @@ int main() {
   c->set_aspect(720.0 / 480.0);
   console << "Camera set up." << endl;
 
-  // Set up the Viewer and Renderer
   const int width = 720, height = 480;
-  auto viewer = makeViewer(width, height, "Three Triangles");
-  auto r = makeRenderer(); // FIXME: have to make viewer first for pixels.h implementation
-  console << "Renderer created." << endl;
-  viewer->set_camera(c);
-  viewer->set_scene(s);
-  viewer->set_renderer(r);
-  console << "Viewer and Renderer set up." << endl;
+  auto app = App(L"Three Triangles!", true, width, height);
+  log("App created.");
 
-  // run
-  viewer->run();
+  app.setup(s, c);
+
+  app.run();
+  log("App run.");
 
   console << "Viewer stopped. Program ends." << endl;
 
