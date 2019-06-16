@@ -82,10 +82,11 @@ source_group(TREE "${PROJECT_SOURCE_DIR}/src" FILES ${core_header})
 # Build the library
 # NOTE: headers are added to source list for IDE file grouping
 # NOTE: only support static linking
-# TODO: set up dedicated public include dir for core_library
 set(core_library "rei")
 add_library(${core_library} STATIC ${core_source} ${core_header})
-target_include_directories(${core_library} PUBLIC ${PROJECT_SOURCE_DIR}/src)
+# TODO: set up dedicated public include dir for core_library
+target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src/app_utils)
 
 # Link Graphic api libraries
 set(graphic_api_libs "")

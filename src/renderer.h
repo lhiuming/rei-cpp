@@ -2,7 +2,13 @@
 #define REI_RENDERER_H
 
 #include <cstddef>
+#include <memory>
 
+#if WIN32
+#include <windows.h>
+#endif
+
+#include "common.h"
 #include "camera.h"
 #include "model.h"
 #include "scene.h"
@@ -15,39 +21,49 @@
 
 namespace rei {
 
+struct SystemWindowID {
+  enum Platform {
+    Win,
+    Offscreen,
+  } platform;
+  union {
+    HWND hwnd;
+  } value;
+};
+
+struct Viewport {};
+using ViewportHandle = std::shared_ptr<Viewport>;
+
 // Renderer ///////////////////////////////////////////////////////////////////
 // The base class
 ////
 
 class Renderer {
 public:
-  // Type Alias
-  using BufferSize = std::size_t;
-
-  // Default constructor
   Renderer();
-
-  // Destructor
   virtual ~Renderer() {};
 
-  // Change content
-  virtual void set_scene(std::shared_ptr<const Scene> scene) { this->scene = scene; }
-  virtual void set_camera(std::shared_ptr<const Camera> camera) { this->camera = camera; }
+  virtual ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) = 0;
+  virtual void update_viewport_size(ViewportHandle viewport, int width, int height) = 0;
+  virtual void update_viewport_transform(ViewportHandle viewport, const Camera& camera) = 0;
 
-  // Basic interface
-  virtual void set_buffer_size(BufferSize width, BufferSize height) = 0;
-  virtual void render() = 0;
+  virtual void set_scene(std::shared_ptr<const Scene> scene) { this->scene = scene; }
+  
+  [[deprecated]]
+  virtual void set_camera(std::shared_ptr<const Camera> camera) { DEPRECATE }
+
+  [[deprecated]] virtual void render() {}
+
+  virtual void render(ViewportHandle viewport) = 0;
 
 protected:
-  BufferSize width, height;
-
   std::shared_ptr<const Scene> scene;
-  std::shared_ptr<const Camera> camera;
 };
 
 // A cross-platform renderer factory
+[[deprecated]]
 std::shared_ptr<Renderer> makeRenderer();
 
-} // namespace REI
+}
 
 #endif

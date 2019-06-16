@@ -14,6 +14,8 @@
 
 namespace rei {
 
+using std::endl;
+
 // Stream buffer that write to Visual Studio Debut Output
 class DebugStreambuf : public std::streambuf {
 public:
@@ -37,9 +39,6 @@ class Logger : public std::ostream {
 
 public:
   Logger() : Base(&dbgstream) {}
-
-  // Formatted print
-  void printf();
 
 private:
   DebugStreambuf dbgstream; // platform-adpted output stream buffer
