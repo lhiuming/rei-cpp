@@ -128,7 +128,7 @@ void D3DRenderer::render(const ViewportHandle viewport_handle) {
 }
 
 // Render the default scene
-void D3DRenderer::render_default_scene(D3DViewportData& viewport) {
+void D3DRenderer::render_default_scene(D3DRenderer::D3DViewportData& viewport) {
   auto& dev_res = *device_resources;
   auto& d3d11DevCon = dev_res.d3d11DevCon;
 
