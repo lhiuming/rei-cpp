@@ -7,16 +7,20 @@
 #include <memory>
 
 #include <windows.h>
+#include <wrl.h>
 #include <d3d12.h>
-#include <DirectXMath.h> // d3d's math lib fits good with HLSL
-#include <d3d11.h> // remove this
+#include <DirectXMath.h> // TODO deprecate this
 #include <d3dcompiler.h>
+
+#include <d3d11.h> // remove this
 
 #include "../algebra.h"
 #include "../model.h"
 #include "../scene.h"
 
 namespace rei {
+
+using Microsoft::WRL::ComPtr;
 
 class D3DDeviceResources {
 
@@ -119,9 +123,15 @@ protected:
   [[deprecated]]
   void initialize_default_scene();
 
-
 private:
   HINSTANCE hinstance;
+
+  ComPtr<ID3D12Device> device;
+
+  ComPtr<ID3D12CommandQueue> command_queue;
+  ComPtr<ID3D12CommandAllocator> command_alloc;
+  ComPtr<ID3D12GraphicsCommandList> command_list;
+ 
   // D3D interface object
   ID3D11Device* d3d11Device;                // the device abstraction
   ID3D11DeviceContext* d3d11DevCon;         // the device context

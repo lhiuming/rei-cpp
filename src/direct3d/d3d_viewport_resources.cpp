@@ -8,8 +8,9 @@ using std::runtime_error;
 
 namespace rei {
 
-D3DViewportResources::D3DViewportResources(ID3D11Device* device, HWND hwnd, int width, int height)
-    : d3d11Device(device), hwnd(hwnd), width(width), height(height) {
+D3DViewportResources::D3DViewportResources(
+  ComPtr<ID3D12Device> device, HWND hwnd, int init_width, int init_heigh)
+    : device(device), hwnd(hwnd), width(width), height(height), double_buffering(true) {
   create_size_dependent_resources();
 }
 
@@ -24,49 +25,40 @@ D3DViewportResources::~D3DViewportResources() {
 void D3DViewportResources::create_size_dependent_resources() {
   HRESULT hr;
 
-  IDXGIDevice2* pDXGIDevice;
-  hr = d3d11Device->QueryInterface(__uuidof(IDXGIDevice2), (void**)&pDXGIDevice);
-  ASSERT(SUCCEEDED(hr));
-  IDXGIAdapter* pDXGIAdapter;
-  hr = pDXGIDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&pDXGIAdapter);
-  ASSERT(SUCCEEDED(hr));
-  IDXGIFactory2* pIDXGIFactory;
-  hr = pDXGIAdapter->GetParent(__uuidof(IDXGIFactory2), (void**)&pIDXGIFactory);
-  ASSERT(SUCCEEDED(hr));
+  // Create swapchain, using the new api recommded by MS
 
-  pDXGIDevice->Release();
-  pDXGIAdapter->Release();
-  
-  DXGI_SWAP_CHAIN_FULLSCREEN_DESC swap_chain_fs_desc; // use it if you need full screen 
-  ZeroMemory(&swap_chain_fs_desc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
-  swap_chain_fs_desc.RefreshRate.Numerator = 60;
-  swap_chain_fs_desc.RefreshRate.Denominator = 1;
-  swap_chain_fs_desc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-  swap_chain_fs_desc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-  DXGI_SWAP_CHAIN_DESC1 swapChainDesc; // swap-chain property
-  ZeroMemory(&swapChainDesc, sizeof(DXGI_SWAP_CHAIN_DESC1));
-  swapChainDesc.Width = width;
-  swapChainDesc.Height = height;
-  swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-  swapChainDesc.Stereo = FALSE;
-  swapChainDesc.SampleDesc.Count = 1; // multi-sampling parameters; should match with effetive buffer size
-  swapChainDesc.SampleDesc.Quality = 0;
-  swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  swapChainDesc.BufferCount = 1; // 1 for double buffer; 2 for triple, and so on
-  swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
-  swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-  swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-  hr = pIDXGIFactory->CreateSwapChainForHwnd(d3d11Device,
-    hwnd,
-    &swapChainDesc,
-    NULL, //&swap_chain_fs_desc,
+  ComPtr<IDXGIDevice2> dxgi_device;
+  ComPtr<IDXGIAdapter> dxgi_adapter;
+  ComPtr<IDXGIFactory2> dxgi_factory;
+  ASSERT(SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dxgi_device))));
+  ASSERT(SUCCEEDED(dxgi_device->GetParent(IID_PPV_ARGS(&dxgi_adapter))));
+  ASSERT(SUCCEEDED(dxgi_factory->GetParent(IID_PPV_ARGS(&dxgi_device))));
+
+  DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc; // use it if you need fullscreen
+  fullscreen_desc.RefreshRate.Numerator = 60;
+  fullscreen_desc.RefreshRate.Denominator = 1;
+  fullscreen_desc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+  fullscreen_desc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+  DXGI_SWAP_CHAIN_DESC1 chain_desc;
+  chain_desc.Width = width;
+  chain_desc.Height = height;
+  chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  chain_desc.Stereo = FALSE;
+  chain_desc.SampleDesc.Count = 1; // multi-sampling parameters;
+  chain_desc.SampleDesc.Quality = 0;
+  chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+  chain_desc.BufferCount = double_buffering ? 2 : 1; // total frame buffer count
+  chain_desc.Scaling = DXGI_SCALING_STRETCH;
+  chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // TODO DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
+  chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+  hr = dxgi_factory->CreateSwapChainForHwnd(device.Get(), hwnd, &chain_desc,
+    NULL, // windowed app
     NULL, // optional
-    &(this->SwapChain)   // receive the returned swap-chain pointer
-  );
-  if (FAILED(hr)) { throw runtime_error("Device creation FAILED"); }
+    &swapchain);
+  ASSERT(SUCCEEDED(hr));
 
-  pIDXGIFactory->Release();
-
+  return;
+ 
   // Render Target Interface (bound to the OutputMerge stage)
   ID3D11Texture2D* BackBuffer; // tmp pointer to the backbuffer in swap-chain
   hr = this->SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer);

@@ -1,37 +1,50 @@
 #if DIRECT3D_ENABLED
-
-#include "../console.h"
-#include "d3d_renderer.h"
-
 #include "d3d_device_resources.h"
 
+#ifdef NDEBUG
+// TODO enable d3d12 compiler debug layer
+#endif
 
+#include <d3d12.h>
 #include <d3dx12.h>
+#include <windows.h>
 
-using std::vector;
-using std::shared_ptr;
+#include "../debug.h"
+#include "d3d_renderer.h"
+
 using std::runtime_error;
+using std::shared_ptr;
+using std::vector;
 
 namespace rei {
 
 D3DDeviceResources::D3DDeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
-  HRESULT hr;
-  UINT creationFlags = 0;
-  #ifndef NDEBUG
-  creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
-  #endif
-  hr = D3D11CreateDevice(nullptr, // default vieo card
-    D3D_DRIVER_TYPE_HARDWARE,     // driver type to create
-    NULL,                 // handle to software rasterizer DLL; used when above is *_SOFTWARE
-    creationFlags,        // enbling debug layers (see MSDN)
-    NULL,                 // optional; pointer to array of feature levels
-    NULL,                 // optional; number of candidate feature levels (in array above)
-    D3D11_SDK_VERSION,    // fixed for d3d11
-    &(this->d3d11Device), // receive the returned d3d device pointer
-    NULL,                 // receive the returned featured level that actually used
-    &(this->d3d11DevCon)  // receive the return d3d device context pointer
-  );
-  if (FAILED(hr)) throw runtime_error("Device creation FAILED");
+#ifndef NDEBUG || defined(DEBUG)
+  {
+    // d3d12 debug layer
+    ComPtr<ID3D12Debug> debug_controller;
+    ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
+    debug_controller->EnableDebugLayer();
+  }
+#endif
+
+  // Device
+  ASSERT(SUCCEEDED(D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device))));
+
+  // Command list and stuffs
+  UINT node_mask = 0; // Single GPU
+  D3D12_COMMAND_LIST_TYPE list_type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+  D3D12_COMMAND_QUEUE_DESC queue_desc {};
+  queue_desc.Type = list_type;
+  queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+  queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  queue_desc.NodeMask = node_mask;
+  ASSERT(SUCCEEDED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue))));
+  ASSERT(SUCCEEDED(device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&command_alloc))));
+  ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
+  ASSERT(SUCCEEDED(device->CreateCommandList(
+    node_mask, list_type, command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&command_list))));
+  command_list->Close();
 }
 
 // Destructor
@@ -40,7 +53,7 @@ D3DDeviceResources::~D3DDeviceResources() {
   d3d11Device->Release();
   d3d11DevCon->Release();
 
- // Shader objects
+  // Shader objects
   VS->Release();
   PS->Release();
   VS_Buffer->Release();
@@ -67,7 +80,6 @@ D3DDeviceResources::~D3DDeviceResources() {
     console << "A MeshBuffer is destructed." << endl;
   }
   if (mesh_buffers.empty()) console << "No MeshBuffer to be destructed" << endl;
-
 }
 
 // INIT: compile the default shaders
@@ -127,14 +139,8 @@ void D3DDeviceResources::create_render_states() {
   // Optional: line Render
 }
 
-
-
-
-
-
 // Set and initialize internal scenes
 void D3DDeviceResources::set_scene(shared_ptr<const Scene> scene) {
-
   HRESULT hr; // for error reporting
 
   // Initialize some scene-rendering objects //
@@ -176,11 +182,6 @@ void D3DDeviceResources::set_scene(shared_ptr<const Scene> scene) {
     add_mesh_buffer(modelIns);
   }
 }
-
-
-
-
-
 
 void D3DDeviceResources::initialize_default_scene() {
   // Create the vertex & index buffer for a cetralized cube //
@@ -261,9 +262,6 @@ void D3DDeviceResources::initialize_default_scene() {
   if (FAILED(hr)) throw runtime_error("Cube Const Buffer creation FAILED");
 }
 
-
-
-
 // Helper to set_scene
 void D3DDeviceResources::add_mesh_buffer(const ModelInstance& modelIns) {
   const Mat4& model_stran = modelIns.transform;
@@ -327,7 +325,6 @@ void D3DDeviceResources::add_mesh_buffer(const ModelInstance& modelIns) {
   if (FAILED(hr)) throw runtime_error("Cube Const Buffer creation FAILED");
 }
 
-
-}
+} // namespace rei
 
 #endif

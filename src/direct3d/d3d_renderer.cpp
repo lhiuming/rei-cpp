@@ -4,6 +4,9 @@
 
 #include <d3d11.h> // remove this
 
+#include <d3d12.h>
+#include <d3dx12.h>
+
 #include "../common.h"
 
 #include "d3d_device_resources.h"
@@ -24,7 +27,6 @@ D3DRenderer::D3DRenderer(HINSTANCE hinstance) : hinstance(hinstance) {
 }
 
 D3DRenderer::~D3DRenderer() {
-  device_resources.release();
   console << "D3DRenderer is destructed." << std::endl;
 }
 
@@ -42,7 +44,7 @@ ViewportHandle D3DRenderer::create_viewport(SystemWindowID window_id, int width,
   d3d_vp->MaxDepth = 1.0f;
 
   auto vp_res
-    = std::make_shared<D3DViewportResources>(device_resources->d3d11Device, hwnd, width, height);
+    = std::make_shared<D3DViewportResources>(device_resources->device, hwnd, width, height);
 
   auto vp = std::make_shared<D3DViewportData>(this);
   vp->d3d_viewport = d3d_vp;

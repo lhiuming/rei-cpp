@@ -12,7 +12,7 @@ namespace rei {
 class D3DViewportResources {
 public:
   D3DViewportResources() = delete;
-  D3DViewportResources(ID3D11Device* device, HWND hwnd, int init_width, int init_heigh);
+  D3DViewportResources(ComPtr<ID3D12Device> device, HWND hwnd, int init_width, int init_heigh);
   ~D3DViewportResources();
 
   void update_size(int width, int height);
@@ -24,7 +24,12 @@ private:
   int width;
   int height;
 
+  bool double_buffering;
+
   HWND hwnd;
+  ComPtr<ID3D12Device> device;
+  ComPtr<IDXGISwapChain1> swapchain;
+
   ID3D11Device* d3d11Device;                // the device abstraction
   ID3D11DeviceContext* d3d11DevCon;         // the device context
 

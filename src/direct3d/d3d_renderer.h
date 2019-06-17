@@ -11,8 +11,6 @@
 #include "../renderer.h"
 #include "../scene.h"
 
-#include <d3d11.h>
-
 /*
  * direct3d/d3d_renderer.h
  * Implement a Direct3D11-based renderer.
