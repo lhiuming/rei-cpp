@@ -2,9 +2,12 @@
 
 #include "win_app.h"
 
+#include <sstream>
+#include <iomanip>
+
 namespace rei {
 
-WinApp::WinApp(std::wstring title, bool show_fps_in_title, int width, int height) {
+WinApp::WinApp(Config config) : config(config) {
   // NOTE: Handle normally get from WinMain;
   // we dont do that here, because we want to create app with standard main()
   hinstance = GetModuleHandle(nullptr); // handle to the current .exe
@@ -18,7 +21,7 @@ WinApp::WinApp(std::wstring title, bool show_fps_in_title, int width, int height
   camera = new Camera();
 
   // view the scene
-  auto win_viewer = new WinViewer(hinstance, width, height, title);
+  auto win_viewer = new WinViewer(hinstance, config.width, config.height, config.title);
   viewer = win_viewer;
   viewer->init_viewport(*renderer);
 }
@@ -35,10 +38,24 @@ void WinApp::on_update() {
   // scene->update();
   camera->move(0.01, 0.0, 0.0);
   camera->set_target(Vec3(0.0, 0.0, 0.0));
+
+  // update title
+  if (config.show_fps_in_title) {
+    using millisecs = std::chrono::duration<float, std::milli>;
+    float ms = millisecs(last_frame_time).count();
+    float fps = 1000.f / ms;
+    std::wstringstream str {};
+    str << config.title << " -- frame info: " 
+      << std::setw(16) << ms << "ms, " 
+      << std::setw(16) << fps << "fps";
+    viewer->update_title(str.str());
+  }
 }
 
 void WinApp::on_render() {
+  clock_last_check = clock.now();
   renderer->render(viewer->get_viewport());
+  last_frame_time = clock.now() - clock_last_check;
 }
 
 void WinApp::run() {
@@ -59,6 +76,6 @@ void WinApp::run() {
   } // end while
 }
 
-}
+} // namespace rei
 
 #endif

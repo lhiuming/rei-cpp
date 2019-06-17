@@ -2,6 +2,7 @@
 #define REI_WIN_APP_H
 
 #include <string>
+#include <chrono>
 
 #include <windows.h>
 
@@ -13,9 +14,17 @@
 namespace rei {
 
 class WinApp {
+public:
+  struct Config {
+    std::wstring title = L"Unmaed App";
+    int height = 720;
+    int width = 480;
+    bool show_fps_in_title = true;
+    bool enable_vsync = false;
+  };
 
 public:
-  WinApp(std::wstring title, bool show_fps_in_title, int width, int height);
+  WinApp(Config config);
   ~WinApp() = default;
 
   void setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera);
@@ -27,13 +36,19 @@ protected:
   virtual void on_render();
 
 private:
+  Config config;
 
-  HINSTANCE hinstance;
+  HINSTANCE hinstance = NULL;
 
-  Viewer* viewer;
-  Renderer* renderer;
-  Scene* scene;
-  Camera* camera; // default camera
+  Viewer* viewer = nullptr;
+  Renderer* renderer = nullptr;
+  Scene* scene = nullptr;
+  Camera* camera = nullptr;
+
+  using clock_t = std::chrono::high_resolution_clock;
+  clock_t clock;
+  clock_t::time_point clock_last_check;
+  clock_t::duration last_frame_time;
 };
 
 }

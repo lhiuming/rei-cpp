@@ -46,8 +46,11 @@ int main() {
   c->set_aspect(720.0 / 480.0);
   console << "Camera set up." << endl;
 
-  const int width = 720, height = 480;
-  auto app = App(L"Three Triangles!", true, width, height);
+  App::Config conf;
+  conf.title = L"Three Triangles!";
+  conf.width = 720;
+  conf.height = 480;
+  auto app = App(conf);
   log("App created.");
 
   app.setup(s, c);

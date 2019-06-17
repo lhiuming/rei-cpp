@@ -31,19 +31,29 @@ struct SystemWindowID {
   } value;
 };
 
-struct Viewport {};
-using ViewportHandle = std::shared_ptr<Viewport>;
 
 // Renderer ///////////////////////////////////////////////////////////////////
 // The base class
 ////
 
-class Renderer {
+class Renderer : private NoCopy {
+protected:
+  struct ViewportData {
+    ViewportData(Renderer* owner) : owner(owner) {}
+    bool enable_vsync = false;
+    Mat4 view_proj = Mat4::I();
+    const Renderer const* owner; // as a marker
+  };
+
+public:
+  using ViewportHandle = std::shared_ptr<ViewportData>;
+
 public:
   Renderer();
   virtual ~Renderer() {};
 
   virtual ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) = 0;
+  virtual void update_viewport_vsync(ViewportHandle viewport, bool enabled_vsync) = 0;
   virtual void update_viewport_size(ViewportHandle viewport, int width, int height) = 0;
   virtual void update_viewport_transform(ViewportHandle viewport, const Camera& camera) = 0;
 

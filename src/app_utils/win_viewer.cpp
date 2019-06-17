@@ -68,7 +68,6 @@ void WinViewer::initialize_window(HINSTANCE hInstance, int ShowWnd, int width, i
   UpdateWindow(this->hwnd);        // paint the client area
 }
 
-
 // Windows message callback handler
 LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
   // Choose a reaction for keyboard or mouse events
@@ -86,6 +85,11 @@ LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 
   // Default case: use windows' default procudure
   return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+void WinViewer::update_title(const std::wstring& new_title) {
+  HRESULT hr = SetWindowTextW(hwnd, new_title.c_str());
+  ASSERT(SUCCEEDED(hr));
 }
 
 }

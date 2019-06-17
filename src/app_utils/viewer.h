@@ -23,13 +23,17 @@ namespace rei {
 
 class Viewer {
 public:
+  using ViewportHandle = Renderer::ViewportHandle;
+
+public:
   Viewer(std::size_t window_w, std::size_t window_h, std::wstring title) 
     : width(window_w), height(window_h), title(title) {}
   virtual ~Viewer() {};
 
-  virtual void init_viewport(Renderer& renderer) {};
-
+  virtual void init_viewport(Renderer& renderer) = 0;
   ViewportHandle get_viewport() const { return viewport; }
+
+  virtual void update_title(const std::wstring& title) = 0;
 
   [[deprecated]]
   void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATE }

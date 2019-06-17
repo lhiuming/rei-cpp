@@ -37,6 +37,8 @@ public:
     UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), width, height);
   }
 
+  void update_title(const std::wstring& title) override;
+
 private:
   struct WindowID : SystemWindowID {
     WindowID(HWND hwnd) : SystemWindowID {Win, hwnd} {}

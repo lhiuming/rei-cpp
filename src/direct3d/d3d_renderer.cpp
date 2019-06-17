@@ -14,6 +14,8 @@ using std::weak_ptr;
 
 namespace rei {
 
+using ViewportHandle = Renderer::ViewportHandle;
+
 // Default Constructor
 D3DRenderer::D3DRenderer(HINSTANCE hinstance) : hinstance(hinstance) {
   device_resources = std::make_unique<D3DDeviceResources>(hinstance);
@@ -42,22 +44,28 @@ ViewportHandle D3DRenderer::create_viewport(SystemWindowID window_id, int width,
   auto vp_res
     = std::make_shared<D3DViewportResources>(device_resources->d3d11Device, hwnd, width, height);
 
-  viewports.push_back(d3d_vp);
-  viewport_resources.push_back(vp_res);
-  auto vp = std::make_shared<D3DViewport>();
+  auto vp = std::make_shared<D3DViewportData>(this);
   vp->d3d_viewport = d3d_vp;
   vp->viewport_resources = vp_res;
+
+  viewports.push_back(d3d_vp);
+  viewport_resources.push_back(vp_res);
   return vp;
+}
+
+void D3DRenderer::update_viewport_vsync(ViewportHandle viewport_handle, bool enabled_vsync) {
+  auto viewport = get_viewport(viewport_handle);
+  ASSERT(viewport);
+  viewport->enable_vsync = enabled_vsync;
 }
 
 void D3DRenderer::update_viewport_size(ViewportHandle viewport, int width, int height) {
   error("Method is not implemented");
 }
 
-void D3DRenderer::update_viewport_transform(ViewportHandle viewport_handle, const Camera& camera) {
-  // validate the viewport
-  shared_ptr<D3DViewport> viewport = std::static_pointer_cast<D3DViewport>(viewport_handle);
-
+void D3DRenderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
+  shared_ptr<D3DViewportData> viewport = get_viewport(h_viewport);
+  ASSERT(viewport);
   viewport->view_proj = camera.get_w2n();
 }
 
@@ -72,11 +80,11 @@ void D3DRenderer::render(const ViewportHandle viewport_handle) {
   auto cbPerFrameBuffer = dev_res.cbPerFrameBuffer;
   auto g_light = dev_res.g_light;
 
-  shared_ptr<D3DViewport> p_viewport = std::static_pointer_cast<D3DViewport>(viewport_handle);
+  shared_ptr<D3DViewportData> p_viewport = get_viewport(viewport_handle);
   ASSERT(p_viewport);
   ASSERT(!p_viewport->viewport_resources.expired());
   ASSERT(!p_viewport->d3d_viewport.expired());
-  D3DViewport& viewport = *p_viewport;
+  D3DViewportData& viewport = *p_viewport;
   auto& vp_res = *(viewport.viewport_resources.lock());
   auto& d3d_vp = viewport.d3d_viewport.lock();
   auto depthStencilView = vp_res.depthStencilView;
@@ -112,11 +120,15 @@ void D3DRenderer::render(const ViewportHandle viewport_handle) {
   if (scene != nullptr) { render_meshes(viewport); }
 
   // present
-  vp_res.SwapChain->Present(1, 0);
+  if (p_viewport->enable_vsync) {
+    vp_res.SwapChain->Present(1, 0);
+  } else {
+    vp_res.SwapChain->Present(0, 0);
+  }
 }
 
 // Render the default scene
-void D3DRenderer::render_default_scene(D3DViewport& viewport) {
+void D3DRenderer::render_default_scene(D3DViewportData& viewport) {
   auto& dev_res = *device_resources;
   auto& d3d11DevCon = dev_res.d3d11DevCon;
 
@@ -170,7 +182,7 @@ void D3DRenderer::render_default_scene(D3DViewport& viewport) {
 }
 
 // Render all buffered meshes
-void D3DRenderer::render_meshes(D3DViewport& viewport) {
+void D3DRenderer::render_meshes(D3DViewportData& viewport) {
   auto& dev_res = *device_resources;
   auto& d3d11DevCon = dev_res.d3d11DevCon;
   auto& mesh_buffers = dev_res.mesh_buffers;
@@ -218,6 +230,6 @@ void D3DRenderer::render_meshes(D3DViewport& viewport) {
   }
 }
 
-}
+} // namespace rei
 
 #endif
