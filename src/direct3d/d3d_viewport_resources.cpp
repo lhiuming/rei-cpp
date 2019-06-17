@@ -33,6 +33,9 @@ void D3DViewportResources::create_size_dependent_resources() {
   IDXGIFactory2* pIDXGIFactory;
   hr = pDXGIAdapter->GetParent(__uuidof(IDXGIFactory2), (void**)&pIDXGIFactory);
   ASSERT(SUCCEEDED(hr));
+
+  pDXGIDevice->Release();
+  pDXGIAdapter->Release();
   
   DXGI_SWAP_CHAIN_FULLSCREEN_DESC swap_chain_fs_desc; // use it if you need full screen 
   ZeroMemory(&swap_chain_fs_desc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
@@ -61,6 +64,8 @@ void D3DViewportResources::create_size_dependent_resources() {
     &(this->SwapChain)   // receive the returned swap-chain pointer
   );
   if (FAILED(hr)) { throw runtime_error("Device creation FAILED"); }
+
+  pIDXGIFactory->Release();
 
   // Render Target Interface (bound to the OutputMerge stage)
   ID3D11Texture2D* BackBuffer; // tmp pointer to the backbuffer in swap-chain

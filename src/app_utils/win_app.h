@@ -1,6 +1,7 @@
 #ifndef REI_WIN_APP_H
 #define REI_WIN_APP_H
 
+#include <memory>
 #include <string>
 #include <chrono>
 
@@ -25,7 +26,7 @@ public:
 
 public:
   WinApp(Config config);
-  ~WinApp() = default;
+  virtual ~WinApp();
 
   void setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera);
 
@@ -40,10 +41,10 @@ private:
 
   HINSTANCE hinstance = NULL;
 
-  Viewer* viewer = nullptr;
-  Renderer* renderer = nullptr;
-  Scene* scene = nullptr;
-  Camera* camera = nullptr;
+  std::shared_ptr<Viewer> viewer;
+  std::shared_ptr<Renderer> renderer;
+  std::shared_ptr<Scene> scene;
+  std::shared_ptr<Camera> camera;
 
   using clock_t = std::chrono::high_resolution_clock;
   clock_t clock;

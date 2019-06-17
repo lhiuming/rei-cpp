@@ -5,6 +5,8 @@
 #include <sstream>
 #include <iomanip>
 
+using std::make_shared;
+
 namespace rei {
 
 WinApp::WinApp(Config config) : config(config) {
@@ -13,23 +15,26 @@ WinApp::WinApp(Config config) : config(config) {
   hinstance = GetModuleHandle(nullptr); // handle to the current .exe
 
   // Default renderer
-  auto d3d_renderer = new D3DRenderer(hinstance);
+  auto d3d_renderer = make_shared<D3DRenderer>(hinstance);
   renderer = d3d_renderer;
 
   // Default scene
-  scene = new StaticScene();
-  camera = new Camera();
+  scene = make_shared<StaticScene>();
+  camera = make_shared<Camera>();
 
   // view the scene
-  auto win_viewer = new WinViewer(hinstance, config.width, config.height, config.title);
+  auto win_viewer = make_shared<WinViewer>(hinstance, config.width, config.height, config.title);
   viewer = win_viewer;
   viewer->init_viewport(*renderer);
 }
 
-void WinApp::setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera) {
-  scene = scene;
-  camera = camera;
+WinApp::~WinApp() {
+  log("WinApp terminated.");
+}
 
+void WinApp::setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera) {
+  this->scene = scene;
+  this->camera = camera;
   renderer->set_scene(scene);
   renderer->update_viewport_transform(viewer->get_viewport(), *camera);
 }
