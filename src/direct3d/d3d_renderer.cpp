@@ -9,28 +9,31 @@
 
 #include "../common.h"
 
+#include "d3d_common_resources.h"
 #include "d3d_device_resources.h"
 #include "d3d_viewport_resources.h"
 
 using std::shared_ptr;
 using std::weak_ptr;
+using std::make_shared;
 
 namespace rei {
 
+  namespace d3d {
+
 using ViewportHandle = Renderer::ViewportHandle;
+using ShaderID = Renderer::ShaderID;
 
 // Default Constructor
-D3DRenderer::D3DRenderer(HINSTANCE hinstance) : hinstance(hinstance) {
-  device_resources = std::make_unique<D3DDeviceResources>(hinstance);
-  device_resources->create_render_states();
-  device_resources->compile_shader();
+Renderer::Renderer(HINSTANCE hinstance) : hinstance(hinstance) {
+  device_resources = std::make_unique<DeviceResources>(hinstance);
 }
 
-D3DRenderer::~D3DRenderer() {
-  console << "D3DRenderer is destructed." << std::endl;
+Renderer::~Renderer() {
+  log("D3DRenderer is destructed.");
 }
 
-ViewportHandle D3DRenderer::create_viewport(SystemWindowID window_id, int width, int height) {
+ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, int height) {
   ASSERT(window_id.platform == SystemWindowID::Win);
 
   HWND hwnd = window_id.value.hwnd;
@@ -44,55 +47,95 @@ ViewportHandle D3DRenderer::create_viewport(SystemWindowID window_id, int width,
   d3d_vp->MaxDepth = 1.0f;
 
   auto vp_res
-    = std::make_shared<D3DViewportResources>(device_resources->device, hwnd, width, height);
+    = std::make_shared<ViewportResources>(device_resources->device, device_resources->dxgi_factory, device_resources->command_queue, hwnd, width, height);
 
   auto vp = std::make_shared<D3DViewportData>(this);
   vp->d3d_viewport = d3d_vp;
   vp->viewport_resources = vp_res;
 
-  viewports.push_back(d3d_vp);
-  viewport_resources.push_back(vp_res);
+  viewport_lib.push_back(d3d_vp);
+  viewport_resources_lib.push_back(vp_res);
   return vp;
 }
 
-void D3DRenderer::update_viewport_vsync(ViewportHandle viewport_handle, bool enabled_vsync) {
+void Renderer::update_viewport_vsync(ViewportHandle viewport_handle, bool enabled_vsync) {
   auto viewport = get_viewport(viewport_handle);
   ASSERT(viewport);
   viewport->enable_vsync = enabled_vsync;
 }
 
-void D3DRenderer::update_viewport_size(ViewportHandle viewport, int width, int height) {
+void Renderer::update_viewport_size(ViewportHandle viewport, int width, int height) {
   error("Method is not implemented");
 }
 
-void D3DRenderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
+void Renderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
   shared_ptr<D3DViewportData> viewport = get_viewport(h_viewport);
   ASSERT(viewport);
   viewport->view_proj = camera.get_w2n();
 }
 
-void D3DRenderer::set_scene(std::shared_ptr<const Scene> scene) {
-  device_resources->set_scene(scene);
+void Renderer::set_scene(std::shared_ptr<const Scene> scene) {
+  for (const auto& modelIns : scene->get_models()) {
+    NOT_IMPLEMENT();
+    // add_mesh_buffer(modelIns);
+  }
 }
 
-void D3DRenderer::render(const ViewportHandle viewport_handle) {
+Renderer::ShaderID Renderer::create_shader(std::wstring shader_path) {
+  // TODO crate root signature
+
+  auto shader = make_shared<D3DShaderData>(this);
+  auto shader_res = make_shared<ShaderResources>();
+  this->device_resources->compile_shader(shader_path, shader_res->compiled_data);
+  shader_resource_lib.push_back(shader_res);
+  shader->resources = shader_res;
+
+  // fetch PSO ?
+
+  return ShaderID(shader);
+}
+
+Renderer::GeometryID Renderer::create_geometry(const Geometry& geometry) {
+  // TODO only support mesh type
+  auto& mesh = dynamic_cast<const Mesh&>(geometry);
+  auto mesh_res = make_shared<MeshResource>();
+  device_resources->create_mesh_buffer(mesh, *mesh_res);
+
+  auto mesh_data = make_shared<MeshData>(this);
+  mesh_data->mesh_res = mesh_res;
+  return GeometryID(mesh_data);
+}
+
+void Renderer::render(const ViewportHandle viewport_handle) {
+  shared_ptr<D3DViewportData> p_viewport = get_viewport(viewport_handle);
+  ASSERT(p_viewport);
+  ASSERT(!p_viewport->viewport_resources.expired());
+  ASSERT(!p_viewport->d3d_viewport.expired());
+  render(*p_viewport);
+}
+
+void Renderer::render(D3DViewportData & viewport) {
+  ASSERT(device_resources.get());
+  ASSERT(!viewport.viewport_resources.expired());
+
   auto& dev_res = *device_resources;
+  auto& vp_res = *(viewport.viewport_resources.lock());
+
+  // device shorcuts
+  ComPtr<ID3D12GraphicsCommandList> cmd_list = dev_res.command_list;
   auto d3d11DevCon = dev_res.d3d11DevCon;
   auto data_per_frame = dev_res.data_per_frame;
   auto cbPerFrameBuffer = dev_res.cbPerFrameBuffer;
   auto g_light = dev_res.g_light;
 
-  shared_ptr<D3DViewportData> p_viewport = get_viewport(viewport_handle);
-  ASSERT(p_viewport);
-  ASSERT(!p_viewport->viewport_resources.expired());
-  ASSERT(!p_viewport->d3d_viewport.expired());
-  D3DViewportData& viewport = *p_viewport;
-  auto& vp_res = *(viewport.viewport_resources.lock());
+  // viewport shortcuts
   auto& d3d_vp = viewport.d3d_viewport.lock();
   auto depthStencilView = vp_res.depthStencilView;
   auto renderTargetView = vp_res.renderTargetView;
 
   float bgColor[4] = {0.3f, 0.6f, 0.7f, 0.5f};
+  //cmd_list->ClearRenderTargetView();
+
   device_resources->d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
 
   // Also clear the depth buffer
@@ -122,7 +165,7 @@ void D3DRenderer::render(const ViewportHandle viewport_handle) {
   if (scene != nullptr) { render_meshes(viewport); }
 
   // present
-  if (p_viewport->enable_vsync) {
+  if (viewport.enable_vsync) {
     vp_res.SwapChain->Present(1, 0);
   } else {
     vp_res.SwapChain->Present(0, 0);
@@ -130,7 +173,7 @@ void D3DRenderer::render(const ViewportHandle viewport_handle) {
 }
 
 // Render the default scene
-void D3DRenderer::render_default_scene(D3DRenderer::D3DViewportData& viewport) {
+void Renderer::render_default_scene(Renderer::D3DViewportData& viewport) {
   auto& dev_res = *device_resources;
   auto& d3d11DevCon = dev_res.d3d11DevCon;
 
@@ -146,7 +189,7 @@ void D3DRenderer::render_default_scene(D3DRenderer::D3DViewportData& viewport) {
   auto& depthStencilView = vp_res.depthStencilView;
   auto& view_proj_mat = viewport.view_proj;
 
-  using VertexElement = D3DDeviceResources::VertexElement;
+  using VertexElement = VertexElement;
 
   // Binding to the IA //
 
@@ -184,21 +227,20 @@ void D3DRenderer::render_default_scene(D3DRenderer::D3DViewportData& viewport) {
 }
 
 // Render all buffered meshes
-void D3DRenderer::render_meshes(D3DViewportData& viewport) {
+void Renderer::render_meshes(D3DViewportData& viewport) {
   auto& dev_res = *device_resources;
   auto& d3d11DevCon = dev_res.d3d11DevCon;
-  auto& mesh_buffers = dev_res.mesh_buffers;
 
   auto& FaceRender = dev_res.FaceRender;
 
   auto& view_proj_mat = viewport.view_proj;
 
-  using VertexElement = D3DDeviceResources::VertexElement;
-
   // All mesh use TRIANGLELIST mode
   d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // for each meshBuffer
+  NOT_IMPLEMENTED
+  /*
   for (auto& mb : mesh_buffers) {
     // Bind the buffers
 
@@ -230,7 +272,10 @@ void D3DRenderer::render_meshes(D3DViewportData& viewport) {
     // 5. DrawIndexed.
     d3d11DevCon->DrawIndexed(mb.indices_num(), 0, 0);
   }
+  */
 }
+
+} // namespace d3d
 
 } // namespace rei
 

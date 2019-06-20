@@ -15,7 +15,7 @@ WinApp::WinApp(Config config) : config(config) {
   hinstance = GetModuleHandle(nullptr); // handle to the current .exe
 
   // Default renderer
-  auto d3d_renderer = make_shared<D3DRenderer>(hinstance);
+  auto d3d_renderer = make_shared<d3d::Renderer>(hinstance);
   renderer = d3d_renderer;
 
   // Default scene

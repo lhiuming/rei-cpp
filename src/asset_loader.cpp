@@ -38,7 +38,7 @@ public:
 private:
   Assimp::Importer importer;
   const aiScene* as; // current loaded aiScene
-  vector<Mesh::Material> materials_list;
+  vector<Model::Material> materials_list;
 
   // Helpers Functions //
 
@@ -50,9 +50,9 @@ private:
   // Utilities
   static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
-  static Mesh::Material make_material(const aiMaterial&);
+  static Model::Material make_material(const aiMaterial&);
   static MeshPtr make_mesh(
-    const aiMesh& mesh, const Mat4 trans, const vector<Mesh::Material>& maters);
+    const aiMesh& mesh, const Mat4 trans, const vector<Model::Material>& maters);
 };
 
 // Main Interfaces //
@@ -213,6 +213,7 @@ ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_t
   Mat4 W = coordinate_trans.inv() * old_W * coordinate_trans;
 
   ModelPtr mp = nullptr;
+  MeshPtr p_mesh = nullptr;
 
   // Build Hiearchy model
   if (node.mNumChildren > 0) {
@@ -230,7 +231,8 @@ ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_t
   } else if (node.mNumMeshes == 1) // Mesh
   {
     // Make a mesh fron aiMesh
-    mp = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
+    NOT_IMPLEMENTED
+    p_mesh = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
     console << "AssetLoader: loaded node name = " << node.mName.C_Str() << ")" << endl;
   } else // Mesh aggrerate
   {
@@ -259,8 +261,8 @@ inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim) {
 }
 
 // Convert all aiMaterial to Mesh::Material
-Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
-  Mesh::Material ret;
+Model::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
+  Model::Material ret;
 
   // Material name
   aiString mater_name;
@@ -292,7 +294,7 @@ Mesh::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
 
 // Convert a aiMesh to Mesh and return a shared pointer
 MeshPtr AssimpLoaderImpl::make_mesh(
-  const aiMesh& mesh, const Mat4 trans, const vector<Mesh::Material>& mat_list) {
+  const aiMesh& mesh, const Mat4 trans, const vector<Model::Material>& mat_list) {
   // Some little check
   if (mesh.GetNumColorChannels() > 1)
     console << "AssetLoader Warning: mesh has multiple color channels" << endl;
@@ -340,7 +342,8 @@ MeshPtr AssimpLoaderImpl::make_mesh(
 
   // Set the data and material, then done
   ret->set(std::move(va), std::move(ta));
-  ret->set(mat_list[mesh.mMaterialIndex]);
+  NOT_IMPLEMENTED
+  //ret->set(mat_list[mesh.mMaterialIndex]); // fix model and mesh and material stuffs
   return ret;
 
 } // end make_mesh

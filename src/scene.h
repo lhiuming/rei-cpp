@@ -53,9 +53,9 @@ public:
   virtual const ModelContainer& get_models() const = 0;
 
   // Debug info
-  virtual std::string summary() const { return "Base Scene"; }
+  virtual std::wstring summary() const { return L"Base Scene"; }
 
-  friend std::ostream& operator<<(std::ostream& os, const Scene& s) { return os << s.summary(); }
+  friend std::wostream& operator<<(std::wostream& os, const Scene& s) { return os << s.summary(); }
 };
 
 // Static Scene
@@ -75,7 +75,7 @@ public:
   const ModelContainer& get_models() const override { return models; }
 
   // Debug info
-  std::string summary() const override;
+  std::wstring summary() const override;
 
 private:
   std::vector<ModelInstance> models;

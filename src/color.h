@@ -29,7 +29,7 @@ public:
 };
 
 // Print out the color
-std::ostream& operator<<(std::ostream& os, const Color& col);
+std::wostream& operator<<(std::wostream& os, const Color& col);
 
 } // namespace REI
 

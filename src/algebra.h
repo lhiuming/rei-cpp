@@ -86,7 +86,7 @@ double dot(const Vec3& a, const Vec3& b);
 Vec3 cross(const Vec3& a, const Vec3& b);
 
 // Print 3D vector
-std::ostream& operator<<(std::ostream& os, const Vec3& v);
+std::wostream& operator<<(std::wostream& os, const Vec3& v);
 
 // Mat3 ///////////////////////////////////////////////////////////////////////
 // 3x3 matrix. Very limited.
@@ -144,7 +144,7 @@ struct Mat3 {
 };
 
 // Print 3D matrix
-std::ostream& operator<<(std::ostream& os, const Mat3& m); // TODO
+std::wostream& operator<<(std::wostream& os, const Mat3& m); // TODO
 
 // Scalar multiplication from left
 inline Mat3 operator*(double c, const Mat3& A) {
@@ -230,7 +230,7 @@ Vec4 operator*(double c, const Vec4& x);
 double dot(const Vec4& a, const Vec4& b);
 
 // print 4D vector
-std::ostream& operator<<(std::ostream& os, const Vec4& v);
+std::wostream& operator<<(std::wostream& os, const Vec4& v);
 
 // Mat4 ///////////////////////////////////////////////////////////////////////
 // 4x4 matrix. Useful to represent affine transformation in homogenous
@@ -300,7 +300,7 @@ struct Mat4 {
 };
 
 // Print 4D matrix
-std::ostream& operator<<(std::ostream& os, const Mat4& m);
+std::wostream& operator<<(std::wostream& os, const Mat4& m);
 
 // Scalar multiplication
 inline Mat4 operator*(const Mat4& A, double c) {

@@ -49,7 +49,7 @@ public:
   bool visible(const Vec3& v) const;
 
   // Debug print
-  friend std::ostream& operator<<(std::ostream& os, const Camera& cam);
+  friend std::wostream& operator<<(std::wostream& os, const Camera& cam);
 
 private:
   // Note: position and direction are in right-haneded world space

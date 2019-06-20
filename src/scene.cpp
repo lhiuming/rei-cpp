@@ -15,8 +15,8 @@ namespace rei {
 // Static scene ///////////////////////////////////////////////////////////////
 ////
 
-string StaticScene::summary() const {
-  ostringstream oss;
+wstring StaticScene::summary() const {
+  wostringstream oss;
   oss << "Scene name: " << name << ", with " << models.size() << " models" << endl;
   for (const auto& mi : models) {
     oss << "  " << *(mi.pmodel);

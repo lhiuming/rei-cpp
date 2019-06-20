@@ -1,20 +1,33 @@
 #if DIRECT3D_ENABLED
+#include "d3d_viewport_resources.h"
 
 #include "../common.h"
-#include "d3d_viewport_resources.h"
-#include <dxgi1_2.h>
 
 using std::runtime_error;
 
 namespace rei {
 
-D3DViewportResources::D3DViewportResources(
-  ComPtr<ID3D12Device> device, HWND hwnd, int init_width, int init_heigh)
-    : device(device), hwnd(hwnd), width(width), height(height), double_buffering(true) {
+namespace d3d {
+
+ViewportResources::ViewportResources(ComPtr<ID3D12Device> device,
+  ComPtr<IDXGIFactory4> dxgi_factory,
+  ComPtr<ID3D12CommandQueue> command_queue, HWND hwnd, int init_width, int init_height)
+    : device(device),
+      command_queue(command_queue),
+      dxgi_factory(dxgi_factory),
+      hwnd(hwnd),
+      width(init_width),
+      height(init_height),
+      double_buffering(true) {
+  ASSERT(device);
+  ASSERT(dxgi_factory);
+  ASSERT(command_queue);
+  ASSERT(hwnd);
+  ASSERT((width > 0) && (height > 0));
   create_size_dependent_resources();
 }
 
-D3DViewportResources::~D3DViewportResources() {
+ViewportResources::~ViewportResources() {
   // Release D3D interfaces
   SwapChain->Release();
   renderTargetView->Release();
@@ -22,24 +35,19 @@ D3DViewportResources::~D3DViewportResources() {
   depthStencilBuffer->Release();
 }
 
-void D3DViewportResources::create_size_dependent_resources() {
+void ViewportResources::create_size_dependent_resources() {
   HRESULT hr;
 
-  // Create swapchain, using the new api recommded by MS
+  /*
+   * NOTE: In DX12, IDXGIDevice is not available anymore, so IDXGIFactory/IDXGIAdaptor has to be created/specified, rather than being found through IDXGIDevice.
+   */
 
-  ComPtr<IDXGIDevice2> dxgi_device;
-  ComPtr<IDXGIAdapter> dxgi_adapter;
-  ComPtr<IDXGIFactory2> dxgi_factory;
-  ASSERT(SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dxgi_device))));
-  ASSERT(SUCCEEDED(dxgi_device->GetParent(IID_PPV_ARGS(&dxgi_adapter))));
-  ASSERT(SUCCEEDED(dxgi_factory->GetParent(IID_PPV_ARGS(&dxgi_device))));
-
-  DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc; // use it if you need fullscreen
+  DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc = {}; // use it if you need fullscreen
   fullscreen_desc.RefreshRate.Numerator = 60;
   fullscreen_desc.RefreshRate.Denominator = 1;
   fullscreen_desc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
   fullscreen_desc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-  DXGI_SWAP_CHAIN_DESC1 chain_desc;
+  DXGI_SWAP_CHAIN_DESC1 chain_desc = {};
   chain_desc.Width = width;
   chain_desc.Height = height;
   chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -51,14 +59,15 @@ void D3DViewportResources::create_size_dependent_resources() {
   chain_desc.Scaling = DXGI_SCALING_STRETCH;
   chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // TODO DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
   chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-  hr = dxgi_factory->CreateSwapChainForHwnd(device.Get(), hwnd, &chain_desc,
+  chain_desc.Flags = 0;
+  hr = dxgi_factory->CreateSwapChainForHwnd(command_queue.Get(), hwnd, &chain_desc,
     NULL, // windowed app
     NULL, // optional
     &swapchain);
   ASSERT(SUCCEEDED(hr));
 
   return;
- 
+
   // Render Target Interface (bound to the OutputMerge stage)
   ID3D11Texture2D* BackBuffer; // tmp pointer to the backbuffer in swap-chain
   hr = this->SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer);
@@ -95,12 +104,14 @@ void D3DViewportResources::create_size_dependent_resources() {
   if (FAILED(hr)) throw runtime_error("DepthStencilView creation FAILED");
 }
 
-void D3DViewportResources::update_size(int width, int height) {
+void ViewportResources::update_size(int width, int height) {
   this->width = width;
   this->height = height;
   create_size_dependent_resources();
 }
 
-}
+} // namespace d3d
+
+} // namespace rei
 
 #endif

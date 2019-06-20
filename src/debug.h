@@ -1,42 +1,58 @@
 #ifndef REI_DEBUG_H
 #define REI_DEBUG_H
 
+#if !NDEBUG
+#include <stdexcept>
+#endif
+
 #include "console.h"
 
 namespace rei {
 
 using LogMsg = const std::string&;
-constexpr char* k_emptry_chars = "";
+constexpr char* k_empty_chars = "";
 
-static inline void log(LogMsg msg, const char* meta = k_emptry_chars) {
+static inline void log(LogMsg msg, const char* meta = k_empty_chars) {
   console << msg << meta << endl;
 }
 
-static inline void warning(LogMsg msg, const char* meta = k_emptry_chars) {
+static inline void warning(LogMsg msg, const char* meta = k_empty_chars) {
   console << "WARNING: " << msg << meta << endl;
 }
 
-static inline void error(LogMsg msg, const char* meta = k_emptry_chars) {
+static inline void error(LogMsg msg, const char* meta = k_empty_chars) {
+  #if NDEBUG
   console << "ERROR: " << msg << meta << endl;
+  #else
+  throw std::runtime_error("ERROR: " + msg);
+  #endif
 }
 
-static inline void deprecated(const char* meta = k_emptry_chars) {
+static inline void not_implemented(const char* meta = k_empty_chars) {
+  warning("Functionality is not implemented. ", meta);
+}
+
+static inline void deprecated(const char* meta = k_empty_chars) {
   error("Deprecated invocation.", meta);
 }
 
 template<class T>
-static inline void rassert(T expr, LogMsg msg, const char* meta = k_emptry_chars) {
-  if (!expr) { console << "Assertion Fail: " << msg << meta << endl; }
+static inline void rassert(T expr, LogMsg msg, const char* meta = k_empty_chars) {
+  if (!expr) {
+#if NDEBUG
+    console << "Assertion Fail: " << msg << meta << endl;
+#else
+    throw std::runtime_error("Assertion Fail " + msg);
+#endif
+  }
 }
 
 template<class T>
-static inline void uninit(T expr, LogMsg msg, const char* meta = k_emptry_chars) {
+static inline void uninit(T expr, LogMsg msg, const char* meta = k_empty_chars) {
   rassert(!(expr), msg, meta);
 }
 
 }
-
-#if REI_ASSERT || !NDEBUG
 
 #if defined __func__
 #define REI_FUNC_META __func__
@@ -55,10 +71,14 @@ static inline void uninit(T expr, LogMsg msg, const char* meta = k_emptry_chars)
 
 #define UNINIT(expr) (::rei::uninit(expr, #expr "is not empty", REI_DEBUG_META), (expr))
 
-#define DEPRECATE (::rei::deprecated(REI_DEBUG_META));
+#define NOT_IMPLEMENT() (::rei::not_implemented(REI_DEBUG_META))
+
+#define NOT_IMPLEMENTED NOT_IMPLEMENT();
+
+#define DEPRECATE() (::rei::deprecated(REI_DEBUG_META))
+
+#define DEPRECATED DEPRECATE();
 
 #define WARNING(expr) ::rei::warning(expr, REI_DEBUG_META)
-
-#endif
 
 #endif

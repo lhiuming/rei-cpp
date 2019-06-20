@@ -129,7 +129,7 @@ void Camera::update_w2n() {
 }
 
 // Debug print
-std::ostream& operator<<(std::ostream& os, const Camera& cam) {
+std::wostream& operator<<(std::wostream& os, const Camera& cam) {
   os << "Camrea:" << endl;
   os << "  position : " << cam.position << endl;
   os << "  direction: " << cam.direction << endl;

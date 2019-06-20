@@ -36,12 +36,12 @@ public:
   virtual void update_title(const std::wstring& title) = 0;
 
   [[deprecated]]
-  void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATE }
-  void set_scene(std::shared_ptr<Scene> scene) { DEPRECATE }
-  void set_camera(std::shared_ptr<Camera> cam) { DEPRECATE }
+  void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATED }
+  void set_scene(std::shared_ptr<Scene> scene) { DEPRECATED }
+  void set_camera(std::shared_ptr<Camera> cam) { DEPRECATED }
 
   [[deprecated]]
-  virtual void run() { DEPRECATE }
+  virtual void run() { DEPRECATED }
 
 protected:
   std::size_t width, height;

@@ -3,5 +3,6 @@
 
 #include "debug.h"
 #include "type_utils.h"
+#include "string_utils.h"
 
 #endif

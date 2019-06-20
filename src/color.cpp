@@ -4,7 +4,7 @@
 namespace rei {
 
 // Print
-std::ostream& operator<<(std::ostream& os, const Color& col) {
+std::wostream& operator<<(std::wostream& os, const Color& col) {
   os << "Color(" << col.r << ", " << col.g << ", " << col.b << ", " << col.a << ")";
   return os;
 }

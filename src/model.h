@@ -2,11 +2,11 @@
 #define REI_MODEL_H
 
 #include <memory>
-#include <ostream>
 #include <vector>
 
 #include "algebra.h"
 #include "color.h"
+#include "geometry.h"
 
 /*
  * model.h
@@ -27,45 +27,6 @@ namespace rei {
 // supports polymorphism only through RTTI
 class Model {
 public:
-  // Public data
-  std::string name = "Model Un-named";
-
-  // Default construct
-  Model(std::string n) : name(n) {}
-
-  // Destructor
-  virtual ~Model() = default;
-
-  // Debug info
-  virtual std::string summary() const { return "Base Model."; }
-  friend std::ostream& operator<<(std::ostream& os, const Model& m) { return os << m.summary(); }
-};
-
-// Triangular Mesh
-class Mesh : public Model {
-public:
-  // Simple Vertex class
-  struct Vertex {
-    Vec4 coord;  // Vertex position in right-hand world space
-    Vec3 normal; // Vertex normal
-    Color color; // Vertex color
-
-    Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0))
-        : coord(pos3, 1.0), normal(), color(c) {};
-    Vertex(const Vec3& pos3, const Vec3& nor, const Color& c)
-        : coord(pos3, 1.0), normal(nor), color(c) {};
-  };
-
-  // Triangle template class, details depend on implementation of mesh
-  template <typename VertexId>
-  struct TriangleImp {
-    VertexId a;
-    VertexId b;
-    VertexId c;
-
-    TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
-  };
-
   // Simple Material class
   struct Material {
     std::string name = "REI_Default";
@@ -74,51 +35,40 @@ public:
     Color specular = {0.2, 0.2, 0.2, 1.0};
     double shineness = 30;
 
-    friend std::ostream& operator<<(std::ostream& os, Material mat) {
+    friend std::wostream& operator<<(std::wostream& os, Material mat) {
       return os << "name = " << mat.name << ", diff = " << mat.diffuse
                 << ", ambi = " << mat.ambient;
     }
   };
 
-  // Type alias
-  using size_type = std::vector<Vertex>::size_type;
-  using Triangle = TriangleImp<size_type>;
+public:
+  // Public data
+  std::string name = "Model Un-named";
 
-  // Default Constructor : empty mesh
-  Mesh(std::string n = "Mesh Un-named") : Model(n) {}
+public:
+  // Default construct
+  Model(std::string n) : name(n) {}
 
-  // Copy controls
-  ~Mesh() override = default;
-  Mesh(const Mesh& rhs) = default;
-  Mesh(Mesh&& rhs) = default;
+  // Destructor
+  virtual ~Model() = default;
 
-  // Useful queries
-  bool empty() const { return triangles.empty(); }
-  bool vertices_num() const { return vertices.size(); }
-  bool triangle_num() const { return triangles.size(); }
+  void set_material(std::shared_ptr<Material> mat) { this->material = mat; }
+  std::shared_ptr<Material> get_material() { return material; }
 
-  // Set data (by vertices index array)
-  void set(std::vector<Vertex>&& va, const std::vector<size_type>& ta);
+  void set_geometry(std::shared_ptr<Geometry> geo) { this->geometry = geo; }
+  std::shared_ptr<Geometry> get_geometry() { return geometry; }
 
-  // Set data (by vertives index triplet array)
-  void set(std::vector<Vertex>&& va, std::vector<Triangle>&& ta);
-
-  // Set material
-  void set(const Material& mat) { material = mat; }
-  void set(Material&& mat) { material = std::move(mat); }
-
-  // Basic queries
-  const std::vector<Vertex>& get_vertices() const { return vertices; }
-  const std::vector<Triangle>& get_triangles() const { return triangles; }
-  const Material& get_material() const { return material; }
+  [[deprecated]] void set(const Material& mat) { DEPRECATED }
+  [[deprecated]] void set(Material&& mat) { DEPRECATED }
+  [[deprecated]] const Material& get_material() const { DEPRECATED }
 
   // Debug info
-  std::string summary() const override;
+  virtual std::wstring summary() const;
+  friend std::wostream& operator<<(std::wostream& os, const Model& m) { return os << m.summary(); }
 
-private:
-  std::vector<Vertex> vertices;
-  std::vector<Triangle> triangles;
-  Material material;
+protected:
+  std::shared_ptr<Geometry> geometry;
+  std::shared_ptr<Material> material;
 };
 
 // Model Aggregates

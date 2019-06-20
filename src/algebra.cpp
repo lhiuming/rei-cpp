@@ -26,7 +26,7 @@ Vec3 cross(const Vec3& a, const Vec3& b) {
 }
 
 // Print Vec3
-ostream& operator<<(ostream& os, const Vec3& v) {
+wostream& operator<<(wostream& os, const Vec3& v) {
   os << "Vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
   return os;
 }
@@ -43,7 +43,7 @@ double Mat3::det() const {
 }
 
 // Print Mat3
-std::ostream& operator<<(std::ostream& os, const Mat3& m) {
+std::wostream& operator<<(std::wostream& os, const Mat3& m) {
   os << "Mat3[" << endl;
   for (int i = 0; i < 2; ++i) {
     os << "(";
@@ -74,7 +74,7 @@ double dot(const Vec4& a, const Vec4& b) {
 }
 
 // Print Vec4
-ostream& operator<<(ostream& os, const Vec4& v) {
+wostream& operator<<(wostream& os, const Vec4& v) {
   os << "Vec4(" << v.x << ", " << v.y << ", " << v.z << ", " << v.h << ")";
   return os;
 }
@@ -193,7 +193,7 @@ Mat4 Mat4::adjoint() const {
 }
 
 // Print Mat4
-std::ostream& operator<<(std::ostream& os, const Mat4& m) {
+std::wostream& operator<<(std::wostream& os, const Mat4& m) {
   os << "Mat4[" << endl;
   for (int i = 0; i < 3; ++i) {
     os << "(";
