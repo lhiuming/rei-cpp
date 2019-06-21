@@ -1,16 +1,22 @@
 #ifndef REI_D3D_COMMON_RESOURCES_H
 #define REI_D3D_COMMON_RESOURCES_H
 
-#include <d3d11.h> // todo remove this
-#include <windows.h>
-#include <wrl.h>
+#if DIRECT3D_ENABLED
+
+#include <array>
+#include <memory>
+
 #include <DirectXMath.h>
+#include <d3d11.h> // todo remove this
 #include <d3d12.h>
 #include <d3dx12.h>
+#include <windows.h>
+#include <wrl.h>
 
-#include "../common.h"
 #include "../algebra.h"
 #include "../color.h"
+#include "../common.h"
+#include "../renderer.h"
 
 namespace rei {
 
@@ -18,23 +24,7 @@ namespace d3d {
 
 using Microsoft::WRL::ComPtr;
 
-struct ShaderCompileResult {
-  ComPtr<ID3DBlob> vs_bytecode;
-  ComPtr<ID3DBlob> ps_bytecode;
-  D3D12_INPUT_LAYOUT_DESC input_layout;
-};
-
-struct ShaderResources {
-  ShaderCompileResult compiled_data;
-};
-
-
-struct RenderTargetSpec {
-  DXGI_FORMAT rtv_format;
-  DXGI_FORMAT dsv_format;
-  DXGI_SAMPLE_DESC sample_desc;
-  RenderTargetSpec();
-};
+class ViewportResources;
 
 
 // TODO remove this hardcode class
@@ -54,7 +44,7 @@ struct cbPerObject {
   }
 };
 
- struct VertexElement {
+struct VertexElement {
   DirectX::XMFLOAT4 pos; // DirectXMath fits well with HLSL
   DirectX::XMFLOAT4 color;
   DirectX::XMFLOAT3 normal;
@@ -67,7 +57,7 @@ struct cbPerObject {
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 };
 
-  // Over simple Light object, to debug
+// Over simple Light object, to debug
 struct Light {
   DirectX::XMFLOAT3 dir;
   float pad; // padding to match with shader's constant buffer packing
@@ -82,7 +72,23 @@ struct cbPerFrame {
   Light light;
 };
 
-struct MeshResource {
+
+struct ShaderCompileResult {
+  ComPtr<ID3DBlob> vs_bytecode;
+  ComPtr<ID3DBlob> ps_bytecode;
+  D3D12_INPUT_LAYOUT_DESC input_layout;
+};
+
+struct RenderTargetSpec {
+  DXGI_SAMPLE_DESC sample_desc; // multi-sampling parameters
+  DXGI_FORMAT rt_format;
+  DXGI_FORMAT ds_format;
+  D3D12_DEPTH_STENCIL_VALUE ds_clear;
+  RenderTargetSpec();
+};
+
+struct MeshData : rei::GeometryData {
+  using GeometryData::GeometryData;
   ComPtr<ID3D12Resource> vert_buffer;
   ComPtr<ID3D12Resource> vert_upload_buffer;
   D3D12_VERTEX_BUFFER_VIEW vbv;
@@ -98,12 +104,33 @@ struct MeshResource {
   cbPerObject mesh_cb_data;
 };
 
+struct ViewportData : rei::ViewportData {
+  using rei::ViewportData::ViewportData;
+  Mat4 view_proj = Mat4::I();
+  std::array<FLOAT, 4> clear_color;
+  D3D12_VIEWPORT d3d_viewport;
+  D3D12_RECT scissor;
+  std::weak_ptr<ViewportResources> viewport_resources;
+};
+
+struct ShaderData : rei::ShaderData {
+  using rei::ShaderData::ShaderData;
+  ShaderCompileResult compiled_data;
+};
+
+struct ModelData : rei::ModelData {
+  // Bound aabb;
+};
+
+// Data proxy for all obejct in a scene
+struct SceneData {};
 
 // Wrap methods for an upload-type DX12 buffer
-template<typename Ele>
+template <typename Ele>
 class UploadBuffer : NoCopy {
 public:
-  UploadBuffer(ID3D12Device& device, UINT64 ele_num, bool is_const_buffer) : ele_num(ele_num), is_const_buffer(is_const_buffer) {
+  UploadBuffer(ID3D12Device& device, UINT64 ele_num, bool is_const_buffer)
+      : ele_num(ele_num), is_const_buffer(is_const_buffer) {
     // align the buffer size
     ele_bytesize = sizeof(Ele);
     if (is_const_buffer) { ele_bytesize = alightn_bytesize(ele_bytesize); }
@@ -147,5 +174,7 @@ private:
 } // namespace d3d
 
 } // namespace rei
+
+#endif
 
 #endif

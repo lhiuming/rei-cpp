@@ -26,6 +26,8 @@ WinApp::WinApp(Config config) : config(config) {
   auto win_viewer = make_shared<WinViewer>(hinstance, config.width, config.height, config.title);
   viewer = win_viewer;
   viewer->init_viewport(*renderer);
+
+  renderer->set_viewport_clear_value(viewer->get_viewport(), config.bg_color);
 }
 
 WinApp::~WinApp() {

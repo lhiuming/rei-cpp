@@ -24,13 +24,13 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   HRESULT hr;
 
   UINT dxgi_factory_flags = 0;
-#ifndef NDEBUG || defined(DEBUG)
+#if DEBUG
   {
     // d3d12 debug layer
     ComPtr<ID3D12Debug> debug_controller;
     ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
     debug_controller->EnableDebugLayer();
-  // dxgi 4 debug layer
+    // dxgi 4 debug layer
     dxgi_factory_flags = DXGI_CREATE_FACTORY_DEBUG;
   }
 #endif
@@ -40,7 +40,8 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
 
   // D3D device
   IDXGIAdapter* default_adapter = nullptr;
-  ASSERT(SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device))));
+  ASSERT(
+    SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device))));
 
   // Trace back the adapter
   LUID adapter_liud = device->GetAdapterLuid();
@@ -59,37 +60,15 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
   ASSERT(SUCCEEDED(device->CreateCommandList(
     node_mask, list_type, command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&command_list))));
+  command_list->Close(); // init state is recoding, so must be close first
+
+  // Crate frame fence
+  D3D12_FENCE_FLAGS fence_flags = D3D12_FENCE_FLAG_NONE;
+  ASSERT(SUCCEEDED(device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
+  current_frame_fence = 0;
 
   // Initialize the default cube scene, for debug
   initialize_default_scene();
-}
-
-// Destructor
-DeviceResources::~DeviceResources() {
-  // Release D3D interfaces
-  d3d11Device->Release();
-  d3d11DevCon->Release();
-
-  // Shader objects
-  VS->Release();
-  PS->Release();
-  VS_Buffer->Release();
-  PS_Buffer->Release();
-
-  // Pipeline states
-  FaceRender->Release();
-  // LineRender
-
-  // Shared Rendering objects
-  vertElementLayout->Release();
-  cbPerFrameBuffer->Release();
-
-  // Default cube stuffs
-  cubeIndexBuffer->Release();
-  cubeVertBuffer->Release();
-  cubeConstBuffer->Release();
-
-  // Mesh buffers
 }
 
 // INIT: compile the default shaders
@@ -170,7 +149,7 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
 }
 
 ComPtr<ID3D12PipelineState> DeviceResources::get_pso(
-  const ShaderResources& shader, const RenderTargetSpec& target_spec) {
+  const ShaderData& shader, const RenderTargetSpec& target_spec) {
   ComPtr<ID3DBlob> ps_bytecode = shader.compiled_data.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = shader.compiled_data.vs_bytecode;
   D3D12_INPUT_LAYOUT_DESC input_layout = shader.compiled_data.input_layout;
@@ -205,8 +184,8 @@ ComPtr<ID3D12PipelineState> DeviceResources::get_pso(
     desc.InputLayout = input_layout;
     desc.PrimitiveTopologyType = primitive_topo;
     desc.NumRenderTargets = rt_num; // used in the array below
-    desc.RTVFormats[0] = target_spec.rtv_format;
-    desc.DSVFormat = target_spec.dsv_format;
+    desc.RTVFormats[0] = target_spec.rt_format;
+    desc.DSVFormat = target_spec.ds_format;
     desc.SampleDesc = target_spec.sample_desc;
 
     ComPtr<ID3D12PipelineState> return_pso;
@@ -303,7 +282,7 @@ void DeviceResources::initialize_default_scene() {
 }
 
 // Helper to set_scene
-void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshResource& mesh_res) {
+void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   // shared routine for create a default buffer in GPU
   auto create = [&](UINT bytesize) -> ComPtr<ID3D12Resource> {
     D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
@@ -400,6 +379,28 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshResource& mesh_re
   mesh_res.ind_buffer = ind_buffer;
   mesh_res.ind_upload_buffer = ind_upload_buffer;
   mesh_res.ibv = ibv;
+}
+
+void DeviceResources::flush_command_queue_for_frame() {
+  // Advance frame fence value
+  current_frame_fence++;
+
+  // Wait to finish all submitted commands (and reach current frame fence value)
+  command_queue->Signal(frame_fence.Get(), current_frame_fence);
+  if (frame_fence->GetCompletedValue() < current_frame_fence) {
+    // TODO can we reuse the event handle
+    LPSECURITY_ATTRIBUTES default_security = nullptr;
+    LPCSTR evt_name = nullptr;
+    DWORD flags = 0; // dont signal init state; auto reset;
+    DWORD access_mask = EVENT_ALL_ACCESS;
+    HANDLE evt_handle = CreateEventEx(default_security, evt_name, flags, access_mask);
+
+    HRESULT hr = frame_fence->SetEventOnCompletion(current_frame_fence, evt_handle);
+    ASSERT(SUCCEEDED(hr));
+
+    WaitForSingleObject(evt_handle, INFINITE);
+    CloseHandle(evt_handle);
+  }
 }
 
 } // namespace d3d

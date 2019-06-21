@@ -87,6 +87,10 @@ add_library(${core_library} STATIC ${core_source} ${core_header})
 # TODO: set up dedicated public include dir for core_library
 target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src/app_utils)
+target_compile_definitions(${core_library} PUBLIC $<$<CONFIG:DEBUG>:DEBUG=1>)
+if(MSVC) 
+target_compile_definitions(${core_library} PUBLIC $<$<CONFIG:DEBUG>:THROW=1>)
+endif()
 
 # Link Graphic api libraries
 set(graphic_api_libs "")

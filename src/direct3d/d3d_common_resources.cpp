@@ -6,9 +6,11 @@ namespace rei {
 namespace d3d {
 
 RenderTargetSpec::RenderTargetSpec() {
-  rtv_format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  dsv_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
   sample_desc = DXGI_SAMPLE_DESC {1, 0};
+  rt_format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+  ds_clear.Depth = 1.0;
+  ds_clear.Stencil = 0;
 }
 
 } // namespace d3d

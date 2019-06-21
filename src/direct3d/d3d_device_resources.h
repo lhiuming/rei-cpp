@@ -26,27 +26,16 @@ namespace d3d {
 
 using Microsoft::WRL::ComPtr;
 
+class Renderer;
 
 class DeviceResources : NoCopy {
 public:
-
-public:
   DeviceResources(HINSTANCE hInstance);
-  ~DeviceResources();
-
-  template<typename Ele>
-  UploadBuffer<Ele> create_const_buffer(UINT64 ele_num) {
-    reutrn UnloadBuffer<Ele>(&device, ele_num, true);
-  }
-  void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
-  ComPtr<ID3D12PipelineState> get_pso(
-    const ShaderResources& shader, const RenderTargetSpec& target_spec);
-
-  void create_mesh_buffer(const Mesh& mesh, MeshResource& mesh_res);
-
-  [[deprecated]] void initialize_default_scene();
+  ~DeviceResources() = default;
 
 private:
+  friend class Renderer;
+
   HINSTANCE hinstance;
 
   ComPtr<IDXGIFactory4> dxgi_factory;
@@ -56,6 +45,25 @@ private:
   ComPtr<ID3D12CommandQueue> command_queue;
   ComPtr<ID3D12CommandAllocator> command_alloc;
   ComPtr<ID3D12GraphicsCommandList> command_list;
+
+  UINT64 current_frame_fence;
+  ComPtr<ID3D12Fence> frame_fence;
+
+  template<typename Ele>
+  UploadBuffer<Ele> create_const_buffer(UINT64 ele_num) {
+    reutrn UnloadBuffer<Ele>(&device, ele_num, true);
+  }
+  void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
+  ComPtr<ID3D12PipelineState> get_pso(
+    const ShaderData& shader, const RenderTargetSpec& target_spec);
+
+  void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res);
+
+  void flush_command_queue_for_frame();
+
+  void initialize_default_scene();
+
+  // below are deprecated members
 
   // D3D interface object
   ID3D11Device* d3d11Device;        // the device abstraction
@@ -82,7 +90,6 @@ private:
   cbPerObject cube_cb_data;
   double cube_rot = 0.0;
 
-  friend class Renderer;
 };
 
 } // namespace d3d

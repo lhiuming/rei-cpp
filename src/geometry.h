@@ -33,7 +33,7 @@ public:
     Vec3 normal; // Vertex normal
     Color color; // Vertex color
 
-    Vertex(const Vec3& pos3, const Color& c = Color(0.5, 0.5, 0.5, 1.0))
+    Vertex(const Vec3& pos3, const Color& c = Color(0.5f, 0.5f, 0.5f, 1.0f))
         : coord(pos3, 1.0), normal(), color(c) {};
     Vertex(const Vec3& pos3, const Vec3& nor, const Color& c)
         : coord(pos3, 1.0), normal(nor), color(c) {};

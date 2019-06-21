@@ -37,14 +37,12 @@ static inline void deprecated(const char* meta = k_empty_chars) {
 }
 
 template<class T>
-static inline void rassert(T expr, LogMsg msg, const char* meta = k_empty_chars) {
+static inline bool rassert(T expr, LogMsg msg, const char* meta = k_empty_chars) {
   if (!expr) {
-#if NDEBUG
     console << "Assertion Fail: " << msg << meta << endl;
-#else
-    throw std::runtime_error("Assertion Fail " + msg);
-#endif
+    return false;
   }
+  return true;
 }
 
 template<class T>
@@ -67,9 +65,19 @@ static inline void uninit(T expr, LogMsg msg, const char* meta = k_empty_chars) 
 
 #define REI_DEBUG_META " -- function " REI_FUNC_META ", in file " __FILE__ " (line " REI_STRINGFY(__LINE__) ")"
 
-#define ASSERT(expr) ::rei::rassert(expr, #expr, REI_DEBUG_META)
+#define REI_THROW(msg) throw std::runtime_error(msg)
 
-#define UNINIT(expr) (::rei::uninit(expr, #expr "is not empty", REI_DEBUG_META), (expr))
+#if THROW
+#define ASSERT(expr) ((expr) ? true : REI_THROW(#expr))
+#else
+#define ASSERT(expr) ::rei::rassert(expr, #expr, REI_DEBUG_META)
+#endif
+
+#if THROW
+#define UNINIT(var) (var ? REI_THROW(#var " is not empry") : var, var)
+#else
+#define UNINIT(var) (::rei::uninit(var, #var "is not empty", REI_DEBUG_META), var)
+#endif
 
 #define NOT_IMPLEMENT() (::rei::not_implemented(REI_DEBUG_META))
 

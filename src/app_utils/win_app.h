@@ -7,6 +7,7 @@
 
 #include <windows.h>
 
+#include "../color.h"
 #include "../scene.h"
 #include "viewer.h"
 #include "win_viewer.h"
@@ -22,6 +23,7 @@ public:
     int width = 480;
     bool show_fps_in_title = true;
     bool enable_vsync = false;
+    Color bg_color = Colors::ayanami_blue;
   };
 
 public:
