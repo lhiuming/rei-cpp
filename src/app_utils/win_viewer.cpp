@@ -88,8 +88,8 @@ LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 }
 
 void WinViewer::update_title(const std::wstring& new_title) {
-  HRESULT hr = SetWindowTextW(hwnd, new_title.c_str());
-  ASSERT(SUCCEEDED(hr));
+  BOOL succeeded = SetWindowTextW(hwnd, new_title.data()); 
+  ASSERT(succeeded);
 }
 
 }

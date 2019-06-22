@@ -125,7 +125,7 @@ void ViewportResources::create_size_dependent_resources() {
   ds_desc.SampleDesc = target_spec.sample_desc;
   ds_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // defualt; TODO check this
   ds_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;// as we intent
-  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_COMMON;
+  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_DEPTH_WRITE; // alway this state
   D3D12_CLEAR_VALUE optimized_clear = {}; // special clear value; usefull for framebuffer types
   optimized_clear.Format = target_spec.ds_format;
   optimized_clear.DepthStencil = target_spec.ds_clear;

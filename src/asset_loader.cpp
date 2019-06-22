@@ -6,6 +6,7 @@
 #include <assimp/Importer.hpp>  // C++ importer interface
 
 #include "console.h"
+#include "string_utils.h"
 
 using namespace std;
 
@@ -38,21 +39,21 @@ public:
 private:
   Assimp::Importer importer;
   const aiScene* as; // current loaded aiScene
-  vector<Model::Material> materials_list;
+  vector<Material> materials_list;
 
   // Helpers Functions //
 
   tuple<const aiNode*, Mat4> find_node(const aiNode* root, const string& node_name);
 
   int collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans);
-  ModelInstance load_model(const aiNode& node, Mat4 scene_trans);
+  Model load_model(const aiNode& node, Mat4 scene_trans);
 
   // Utilities
   static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
-  static Model::Material make_material(const aiMaterial&);
+  static Material make_material(const aiMaterial&);
   static MeshPtr make_mesh(
-    const aiMesh& mesh, const Mat4 trans, const vector<Model::Material>& maters);
+    const aiMesh& mesh, const Mat4 trans, const vector<Material>& maters);
 };
 
 // Main Interfaces //
@@ -107,10 +108,10 @@ vector<MeshPtr> AssimpLoaderImpl::load_meshes() {
   return ret;
 }
 
-// Load as REI::Scene ( StaticScene )
+// Load as REI::Scene
 ScenePtr AssimpLoaderImpl::load_scene() {
   const aiNode& root_node = *(as->mRootNode);
-  auto ret = make_shared<StaticScene>(root_node.mName.C_Str());
+  auto ret = make_shared<Scene>(make_wstring(root_node.mName.C_Str()));
 
   // Load model from each child nodes
   Mat4 coordinate_trans = make_Mat4(root_node.mTransformation);
@@ -126,7 +127,7 @@ ScenePtr AssimpLoaderImpl::load_scene() {
     } else {
       // Load the model without instance-transform
       auto mi = load_model(child, coordinate_trans);
-      if (mi.pmodel.get()) // check if no real mesh loaded
+      if (mi.get_geometry()) // check if no real mesh loaded
         ret->add_model(std::move(mi));
     }
   }
@@ -207,20 +208,19 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& models, 
   return mesh_count;
 }
 
-ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
+Model AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
   // Correct the world-transfor to fit in right-hand coordinate_trans
   Mat4 old_W = make_Mat4(node.mTransformation);
   Mat4 W = coordinate_trans.inv() * old_W * coordinate_trans;
 
-  ModelPtr mp = nullptr;
-  MeshPtr p_mesh = nullptr;
+  MeshPtr mesh = nullptr;
 
   // Build Hiearchy model
   if (node.mNumChildren > 0) {
     // TODO : make Hiearchy
     console << "AssetLoader Warnning: need hiearachy";
     console << "(name = " << node.mName.C_Str() << "chile = " << node.mNumChildren << ")" << endl;
-    return ModelInstance {nullptr, W};
+    return Model{L"empty", W, nullptr, nullptr};
   }
 
   // Build Non Hiearchy model
@@ -232,7 +232,7 @@ ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_t
   {
     // Make a mesh fron aiMesh
     NOT_IMPLEMENTED
-    p_mesh = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
+    mesh = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
     console << "AssetLoader: loaded node name = " << node.mName.C_Str() << ")" << endl;
   } else // Mesh aggrerate
   {
@@ -242,7 +242,7 @@ ModelInstance AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_t
   }
 
   // Return an instance
-  return ModelInstance {mp, W};
+  return Model {L"assimp no name", W, mesh, nullptr};
 }
 
 // Utilities ////
@@ -261,8 +261,8 @@ inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim) {
 }
 
 // Convert all aiMaterial to Mesh::Material
-Model::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
-  Model::Material ret;
+Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
+  Material ret;
 
   // Material name
   aiString mater_name;
@@ -294,7 +294,7 @@ Model::Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
 
 // Convert a aiMesh to Mesh and return a shared pointer
 MeshPtr AssimpLoaderImpl::make_mesh(
-  const aiMesh& mesh, const Mat4 trans, const vector<Model::Material>& mat_list) {
+  const aiMesh& mesh, const Mat4 trans, const vector<Material>& mat_list) {
   // Some little check
   if (mesh.GetNumColorChannels() > 1)
     console << "AssetLoader Warning: mesh has multiple color channels" << endl;

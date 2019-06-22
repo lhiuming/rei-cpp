@@ -19,7 +19,7 @@ WinApp::WinApp(Config config) : config(config) {
   renderer = d3d_renderer;
 
   // Default scene
-  scene = make_shared<StaticScene>();
+  scene = make_shared<Scene>();
   camera = make_shared<Camera>();
 
   // view the scene
@@ -37,7 +37,6 @@ WinApp::~WinApp() {
 void WinApp::setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera) {
   this->scene = scene;
   this->camera = camera;
-  renderer->set_scene(scene);
   renderer->update_viewport_transform(viewer->get_viewport(), *camera);
 }
 
@@ -61,7 +60,10 @@ void WinApp::on_update() {
 
 void WinApp::on_render() {
   clock_last_check = clock.now();
-  renderer->render(viewer->get_viewport());
+  renderer->prepare(*scene);
+  auto viewport = viewer->get_viewport();
+  auto culling_result = renderer->cull(viewport, *scene);
+  renderer->render(viewport, culling_result);
   last_frame_time = clock.now() - clock_last_check;
 }
 

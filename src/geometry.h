@@ -7,6 +7,7 @@
 #include "common.h"
 #include "algebra.h"
 #include "color.h"
+#include "graphic_handle.h"
 
 namespace rei {
 
@@ -16,6 +17,9 @@ public:
   Geometry(std::wstring name) : name(name) {};
   virtual ~Geometry() = 0;
 
+  virtual GeometryHandle get_graphic_handle() const = 0;
+  virtual void set_graphic_handle(const GeometryHandle& h) = 0 ;
+
   // Debug info
   virtual std::wstring summary() const { return L"<Base Geomtry>"; }
   friend std::wostream& operator<<(std::wostream& os, const Geometry& g) { return os << g.summary(); }
@@ -23,6 +27,8 @@ public:
 protected:
   std::wstring name;
 };
+
+typedef std::shared_ptr<Geometry> GeometryPtr;
 
 // Triangular Mesh
 class Mesh : public Geometry {
@@ -69,13 +75,20 @@ public:
   bool vertices_num() const { return vertices.size(); }
   bool triangle_num() const { return triangles.size(); }
 
+  GeometryHandle get_graphic_handle() const override { return rendering_handle; }
+  void set_graphic_handle(const GeometryHandle& h) override { rendering_handle = h; }
+
   // Debug info
   std::wstring summary() const override;
 
 private:
   std::vector<Vertex> vertices;
   std::vector<Triangle> triangles;
+
+  GeometryHandle rendering_handle;
 };
+
+typedef std::shared_ptr<Mesh> MeshPtr;
 
 }
 

@@ -5,6 +5,7 @@
 
 #include "algebra.h"
 #include "model.h"
+#include "graphic_handle.h"
 
 /*
  * scene.h
@@ -17,68 +18,45 @@
 
 namespace rei {
 
-// Instance ///////////////////////////////////////////////////////////////////
-////
-
-using ModelPtr = std::shared_ptr<Model>;
-
-// Model
-// NOTE: you can add more features to help rendering !
-struct ModelInstance {
-  ModelPtr pmodel;
-  Mat4 transform;
-
-  // More
-};
-
 // Scene class ////////////////////////////////////////////////////////////////
 ////
 
 // Base Scene
 class Scene {
 public:
-  // Name for convinient
-  std::string name;
-
   // Member types
-  typedef std::vector<ModelInstance> ModelContainer;
+  typedef const std::vector<ModelPtr>& ModelsRef;
 
-  // Default constructor
-  Scene(std::string n = "Un-named Scene") : name(n) {}
+  //static const MaterialPtr default_material;
+
+  Scene() = default;
+  Scene(Name name) : name(name) {}
 
   // Destructor
   virtual ~Scene() {};
 
-  // Get elements
-  virtual const ModelContainer& get_models() const = 0;
+  void add_model(Model&& mi) { models.emplace_back(std::make_shared<Model>(mi)); }
+  void add_model(ModelPtr mp) { models.push_back(mp); }
+  ModelPtr add_model(const Mat4& trans, GeometryPtr geometry, Name name) {
+    ModelPtr new_model = std::make_shared<Model>(name, trans, geometry, nullptr);
+    add_model(new_model);
+    return new_model;
+  }
+
+  virtual ModelsRef get_models() const { return models; }
 
   // Debug info
   virtual std::wstring summary() const { return L"Base Scene"; }
 
   friend std::wostream& operator<<(std::wostream& os, const Scene& s) { return os << s.summary(); }
-};
 
-// Static Scene
-class StaticScene : public Scene {
-public:
-  // Default constructor; an empty scene
-  StaticScene(std::string n = "Un-named StaticScene") : Scene(n) {}
+protected:
+  using ModelContainer = std::vector<ModelPtr>;
 
-  // Destructor
-  ~StaticScene() override = default;
+  Name name = L"Scene-Un-Named";
+  ModelContainer models;
 
-  // Add elements
-  void add_model(ModelInstance&& mi) { models.emplace_back(std::move(mi)); }
-  void add_model(const ModelPtr& mp, const Mat4& trans) { models.push_back({mp, trans}); }
-
-  // Get models
-  const ModelContainer& get_models() const override { return models; }
-
-  // Debug info
-  std::wstring summary() const override;
-
-private:
-  std::vector<ModelInstance> models;
+  SceneHandle rendering_handle;
 };
 
 } // namespace REI

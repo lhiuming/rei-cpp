@@ -111,19 +111,27 @@ target_link_libraries(${core_library} PRIVATE assimp)
 # Export the core data list to a variable
 # TODO bind this property to rei library targer 
 set(core_data_path "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${core_data_name}")
-set(core_data_sources "")
+set(core_data_source_directories "")
+set(core_data_source_files "")
 if(BUILD_OPENGL)
-	list(APPEND core_data_sources "${PROJECT_SOURCE_DIR}/src/opengl/shader")
+	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/opengl/shader")
 endif()
 if(BUILD_DIRECT3D)
-	list(APPEND core_data_sources "${PROJECT_SOURCE_DIR}/src/direct3d/shader")
+	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/direct3d/shader")
 endif()
 message("Configure exporting core data to ${core_data_path}: ")
-foreach(core_data ${core_data_sources})
-	message("	${core_data}")
-	get_filename_component(dir_name ${core_data} NAME)
-	add_custom_command(TARGET ${core_library} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${core_data_sources}" "${core_data_path}/${dir_name}")
+foreach(core_data_src_dir ${core_data_source_directories})
+	message("	${core_data_src_dir}")
+	get_filename_component(dir_name ${core_data_src_dir} NAME)
+	add_custom_command(TARGET ${core_library} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${core_data_src_dir}" "${core_data_path}/${dir_name}")
+	file(GLOB_RECURSE files "${core_data_src_dir}/*")
+	list(APPEND core_data_source_files ${files})
 endforeach()
+
+# Include the asset into the project, for IDEs like Visual Studio
+if (MSVC)
+	add_custom_target(CoreData SOURCES ${core_data_source_files} )
+endif()
 
 
 #------------

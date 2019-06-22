@@ -5,12 +5,15 @@
 #endif
 
 #include <memory>
+#include <cstdlib>
+#include <ctime>
 
 #include <camera.h>
 #include <console.h>
 #include <model.h>
 #include <renderer.h>
 #include <scene.h>
+#include <color.h>
 
 #include <app_utils/app.h>
 #include <debug.h>
@@ -37,7 +40,7 @@ int main() {
   console << "Mesh model set up." << endl;
 
   // Set up the scene
-  auto s = make_shared<StaticScene>();
+  auto s = make_shared<Scene>();
   NOT_IMPLEMENTED
   //s->add_model(make_shared<Mesh>(std::move(mesh)), Mat4::I());
   console << "Scene set up. " << endl;
@@ -47,17 +50,18 @@ int main() {
   c->set_aspect(720.0 / 480.0);
   console << "Camera set up." << endl;
 
+  Color colors[4] = {Colors::jo, Colors::ha, Colors::kyu, Colors::final};
+  std::srand(std::time(nullptr));
+  Color rand_color = colors[std::rand() % 4];
+
   App::Config conf;
   conf.title = L"Three Triangles!";
   conf.width = 720;
   conf.height = 480;
+  conf.bg_color = rand_color;
   auto app = App(conf);
-  log("App created.");
-
   app.setup(s, c);
-
   app.run();
-  log("App run.");
 
   console << "Viewer stopped. Program ends." << endl;
 

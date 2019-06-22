@@ -6,11 +6,11 @@ struct Light {
 };
 
 // constant buffer to hold the projection transforming matrix
-cbuffer cbPerObject {
+cbuffer cbPerObject : register(b0) {
   float4x4 WVP;
   float4x4 World;
 };
-cbuffer cbPerFrame {
+cbuffer cbPerFrame : register(b1) {
   Light light;
 };
 

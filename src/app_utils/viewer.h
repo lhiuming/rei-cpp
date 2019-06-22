@@ -23,9 +23,6 @@ namespace rei {
 
 class Viewer {
 public:
-  using ViewportHandle = Renderer::ViewportHandle;
-
-public:
   Viewer(std::size_t window_w, std::size_t window_h, std::wstring title) 
     : width(window_w), height(window_h), title(title) {}
   virtual ~Viewer() {};

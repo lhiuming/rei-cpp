@@ -12,9 +12,7 @@ using namespace std;
 
 namespace rei {
 
-// Static scene ///////////////////////////////////////////////////////////////
-////
-
+  /*
 wstring StaticScene::summary() const {
   wostringstream oss;
   oss << "Scene name: " << name << ", with " << models.size() << " models" << endl;
@@ -22,8 +20,8 @@ wstring StaticScene::summary() const {
     oss << "  " << *(mi.pmodel);
     oss << "  with trans: " << mi.transform << endl;
   }
-
   return oss.str();
 }
+*/
 
 } // namespace REI
