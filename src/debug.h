@@ -1,43 +1,48 @@
 #ifndef REI_DEBUG_H
 #define REI_DEBUG_H
 
-#if !NDEBUG
+#if DEBUG
 #include <stdexcept>
 #endif
 
+#include "string_utils.h"
 #include "console.h"
 
 namespace rei {
 
-using LogMsg = const std::string&;
-constexpr char* k_empty_chars = "";
+using MetaMsg = const char*;
+constexpr MetaMsg k_empty_meta = "";
 
-static inline void log(LogMsg msg, const char* meta = k_empty_chars) {
+
+template<typename LogMsg>
+static inline void log(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << msg << meta << endl;
 }
 
-static inline void warning(LogMsg msg, const char* meta = k_empty_chars) {
+template<typename LogMsg>
+static inline void warning(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << "WARNING: " << msg << meta << endl;
 }
 
-static inline void error(LogMsg msg, const char* meta = k_empty_chars) {
-  #if NDEBUG
+template<typename LogMsg>
+static inline void error(LogMsg msg, MetaMsg meta = k_empty_meta) {
+#if NDEBUG
   console << "ERROR: " << msg << meta << endl;
   #else
-  throw std::runtime_error("ERROR: " + msg);
+  throw std::runtime_error("GENERIC ERROR FOR BREAKPOINT ");
   #endif
 }
 
-static inline void not_implemented(const char* meta = k_empty_chars) {
+static inline void not_implemented(MetaMsg meta = k_empty_meta) {
   warning("Functionality is not implemented. ", meta);
 }
 
-static inline void deprecated(const char* meta = k_empty_chars) {
+static inline void deprecated(MetaMsg meta = k_empty_meta) {
   error("Deprecated invocation.", meta);
 }
 
-template<class T>
-static inline bool rassert(T expr, LogMsg msg, const char* meta = k_empty_chars) {
+template<typename T, typename LogMsg>
+static inline bool rassert(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   if (!expr) {
     console << "Assertion Fail: " << msg << meta << endl;
     return false;
@@ -45,12 +50,12 @@ static inline bool rassert(T expr, LogMsg msg, const char* meta = k_empty_chars)
   return true;
 }
 
-template<class T>
-static inline void uninit(T expr, LogMsg msg, const char* meta = k_empty_chars) {
+template<typename T, typename LogMsg>
+static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   rassert(!(expr), msg, meta);
 }
 
-}
+} // namespace rei
 
 #if defined __func__
 #define REI_FUNC_META __func__
@@ -63,7 +68,8 @@ static inline void uninit(T expr, LogMsg msg, const char* meta = k_empty_chars) 
 #define REI_SYMBOLIZE(x) #x
 #define REI_STRINGFY(n) REI_SYMBOLIZE(n)
 
-#define REI_DEBUG_META " -- function " REI_FUNC_META ", in file " __FILE__ " (line " REI_STRINGFY(__LINE__) ")"
+#define REI_DEBUG_META \
+  " -- function " REI_FUNC_META ", in file " __FILE__ " (line " REI_STRINGFY(__LINE__) ")"
 
 #define REI_THROW(msg) throw std::runtime_error(msg)
 
