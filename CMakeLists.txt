@@ -91,6 +91,8 @@ target_compile_definitions(${core_library} PUBLIC $<$<CONFIG:DEBUG>:DEBUG=1>)
 if(MSVC) 
 target_compile_definitions(${core_library} PUBLIC $<$<CONFIG:DEBUG>:THROW=1>)
 endif()
+target_compile_features(${core_library} PUBLIC cxx_std_17)
+
 
 # Link Graphic api libraries
 set(graphic_api_libs "")
