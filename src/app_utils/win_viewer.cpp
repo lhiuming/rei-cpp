@@ -10,6 +10,8 @@ using std::runtime_error;
 
 namespace rei {
 
+std::unordered_map<HWND, WinViewer*, WinViewer::HwndHasher> WinViewer::viewer_map = {};
+
 // Constructor
 WinViewer::WinViewer(HINSTANCE h_instance, size_t window_w, size_t window_h, std::wstring title)
     : Viewer(window_w, window_h, title) {
@@ -23,11 +25,14 @@ WinViewer::~WinViewer() {
   // Destroy the window
   DestroyWindow(hwnd);
 
+  // Un-register from the global mao
+  viewer_map.erase(hwnd);
+
   console << "D3DViewer is destructed." << std::endl;
 }
 
-
-void WinViewer::initialize_window(HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed) {
+void WinViewer::initialize_window(
+  HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed) {
   // Register
   WNDCLASSEXW wc_prop;
   wc_prop.cbSize = sizeof(WNDCLASSEXW);
@@ -64,32 +69,63 @@ void WinViewer::initialize_window(HINSTANCE hInstance, int ShowWnd, int width, i
     throw runtime_error("D3DViewer Construction Failed");
   }
 
+  // register to the global map
+  viewer_map[hwnd] = this;
+
   ShowWindow(this->hwnd, ShowWnd); // show it anyway
   UpdateWindow(this->hwnd);        // paint the client area
 }
 
-// Windows message callback handler
-LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-  // Choose a reaction for keyboard or mouse events
+LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
+  // Internal input handeling
   switch (msg) {
     case WM_KEYDOWN:
       if (wParam == VK_ESCAPE) { // press ESC
         DestroyWindow(hwnd);
       }
       return 0;
-
     case WM_DESTROY: // click (X)
       PostQuitMessage(0);
       return 0;
+  }
+
+  // Some user-define input event
+  if (!input_bus.expired()) {
+    InputBus& input = (*input_bus.lock());
+    switch (msg) {
+      case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE) { // press ESC
+          DestroyWindow(hwnd);
+        }
+        return 0;
+      case WM_MOUSEMOVE:
+        POINTS p1 = regularize(MAKEPOINTS(lParam));
+        if (mouse_in_window) {
+          POINTS p0 = last_mouse_pos_regular;
+          input.push(CursorMove(p0.x, p0.y, p1.x, p1.y));
+          if (wParam == MK_LBUTTON) { input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y)); }
+        }
+        last_mouse_pos_regular = p1;
+        mouse_in_window = true;
+        return 0;
+    }
   }
 
   // Default case: use windows' default procudure
   return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
+// Windows message callback handler
+LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  auto viewer = viewer_map.find(hwnd);
+  if (viewer != viewer_map.end()) { return viewer->second->process_wnd_msg(msg, wParam, lParam); }
+  ERROR("Fail to find viewer");
+  return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
 void WinViewer::update_title(const std::wstring& new_title) {
-  BOOL succeeded = SetWindowTextW(hwnd, new_title.data()); 
+  BOOL succeeded = SetWindowTextW(hwnd, new_title.data());
   ASSERT(succeeded);
 }
 
-}
+} // namespace rei

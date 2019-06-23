@@ -5,6 +5,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include <windows.h>
 #include <d3d11.h>
@@ -13,9 +14,8 @@
 #include "../camera.h"
 #include "../scene.h"
 #include "../renderer.h"
+#include "../input.h"
 #include "viewer.h"
-//#include "d3d_renderer.h" // win32 renderer
-
 
 /*
  * d3d_viewer.h
@@ -49,9 +49,25 @@ private:
   LPCWSTR WndClassName = L"rei_Viewer_Window";
   HWND hwnd;
 
+  // Some input state
+  bool mouse_in_window = false;
+  POINTS last_mouse_pos_regular;
+
   void initialize_window(HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed);
 
-  // Window callback; useful for setting key-binding
+  // Converto to basis with origin at Left-Bottom
+  inline POINTS regularize(POINTS p) { return POINTS { p.x, SHORT(height) - p.y}; }
+
+  LRESULT process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam);
+
+  struct HwndHasher {
+    size_t operator()(const HWND& hwnd) const { return (std::uintptr_t)(hwnd); }
+  };
+
+  // Map hwnd to viewer class, for procceessing msg with context
+  static std::unordered_map<HWND, WinViewer*, HwndHasher> viewer_map;
+
+  // Windows static callback; telecast the mes to viewer
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
 

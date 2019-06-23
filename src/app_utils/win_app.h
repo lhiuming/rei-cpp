@@ -9,6 +9,7 @@
 
 #include "../color.h"
 #include "../scene.h"
+#include "../input.h"
 #include "viewer.h"
 #include "win_viewer.h"
 #include "../direct3d/d3d_renderer.h"
@@ -43,6 +44,7 @@ private:
 
   HINSTANCE hinstance = NULL;
 
+  std::shared_ptr<InputBus> input_bus;
   std::shared_ptr<Viewer> viewer;
   std::shared_ptr<Renderer> renderer;
   std::shared_ptr<Scene> scene;

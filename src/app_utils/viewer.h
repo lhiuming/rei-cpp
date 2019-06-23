@@ -4,9 +4,11 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "../common.h"
 #include "../console.h"
+#include "../input.h"
 #include "../camera.h"
 #include "../scene.h"
 #include "../renderer.h"
@@ -31,6 +33,7 @@ public:
   ViewportHandle get_viewport() const { return viewport; }
 
   virtual void update_title(const std::wstring& title) = 0;
+  void set_input_bus(std::weak_ptr<InputBus> input_bus) { this->input_bus = input_bus; }
 
   [[deprecated]]
   void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATED }
@@ -43,6 +46,8 @@ public:
 protected:
   std::size_t width, height;
   std::wstring title = L"No Title";
+
+  std::weak_ptr<InputBus> input_bus;
 
   ViewportHandle viewport;
 };
