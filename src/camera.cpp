@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include "console.h"
+#include "debug.h"
 
 using namespace std;
 
@@ -18,16 +19,11 @@ Camera::Camera() {
 
 // Initialize with pos, dir and up
 Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
-    : up(up), position(pos), direction(dir) {
+    : up(up.normalized()), position(pos), direction(dir.normalized()) {
   update_transforms();
 }
 
 // Configurations //
-
-void Camera::set_target(const Vec3& target) {
-  direction = target - position;
-  update_transforms();
-}
 
 // update aspect
 void Camera::set_aspect(double aspect) {
@@ -60,9 +56,35 @@ void Camera::zoom(double q) {
 }
 
 void Camera::move(double right, double up, double fwd) {
+  Vec3 orth_u = this->right();
+  Vec3 orth_v = this->up;
+  Vec3 orth_w = this->direction;
   position += (right * orth_u + up * orth_v + fwd * orth_w);
   update_w2c();
   update_w2n();
+}
+
+void Camera::rotate_position(const Vec3& center, const Vec3& axis, double radian) {
+  Vec3 vec_to_me = position - center;
+  if (dot(axis, direction) < 0.9995) {
+    Vec3::rotate(vec_to_me, axis.normalized(), radian);
+    position = center + vec_to_me;
+    mark_view_trans_dirty();
+  }
+}
+
+void Camera::rotate_direction(const Vec3& axis, double radian) {
+  Vec3::rotate(direction, axis.normalized(), radian);
+  mark_view_trans_dirty();
+}
+
+void Camera::look_at(const Vec3& target, const Vec3& up_hint) {
+  Vec3 new_dir = target - position;
+  if (new_dir.norm2() > 0) {
+    direction = new_dir.normalized();
+    if (up_hint.norm2() > 0) up = up_hint.normalized();
+    mark_view_trans_dirty();
+  }
 }
 
 // Visibility query
@@ -78,6 +100,7 @@ void Camera::update_w2c() {
   translate_t[3] = Vec4(-position, 1.0);
 
   // create a orthogonal coordiante for camera (used in rotation)
+  Vec3 orth_u, orth_v, orth_w;
   orth_w = direction.normalized(); // `forward direction`
   Vec3 u = cross(orth_w, up);      // `right direction`
   if (u.zero())
@@ -141,4 +164,4 @@ std::wostream& operator<<(std::wostream& os, const Camera& cam) {
   return os;
 }
 
-} // namespace REI
+} // namespace rei

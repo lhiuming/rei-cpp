@@ -26,17 +26,19 @@ public:
   Camera(const Vec3& pos, const Vec3& dir = {0.0, 0.0, -1.0}, const Vec3& up = {0.0, 1.0, 0.0});
 
   // Configurations
-  void set_target(const Vec3& target);
-  void set_direction(const Vec3& dir);  // TODO
   void set_aspect(double width2height); // widht / height
   void set_params(double aspect, double angle, double znear, double zfar);
 
   // May-be useful queries
   double get_aspect() const { return aspect; }
+  Vec3 right() const { return cross(direction, up); }
 
   // Dynamic Configurations
   void zoom(double quantity);
   void move(double right, double up, double fwd);
+  void rotate_position(const Vec3& center, const Vec3& axis, double radian);
+  void rotate_direction(const Vec3& axis, double radian);
+  void look_at(const Vec3& target, const Vec3& up_hint = {0, 0, 0});
 
   // Get transforms (result in Left Hand Coordinate;
   // used to transform row-vector)
@@ -58,7 +60,7 @@ private:
   Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
   double angle = 60;                     // horizontal view-angle range, by degree
   double aspect = 4.0 / 3.0;             // width / height
-  double znear = 5.0, zfar = 1000.0;     // distance of two planes of the frustrum
+  double znear = 1.0, zfar = 1000.0;     // distance of two planes of the frustrum
 
   Mat4 world2camera;      // defined by position and direction
   Mat4 camera2normalized; // defined by view angle and ration
@@ -66,7 +68,6 @@ private:
   Mat4 world2viewport;    // added a static normalized->viewport step
 
   // helpers to update transforms
-  Vec3 orth_u, orth_v, orth_w; // unit bases in the world-space;
   void update_w2c();
   void update_c2n();
   void update_w2n();
@@ -75,8 +76,15 @@ private:
     update_c2n();
     update_w2n();
   }
+  void mark_view_trans_dirty() {
+    // normalize the up direction
+    up = up - dot(up, direction) * direction;
+    Vec3::normalize(up);
+    update_transforms();
+  }
+  void mark_proj_trans_dirty() { update_transforms(); }
 };
 
-} // namespace REI
+} // namespace rei
 
 #endif

@@ -7,29 +7,12 @@ using namespace std;
 
 namespace rei {
 
-// Vec3 ///////////////////////////////////////////////////////////////////////
-////
-
-// Scalar multiplications from left
-Vec3 operator*(double c, const Vec3& x) {
-  return x * c;
-}
-
-// Vec3 dot product
-double dot(const Vec3& a, const Vec3& b) {
-  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
-}
-
-// Vec3 cross product
-Vec3 cross(const Vec3& a, const Vec3& b) {
-  return Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
-}
-
 // Print Vec3
 wostream& operator<<(wostream& os, const Vec3& v) {
   os << "Vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
   return os;
 }
+
 
 // Mat3 //////////////////////////////////////////////////////////////////////
 // Member and Non-member functions.
@@ -88,14 +71,6 @@ Mat4::Mat4(const double rows[16]) {
   for (int i = 0; i < 4; ++i)
     for (int j = 0; j < 4; ++j)
       me(i, j) = rows[i * 4 + j];
-}
-
-// Diagonal constructor
-Mat4::Mat4(const Vec4& diag) {
-  columns[0][0] = diag[0];
-  columns[1][1] = diag[1];
-  columns[2][2] = diag[2];
-  columns[3][3] = diag[3];
 }
 
 // Transpose a matrix

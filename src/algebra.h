@@ -17,16 +17,22 @@ namespace rei {
 // A general 3D vector class
 ////
 
+struct Vec3;
+inline Vec3 operator*(double c, const Vec3& x);
+inline Vec3 operator*(const Vec3& a, const Vec3& b);
+inline double dot(const Vec3& a, const Vec3& b);
+inline Vec3 cross(const Vec3& a, const Vec3& b);
+
 struct Vec3 {
   double x;
   double y;
   double z;
 
   // Default constructor
-  Vec3() : x(0.0), y(0.0), z(0.0) {};
+  constexpr Vec3() : x(0.0), y(0.0), z(0.0) {};
 
   // Initialize components
-  Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
+  constexpr Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
 
   // Access elemebt by index (from 0)
   // TODO: but is this portable ??? compliers may have differnt order
@@ -35,7 +41,7 @@ struct Vec3 {
 
   // Scalar multiplications
   Vec3& operator*=(double c) {
-    x *= x;
+    x *= c;
     y *= c;
     z *= c;
     return *this;
@@ -68,8 +74,20 @@ struct Vec3 {
   double norm() const { return std::sqrt(norm2()); }
 
   // Normalization
-  static void normalize(Vec3& v) { v *= (1.0 / v.norm()); }
+  static inline void normalize(Vec3& v) { v *= (1.0 / v.norm()); }
   Vec3 normalized() const { return (*this) * (1.0 / this->norm()); }
+
+  // transforms
+  static inline void rotate(Vec3& v, const Vec3& axis, double radian) {
+    double c = std::cos(radian), c_cp = 1 - c, s = std::sin(radian);
+    Vec3 u = dot(v, axis) * axis, r = v - u;
+    v = u + s * cross(axis, r) + c * r;
+  }
+  Vec3 rotated(const Vec3& axis, double radian) const {
+    Vec3 ret = *this;
+    rotate(ret, axis, radian);
+    return ret;
+  }
 
   // Value check
   bool zero() const { return (x == 0) && (y == 0) && (z == 0); }
@@ -77,13 +95,23 @@ struct Vec3 {
 };
 
 // Scalar multiplications from left
-Vec3 operator*(double c, const Vec3& x);
+inline Vec3 operator*(double c, const Vec3& x) {
+  return x * c;
+}
 
-// Dot product
-double dot(const Vec3& a, const Vec3& b);
+// Element-wise mitiplication
+inline Vec3 operator*(const Vec3& a, const Vec3& b) {
+  return {a.x * b.x, a.y * b.y, a.z * b.z};
+}
 
-// Corss product
-Vec3 cross(const Vec3& a, const Vec3& b);
+inline double dot(const Vec3& a, const Vec3& b) {
+  return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+// Vec3 cross product
+inline Vec3 cross(const Vec3& a, const Vec3& b) {
+  return Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
 
 // Print 3D vector
 std::wostream& operator<<(std::wostream& os, const Vec3& v);
@@ -170,14 +198,14 @@ struct Vec4 {
   double h;
 
   // Default constructor
-  Vec4() : x(0.0), y(0.0), z(0.0), h(0.0) {};
+  constexpr Vec4() : x(0.0), y(0.0), z(0.0), h(0.0) {};
 
   // Initialize with components
-  Vec4(double x, double y, double z, double h) : x(x), y(y), z(z), h(h) {};
+  constexpr Vec4(double x, double y, double z, double h) : x(x), y(y), z(z), h(h) {};
 
   // Convert from Vec3
-  Vec4(const Vec3& v) : x(v.x), y(v.y), z(v.z), h(0.0) {};
-  Vec4(const Vec3& v, double h) : x(v.x), y(v.y), z(v.z), h(h) {};
+  constexpr Vec4(const Vec3& v) : x(v.x), y(v.y), z(v.z), h(0.0) {};
+  constexpr Vec4(const Vec3& v, double h) : x(v.x), y(v.y), z(v.z), h(h) {};
 
   // Convert to Vec3 from 4Dhomogenous, or projection/truncating
   operator Vec3() const { return Vec3(x / h, y / h, z / h); }
@@ -241,22 +269,34 @@ struct Mat4 {
   Vec4 columns[4]; // column-major storage
 
   // Default constructor (all zero)
-  Mat4() {};
+  constexpr Mat4() {};
 
   // Construct by columns
-  Mat4(const Vec4& c1, const Vec4& c2, const Vec4& c3, const Vec4& c4) : columns {c1, c2, c3, c4} {}
-  Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
+  constexpr Mat4(const Vec4& c1, const Vec4& c2, const Vec4& c3, const Vec4& c4)
+      : columns {c1, c2, c3, c4} {}
+  // constexpr Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
+
+  // Initialize as rigidbody transformation (for column vectors)
+  constexpr Mat4(const Vec3& translation) : Mat4({}, {}, {}, translation) {}
+  Mat4(const Vec3& translation, const Vec3& axis, double radian) {
+    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
+    columns[0] = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
+    columns[1] = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
+    columns[2] = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
+    columns[3] = translation;
+  }
 
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
-  Mat4(double a00, double a01, double a02, double a03, double a10, double a11, double a12,
+  constexpr Mat4(double a00, double a01, double a02, double a03, double a10, double a11, double a12,
     double a13, double a20, double a21, double a22, double a23, double a30, double a31, double a32,
     double a33)
       : columns {Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31), Vec4(a02, a12, a22, a32),
           Vec4(a03, a13, a23, a33)} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
-  Mat4(const Vec4& diag);
+  constexpr Mat4(const Vec4& diag)
+      : Mat4({diag.x, 0, 0, 0}, {0, diag.y, 0, 0}, {0, 0, diag.z, 0}, {0, 0, 0, diag.h}) {};
 
   // Access by column
   Vec4& operator[](int i) { return columns[i]; }
@@ -320,6 +360,6 @@ inline Vec4 operator*(const Vec4& x, const Mat4& A) {
   return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
 }
 
-} // namespace REI
+} // namespace rei
 
 #endif
