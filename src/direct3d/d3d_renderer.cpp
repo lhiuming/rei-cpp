@@ -88,7 +88,7 @@ void Renderer::update_viewport_size(ViewportHandle viewport, int width, int heig
 void Renderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
   shared_ptr<ViewportData> viewport = to_viewport(h_viewport);
   ASSERT(viewport);
-  viewport->view_proj = camera.get_w2n();
+  viewport->update_camera_transform(camera);
 }
 
 ShaderHandle Renderer::create_shader(std::wstring shader_path) {

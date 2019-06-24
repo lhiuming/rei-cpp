@@ -188,11 +188,19 @@ class ViewportResources;
 
 struct ViewportData : BaseViewportData {
   using BaseViewportData::BaseViewportData;
+  Mat4 view = Mat4::I();
+  Mat4 proj = Mat4::I();
   Mat4 view_proj = Mat4::I();
   std::array<FLOAT, 4> clear_color;
   D3D12_VIEWPORT d3d_viewport;
   D3D12_RECT scissor;
   std::weak_ptr<ViewportResources> viewport_resources;
+
+  void update_camera_transform(const Camera& cam) { 
+    view = cam.view(Handness::Right, Handness::Left, VectorTarget::Row);
+    proj = cam.project(Handness::Left, Handness::Left, VectorTarget::Row);
+    view_proj = cam.view_proj(Handness::Right, Handness::Left, VectorTarget::Row);
+  }
 };
 
 struct ShaderCompileResult {

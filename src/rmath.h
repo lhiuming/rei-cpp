@@ -1,6 +1,8 @@
 #ifndef REI_MATH_H
 #define REI_MATH_H
 
+#include <cmath>
+
 // TODO check boost for existing funcionalities
 
 namespace rei {

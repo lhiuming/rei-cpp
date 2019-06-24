@@ -5,10 +5,9 @@
 
 #include "console.h"
 #include "debug.h"
+#include "rmath.h"
 
-using namespace std;
-
-const double PI = 3.141592653589793238463; // copied from web :P
+// using namespace std;
 
 namespace rei {
 
@@ -18,8 +17,13 @@ Camera::Camera() {
 };
 
 // Initialize with pos, dir and up
-Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
+Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up, Handness handness)
     : m_up(up.normalized()), m_position(pos), m_direction(dir.normalized()) {
+  if (handness == Handness::Left) {
+    flip_z(m_up);
+    flip_z(m_position);
+    flip_z(m_direction);
+  }
   update_transforms();
 }
 
@@ -28,49 +32,45 @@ Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
 // update aspect
 void Camera::set_aspect(double aspect) {
   this->m_aspect = aspect;
-  update_c2n();
-  update_w2n();
+  update_camera_to_device();
+  update_world_to_camera_to_device();
 }
 
 // update a bunch parameters
 void Camera::set_params(double aspect, double angle, double znear, double zfar) {
+  ASSERT((0 < znear) && (znear < zfar));
+  if ((angle < 5.0) || (angle > 160.0)) {
+    console << "Camera Warning: unusual angle : " << angle << ", clipped." << endl;
+  }
+
   this->m_aspect = aspect;
   this->angle = min(max(angle, 5.0), 160.0);
   this->znear = znear;
   this->zfar = zfar;
 
-  if ((angle < 5.0) || (angle > 160.0)) {
-    console << "Camera Warning: unusual angle : " << angle << ", clipped." << endl;
-  }
-
-  update_c2n();
-  update_w2n();
+  mark_proj_trans_dirty();
 }
 
 // Dynamics Configurations //
 
 void Camera::zoom(double q) {
   angle = min(max(angle - q, 5.0), min(160.0, 160.0 * m_aspect));
-  update_c2n();
-  update_w2n();
+  mark_proj_trans_dirty();
 }
 
 void Camera::move(double right, double up, double fwd) {
-  Vec3 orth_u = this->right();
-  Vec3 orth_v = this->m_up;
-  Vec3 orth_w = this->m_direction;
-  m_position += (right * orth_u + up * orth_v + fwd * orth_w);
-  update_w2c();
-  update_w2n();
+  m_position += (right * this->right() + up * this->m_up + fwd * this->m_direction);
+  mark_view_trans_dirty();
 }
 
 void Camera::rotate_position(const Vec3& center, const Vec3& axis, double radian) {
+  if (dot(axis, m_direction) > 0.9995) return;
+
   Vec3 vec_to_me = m_position - center;
-  if (dot(axis, m_direction) < 0.9995) {
-    Vec3::rotate(vec_to_me, axis.normalized(), radian);
-    m_position = center + vec_to_me;
-    mark_view_trans_dirty();
-  }
+  Vec3::rotate(vec_to_me, axis.normalized(), radian);
+  m_position = center + vec_to_me;
+
+  mark_view_trans_dirty();
 }
 
 void Camera::rotate_direction(const Vec3& axis, double radian) {
@@ -80,75 +80,86 @@ void Camera::rotate_direction(const Vec3& axis, double radian) {
 
 void Camera::look_at(const Vec3& target, const Vec3& up_hint) {
   Vec3 new_dir = target - m_position;
-  if (new_dir.norm2() > 0) {
-    m_direction = new_dir.normalized();
-    if (up_hint.norm2() > 0) m_up = up_hint.normalized();
-    mark_view_trans_dirty();
+  update_rotation(new_dir, up_hint);
+}
+
+void Camera::update_rotation(const Vec3& forward, const Vec3& up_hint) {
+  if (forward.norm2() >= 0.0001) {
+    m_direction = forward.normalized();
+    if (up_hint.norm2() >= 0.01) m_up = up_hint.normalized();
+    // Ensure orthogonality
+    m_up = m_up - dot(m_up, m_direction) * m_direction;
+    Vec3::normalize(m_up);
+  } else {
+    WARNING("input forward is in bad form (norm < 0.01)");
   }
+  mark_view_trans_dirty();
 }
 
 // Visibility query
 bool Camera::visible(const Vec3& v) const {
+  // TODO check the frestrum
   double dist = (m_position - v).norm();
   return (znear < dist || dist < zfar);
 }
 
-// Compute right-hand-world to left-hand-camera row-wise transform
-void Camera::update_w2c() {
-  // translation_t (column-wise)
-  Mat4 translate_t = Mat4::I();
-  translate_t[3] = Vec4(-m_position, 1.0);
+// Compute the world-space camera-space (or view-space) transform
+void Camera::update_world_to_camera() {
+  // NOTE: translate first, than rotate
 
-  // create a orthogonal coordiante for camera (used in rotation)
-  Vec3 orth_u, orth_v, orth_w;
-  orth_w = m_direction.normalized(); // `forward direction`
-  Vec3 u = cross(orth_w, m_up);      // `right direction`
-  if (u.zero())
-    u = orth_u; // handle the case of bad-direction
-  else
-    orth_u = u.normalized();
-  orth_v = cross(u, orth_w).normalized(); // `up direction`
+  // translation
+  Mat4 T(-m_position);
 
-  // rotation (row-wise)
-  Mat4 rotate = Mat4::I();
-  rotate[0] = Vec4(orth_u, 0.0);
-  rotate[1] = Vec4(orth_v, 0.0);
-  rotate[2] = Vec4(orth_w, 0.0);
+  // orthogonal coordiante for camera space (as rotation)
+  Vec3 orth_w = -m_direction; // `forward direction` looking into -Z axis
+  Vec3 orth_v = m_up;
+  Vec3 orth_u = cross(orth_v, orth_w);
+  Mat4 R {{orth_u, 0}, {orth_v, 0}, {orth_w, 0}, {{}, 1}};
+  Mat4::transpose(R);
 
-  // compose and update
-  world2camera = translate_t.T() * rotate;
+  // now, translate is affect by rotation
+  m_world_to_camera = R * T;
 }
 
-// Naive computation of left-hand-camera to left-hand-normalized transform
-void Camera::update_c2n() {
+// Naive computation of camera-space-to-normalized-space (Normalized Device Coordinate) transform
+// Applying camera projection and normalization.
+void Camera::update_camera_to_device() {
   // NOTE: Compute them as row-major, then transpose before return
 
-  // 1. make the view-pymirad into retangular pillar (divided by z disntance)
-  // then replace z by -1/z  (NOTE: assuming h == 1), so further is larger
-  static constexpr double p_data[] = // a private constexpr
-    {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 0};
-  Mat4 P(p_data);
+  // 1. make the view-frustrum into retangular pillar (divided by -z)
+  // then replace z by -1/z  (NOTE: assuming h == 1), so further is smaller (keeping z order)
+  constexpr Mat4 P {
+    1, 0, 0, 0,  //
+    0, 1, 0, 0,  //
+    0, 0, 0, 1,  //
+    0, 0, -1, 0, //
+  };
 
-  // 2. move the pillar along z axis, making it center at origin
+  // 2. move the pillar along -z axis, making the frustrum it center at origin
   Mat4 M = Mat4::I();
-  M(2, 3) = (1.0 / zfar + 1.0 / znear) / 2.0;
+  M(2, 3) = -(1.0 / zfar + 1.0 / znear) / 2.0;
 
   // 3. normalize each dimension (x, y, z)
-  double pillar_half_width = tan(angle / 2 * (PI / 180.0)); // use radian
+  double pillar_half_width = tan(angle * (0.5 * degree)); // use radian
   double pillar_half_height = pillar_half_width / m_aspect;
   double pillar_half_depth = (1.0 / znear - 1.0 / zfar) / 2.0;
   Mat4 C(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height, 1.0 / pillar_half_depth, 1.0));
 
   // composition
-  camera2normalized = (C * M * P).T();
+  m_camera_to_device = C * M * P;
 }
 
-// Update world2normalized
-void Camera::update_w2n() {
-  static Mat4 normalized2viewport {
-    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 2.0};
-  world2normalized = world2camera * camera2normalized; // they are row-wise
-  world2viewport = world2normalized * normalized2viewport;
+// Compose and cache them
+void Camera::update_world_to_camera_to_device() {
+  // NOTE: matrix are targeting column vectors
+  m_world_to_c_to_device = m_camera_to_device * m_world_to_camera;
+  constexpr Mat4 device_to_viewport {
+    1.0, 0.0, 0.0, 1.0, //
+    0.0, 1.0, 0.0, 1.0, //
+    0.0, 0.0, 1.0, 1.0, //
+    0.0, 0.0, 0.0, 2.0, //
+  };
+  m_world_to_c_to_d_to_viewport = device_to_viewport * m_world_to_c_to_device;
 }
 
 // Debug print

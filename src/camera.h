@@ -1,14 +1,17 @@
 #ifndef REI_CAMERA_H
 #define REI_CAMERA_H
 
+#include "rmath.h"
 #include "algebra.h"
 
 /*
  * camera.h
- * Define the Camera class, used to created a viewport and provide world-to-
- * camera transformation. Return column-major matrox to transform row-vetors;
- * and convert Right-Handed world space coordinates to Left-Hand coordinates
- * (in camera space or normalize device space / clip space).
+ * Representing a camera looking into -Z axis of a right-hand coordinate (or +Z axis of a left-hand
+ * coordinate), with Y axis as upward direction.
+ *
+ * Internally using a right-handed coordinate for all cached transforms and direction vectors,
+ * so no flipping happens in internal computation. Also cached transforms are always targeting
+ * column vectors.
  *
  * TODO: add sematic parameters (focus distance, like a real camera)
  * TODO: add depth
@@ -23,7 +26,8 @@ public:
   Camera();
 
   // Initialize with position and direction
-  Camera(const Vec3& pos, const Vec3& dir = {0.0, 0.0, -1.0}, const Vec3& up = {0.0, 1.0, 0.0});
+  Camera(const Vec3& pos, const Vec3& dir = {0.0, 0.0, -1.0}, const Vec3& up = {0.0, 1.0, 0.0},
+    Handness handness = Handness::Right);
 
   // Configurations
   void set_aspect(double width2height); // widht / height
@@ -42,13 +46,41 @@ public:
   void rotate_position(const Vec3& center, const Vec3& axis, double radian);
   void rotate_direction(const Vec3& axis, double radian);
   void look_at(const Vec3& target, const Vec3& up_hint = {0, 0, 0});
+  void update_rotation(const Vec3& forward, const Vec3& up_hint = {0, 0, 0});
 
   // Get transforms (result in Left Hand Coordinate;
-  // used to transform row-vector)
-  const Mat4& get_w2c() const { return world2camera; }
-  const Mat4& get_c2n() const { return camera2normalized; }
-  const Mat4& get_w2n() const { return world2normalized; }
-  const Mat4& get_w2v() const { return world2viewport; }
+  Mat4 world_to_camera(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    Mat4 ret = m_world_to_camera;
+    if (from == Handness::Left) flip_z_column(ret);
+    if (to == Handness::Left) flip_z_row(ret);
+    return vec == VectorTarget::Column ? ret : ret.T();
+  }
+  Mat4 camera_to_device(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    Mat4 ret = m_camera_to_device;
+    if (from == Handness::Left) flip_z_column(ret);
+    if (to == Handness::Left) flip_z_row(ret);
+    return vec == VectorTarget::Column ? ret : ret.T();
+  }
+  Mat4 world_to_device(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    Mat4 ret = m_world_to_c_to_device;
+    if (from == Handness::Left) flip_z_column(ret);
+    if (to == Handness::Left) flip_z_row(ret);
+    return vec == VectorTarget::Column ? ret : ret.T();
+  }
+  Mat4 view(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    return world_to_camera(from, to, vec);
+  }
+  Mat4 project(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    return camera_to_device(from, to, vec);
+  }
+  Mat4 view_proj(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+    return world_to_device(from, to, vec);
+  }
+
+  // Misc query
+  Vec3 bln() const {
+    return m_position - right() * (std::tan(angle * degree / 2) * znear) + m_direction * znear - m_up * (std::tan(angle * degree / 2) * znear / m_aspect);
+  }
 
   // Visibility query
   bool visible(const Vec3& v) const;
@@ -61,30 +93,34 @@ private:
   Vec3 m_up = Vec3(0.0, 1.0, 0.0);
   Vec3 m_position = Vec3(0.0, 0.0, 0.0);
   Vec3 m_direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
-  double angle = 60;                     // horizontal view-angle range, by degree
+  double angle = 60;                       // horizontal view-angle range, by degree
   double m_aspect = 4.0 / 3.0;             // width / height
-  double znear = 1.0, zfar = 1000.0;     // distance of two planes of the frustrum
+  double znear = 1.0, zfar = 1000.0;       // distance of two planes of the frustrum
 
-  Mat4 world2camera;      // defined by position and direction
-  Mat4 camera2normalized; // defined by view angle and ration
-  Mat4 world2normalized;  // composed from above 2
-  Mat4 world2viewport;    // added a static normalized->viewport step
+  Mat4 m_world_to_camera;             // defined by position and direction/up
+  Mat4 m_camera_to_device;            //  projection and normalization
+  Mat4 m_world_to_c_to_device;        // composed from above 2
+  Mat4 m_world_to_c_to_d_to_viewport; // above combined with a static normalized->viewport step
+
+  static inline void flip_z(Vec3& v) { v.z = -v.z; }
+  static inline void flip_z_column(Mat4& m) { m[2] = -m[2]; }
+  static inline void flip_z_row(Mat4& m) {
+    m(2, 0) *= -1;
+    m(2, 1) *= -1;
+    m(2, 2) *= -1;
+    m(2, 3) *= -1;
+  }
 
   // helpers to update transforms
-  void update_w2c();
-  void update_c2n();
-  void update_w2n();
+  void update_world_to_camera();
+  void update_camera_to_device();
+  void update_world_to_camera_to_device();
   void update_transforms() {
-    update_w2c();
-    update_c2n();
-    update_w2n();
+    update_world_to_camera();
+    update_camera_to_device();
+    update_world_to_camera_to_device();
   }
-  void mark_view_trans_dirty() {
-    // normalize the up direction
-    m_up = m_up - dot(m_up, m_direction) * m_direction;
-    Vec3::normalize(m_up);
-    update_transforms();
-  }
+  void mark_view_trans_dirty() { update_transforms(); }
   void mark_proj_trans_dirty() { update_transforms(); }
 };
 
