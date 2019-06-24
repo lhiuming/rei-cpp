@@ -7,11 +7,23 @@
 /*
  * algebra.h
  * Define some small and useful calss for mathematical computations.
+ *
+ * Both Mat3 and Mat4 use column-major storage.
+ *
  * TODO: implement Mat4 inverse ?
  * TODO: support move
  */
 
 namespace rei {
+
+// Typed constants for in-source documentation
+
+// Indicating the handness of intented coordinate space. Default should be Right.
+enum Handness : unsigned char { Right, Left };
+// Indicating the usage of transform matrix. 
+// For example, matrix targeting column-vector should be used in the form `M*v`.
+// Column vector as default, to match whth column-major storage.
+enum VectorTarget : unsigned char { Column, Row }; 
 
 // Vec3 //////////////////////////////////////////////////////////////////////
 // A general 3D vector class
@@ -277,7 +289,8 @@ struct Mat4 {
   // constexpr Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
 
   // Initialize as rigidbody transformation (for column vectors)
-  constexpr Mat4(const Vec3& translation) : Mat4({}, {}, {}, translation) {}
+  constexpr Mat4(const Vec3& translation)
+      : Mat4({1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {translation, 1}) {}
   Mat4(const Vec3& translation, const Vec3& axis, double radian) {
     double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
     columns[0] = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
