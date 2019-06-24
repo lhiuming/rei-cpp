@@ -221,6 +221,7 @@ void DeviceResources::get_pso(
   // some default value
   D3D12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);            // TODO check this
   D3D12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO check this
+  raster_state.FrontCounterClockwise = true; // d3d default is false
   D3D12_DEPTH_STENCIL_DESC depth_stencil
     = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // TODO check this
   D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topo
