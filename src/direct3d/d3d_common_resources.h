@@ -92,20 +92,20 @@ private:
   byte* mapped_memory;
 };
 
+inline static DirectX::XMMATRIX rei_to_D3D(const Mat4& A) {
+  return DirectX::XMMatrixSet( // must transpose
+    A(0, 0), A(1, 0), A(2, 0), A(3, 0), A(0, 1), A(1, 1), A(2, 1), A(3, 1), A(0, 2), A(1, 2),
+    A(2, 2), A(3, 2), A(0, 3), A(1, 3), A(2, 3), A(3, 3));
+}
+
 // TODO remove this hardcode class
 struct cbPerObject {
   DirectX::XMMATRIX WVP; // DirectXMath fits well with HLSL
   DirectX::XMMATRIX World;
 
-  cbPerObject() {}
   void update(const Mat4& wvp, const Mat4& world = Mat4::I()) {
     WVP = rei_to_D3D(wvp);
     World = rei_to_D3D(world);
-  }
-  static DirectX::XMMATRIX rei_to_D3D(const Mat4& A) {
-    return DirectX::XMMatrixSet( // must transpose
-      A(0, 0), A(1, 0), A(2, 0), A(3, 0), A(0, 1), A(1, 1), A(2, 1), A(3, 1), A(0, 2), A(1, 2),
-      A(2, 2), A(3, 2), A(0, 3), A(1, 3), A(2, 3), A(3, 3));
   }
 };
 
@@ -135,6 +135,11 @@ struct Light {
 // per-frame constant-buffer layout
 struct cbPerFrame {
   Light light;
+  DirectX::XMMATRIX camera_world_trans;
+  DirectX::XMFLOAT3 camera_pos;
+
+  void set_camera_world_trans(const Mat4& m) { camera_world_trans = rei_to_D3D(m); }
+  void set_camera_pos(const Vec3& v) { camera_pos = {float(v.x), float(v.y), float(v.z)}; }
 };
 
 struct RenderTargetSpec {
@@ -188,6 +193,7 @@ class ViewportResources;
 
 struct ViewportData : BaseViewportData {
   using BaseViewportData::BaseViewportData;
+  Vec3 pos = {};
   Mat4 view = Mat4::I();
   Mat4 proj = Mat4::I();
   Mat4 view_proj = Mat4::I();
@@ -197,6 +203,7 @@ struct ViewportData : BaseViewportData {
   std::weak_ptr<ViewportResources> viewport_resources;
 
   void update_camera_transform(const Camera& cam) { 
+    pos = cam.position();
     view = cam.view(Handness::Right, Handness::Left, VectorTarget::Row);
     proj = cam.project(Handness::Left, Handness::Left, VectorTarget::Row);
     view_proj = cam.view_proj(Handness::Right, Handness::Left, VectorTarget::Row);

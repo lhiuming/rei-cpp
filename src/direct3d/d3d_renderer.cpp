@@ -272,6 +272,9 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
     per_frame_CBs.insert(shader->const_buffers.per_frame_CB.get());
   }
   cbPerFrame frame_cb = { };
+  frame_cb.light = {};
+  frame_cb.set_camera_world_trans(viewport.view);
+  frame_cb.set_camera_pos(viewport.pos);
   for (UploadBuffer<cbPerFrame>* cb : per_frame_CBs) {
     cb->update(frame_cb);
   }
