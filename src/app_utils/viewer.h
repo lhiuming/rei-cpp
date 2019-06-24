@@ -26,7 +26,7 @@ namespace rei {
 class Viewer {
 public:
   Viewer(std::size_t window_w, std::size_t window_h, std::wstring title) 
-    : width(window_w), height(window_h), title(title) {}
+    : m_width(window_w), m_height(window_h), m_title(title) {}
   virtual ~Viewer() {};
 
   virtual void init_viewport(Renderer& renderer) = 0;
@@ -34,6 +34,10 @@ public:
 
   virtual void update_title(const std::wstring& title) = 0;
   void set_input_bus(std::weak_ptr<InputBus> input_bus) { this->input_bus = input_bus; }
+
+  std::size_t width() const { return m_width; }
+  std::size_t height() const { return m_height; }
+  const std::wstring& title() const { return m_title; }
 
   [[deprecated]]
   void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATED }
@@ -44,8 +48,8 @@ public:
   virtual void run() { DEPRECATED }
 
 protected:
-  std::size_t width, height;
-  std::wstring title = L"No Title";
+  std::size_t m_width, m_height;
+  std::wstring m_title = L"No Title";
 
   std::weak_ptr<InputBus> input_bus;
 

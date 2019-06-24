@@ -30,8 +30,11 @@ public:
   void set_params(double aspect, double angle, double znear, double zfar);
 
   // May-be useful queries
-  double get_aspect() const { return aspect; }
-  Vec3 right() const { return cross(direction, up); }
+  double aspect() const { return m_aspect; }
+  double fov_h() const { return angle; }
+  double fov_v() const { return angle / m_aspect; }
+  Vec3 position() const { return m_position; }
+  Vec3 right() const { return cross(m_direction, m_up); }
 
   // Dynamic Configurations
   void zoom(double quantity);
@@ -55,11 +58,11 @@ public:
 
 private:
   // Note: position and direction are in right-haneded world space
-  Vec3 up = Vec3(0.0, 1.0, 0.0);
-  Vec3 position = Vec3(0.0, 0.0, 0.0);
-  Vec3 direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
+  Vec3 m_up = Vec3(0.0, 1.0, 0.0);
+  Vec3 m_position = Vec3(0.0, 0.0, 0.0);
+  Vec3 m_direction = Vec3(0.0, 0.0, -1.0); // looking at -z axis in world
   double angle = 60;                     // horizontal view-angle range, by degree
-  double aspect = 4.0 / 3.0;             // width / height
+  double m_aspect = 4.0 / 3.0;             // width / height
   double znear = 1.0, zfar = 1000.0;     // distance of two planes of the frustrum
 
   Mat4 world2camera;      // defined by position and direction
@@ -78,8 +81,8 @@ private:
   }
   void mark_view_trans_dirty() {
     // normalize the up direction
-    up = up - dot(up, direction) * direction;
-    Vec3::normalize(up);
+    m_up = m_up - dot(m_up, m_direction) * m_direction;
+    Vec3::normalize(m_up);
     update_transforms();
   }
   void mark_proj_trans_dirty() { update_transforms(); }

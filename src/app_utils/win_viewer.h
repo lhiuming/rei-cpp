@@ -34,7 +34,7 @@ public:
   ~WinViewer();
 
   void init_viewport(Renderer& renderer) override {
-    UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), width, height);
+    UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
   }
 
   void update_title(const std::wstring& title) override;
@@ -56,7 +56,7 @@ private:
   void initialize_window(HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed);
 
   // Converto to basis with origin at Left-Bottom
-  inline POINTS regularize(POINTS p) { return POINTS { p.x, SHORT(height) - p.y}; }
+  inline POINTS regularize(POINTS p) { return POINTS { p.x, SHORT(m_height) - p.y}; }
 
   LRESULT process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam);
 

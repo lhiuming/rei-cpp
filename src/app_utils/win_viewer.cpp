@@ -55,7 +55,7 @@ void WinViewer::initialize_window(
   // Create the window
   hwnd = CreateWindowExW(0,       // choose an extended window style; 0 is default
     WndClassName,                 // optional; a registered class name
-    title.c_str(),                // used in the window title bar (if any)
+    m_title.c_str(),                // used in the window title bar (if any)
     WS_OVERLAPPEDWINDOW,          // window style; using the most ordinary combination
     CW_USEDEFAULT, CW_USEDEFAULT, // window default position, see MSDN
     width, height,                // window size
@@ -108,6 +108,11 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
         last_mouse_pos_regular = p1;
         mouse_in_window = true;
         return 0;
+      case WM_MOUSEWHEEL:
+        double delta = GET_WHEEL_DELTA_WPARAM(wParam) / (double)WHEEL_DELTA;
+        bool altered = (GET_KEYSTATE_WPARAM(wParam) == MK_SHIFT);
+        input.push(Zoom {delta, altered});
+        return 0;
     }
   }
 
@@ -126,6 +131,7 @@ LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 void WinViewer::update_title(const std::wstring& new_title) {
   BOOL succeeded = SetWindowTextW(hwnd, new_title.data());
   ASSERT(succeeded);
+  m_title = new_title;
 }
 
 } // namespace rei

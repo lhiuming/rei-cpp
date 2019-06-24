@@ -19,7 +19,7 @@ Camera::Camera() {
 
 // Initialize with pos, dir and up
 Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
-    : up(up.normalized()), position(pos), direction(dir.normalized()) {
+    : m_up(up.normalized()), m_position(pos), m_direction(dir.normalized()) {
   update_transforms();
 }
 
@@ -27,14 +27,14 @@ Camera::Camera(const Vec3& pos, const Vec3& dir, const Vec3& up)
 
 // update aspect
 void Camera::set_aspect(double aspect) {
-  this->aspect = aspect;
+  this->m_aspect = aspect;
   update_c2n();
   update_w2n();
 }
 
 // update a bunch parameters
 void Camera::set_params(double aspect, double angle, double znear, double zfar) {
-  this->aspect = aspect;
+  this->m_aspect = aspect;
   this->angle = min(max(angle, 5.0), 160.0);
   this->znear = znear;
   this->zfar = zfar;
@@ -50,46 +50,46 @@ void Camera::set_params(double aspect, double angle, double znear, double zfar) 
 // Dynamics Configurations //
 
 void Camera::zoom(double q) {
-  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * aspect));
+  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * m_aspect));
   update_c2n();
   update_w2n();
 }
 
 void Camera::move(double right, double up, double fwd) {
   Vec3 orth_u = this->right();
-  Vec3 orth_v = this->up;
-  Vec3 orth_w = this->direction;
-  position += (right * orth_u + up * orth_v + fwd * orth_w);
+  Vec3 orth_v = this->m_up;
+  Vec3 orth_w = this->m_direction;
+  m_position += (right * orth_u + up * orth_v + fwd * orth_w);
   update_w2c();
   update_w2n();
 }
 
 void Camera::rotate_position(const Vec3& center, const Vec3& axis, double radian) {
-  Vec3 vec_to_me = position - center;
-  if (dot(axis, direction) < 0.9995) {
+  Vec3 vec_to_me = m_position - center;
+  if (dot(axis, m_direction) < 0.9995) {
     Vec3::rotate(vec_to_me, axis.normalized(), radian);
-    position = center + vec_to_me;
+    m_position = center + vec_to_me;
     mark_view_trans_dirty();
   }
 }
 
 void Camera::rotate_direction(const Vec3& axis, double radian) {
-  Vec3::rotate(direction, axis.normalized(), radian);
+  Vec3::rotate(m_direction, axis.normalized(), radian);
   mark_view_trans_dirty();
 }
 
 void Camera::look_at(const Vec3& target, const Vec3& up_hint) {
-  Vec3 new_dir = target - position;
+  Vec3 new_dir = target - m_position;
   if (new_dir.norm2() > 0) {
-    direction = new_dir.normalized();
-    if (up_hint.norm2() > 0) up = up_hint.normalized();
+    m_direction = new_dir.normalized();
+    if (up_hint.norm2() > 0) m_up = up_hint.normalized();
     mark_view_trans_dirty();
   }
 }
 
 // Visibility query
 bool Camera::visible(const Vec3& v) const {
-  double dist = (position - v).norm();
+  double dist = (m_position - v).norm();
   return (znear < dist || dist < zfar);
 }
 
@@ -97,12 +97,12 @@ bool Camera::visible(const Vec3& v) const {
 void Camera::update_w2c() {
   // translation_t (column-wise)
   Mat4 translate_t = Mat4::I();
-  translate_t[3] = Vec4(-position, 1.0);
+  translate_t[3] = Vec4(-m_position, 1.0);
 
   // create a orthogonal coordiante for camera (used in rotation)
   Vec3 orth_u, orth_v, orth_w;
-  orth_w = direction.normalized(); // `forward direction`
-  Vec3 u = cross(orth_w, up);      // `right direction`
+  orth_w = m_direction.normalized(); // `forward direction`
+  Vec3 u = cross(orth_w, m_up);      // `right direction`
   if (u.zero())
     u = orth_u; // handle the case of bad-direction
   else
@@ -135,7 +135,7 @@ void Camera::update_c2n() {
 
   // 3. normalize each dimension (x, y, z)
   double pillar_half_width = tan(angle / 2 * (PI / 180.0)); // use radian
-  double pillar_half_height = pillar_half_width / aspect;
+  double pillar_half_height = pillar_half_width / m_aspect;
   double pillar_half_depth = (1.0 / znear - 1.0 / zfar) / 2.0;
   Mat4 C(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height, 1.0 / pillar_half_depth, 1.0));
 
@@ -154,11 +154,11 @@ void Camera::update_w2n() {
 // Debug print
 std::wostream& operator<<(std::wostream& os, const Camera& cam) {
   os << "Camrea:" << endl;
-  os << "  position : " << cam.position << endl;
-  os << "  direction: " << cam.direction << endl;
-  os << "  up       : " << cam.up << std::endl;
+  os << "  position : " << cam.m_position << endl;
+  os << "  direction: " << cam.m_direction << endl;
+  os << "  up       : " << cam.m_up << std::endl;
   os << "  params: "
-     << "fov-angle = " << cam.angle << ", aspect = " << cam.aspect << ", z-near = " << cam.znear
+     << "fov-angle = " << cam.angle << ", aspect = " << cam.m_aspect << ", z-near = " << cam.znear
      << ", z-fat = " << cam.zfar << endl;
 
   return os;

@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <sstream>
 
+#include "../rmath.h"
+
 using std::make_shared;
 using std::make_unique;
 
@@ -47,11 +49,22 @@ void WinApp::on_update() {
     auto mov = *(input.get<CursorDrag>());
     acc += (mov.stop - mov.start);
   }
+  double zoom_in = 0;
+  for (auto& input : input_bus->get<Zoom>()) {
+    auto zoom = *(input.get<Zoom>());
+    zoom_in += zoom.delta;
+  }
   const Vec3 focus_center {0, 0, 0};
   const Vec3 up {0, 1, 0};
-  camera->rotate_position(focus_center, up, -acc.x / 100);
-  camera->rotate_position(focus_center, -camera->right(), -acc.y / 100);
+  const double rot_range = pi;
+  camera->rotate_position(focus_center, up, -acc.x / viewer->width() * rot_range);
+  camera->rotate_position(focus_center, -camera->right(), -acc.y / viewer->height() * rot_range);
   camera->look_at(focus_center, up);
+  const double ideal_dist = 8;
+  const double min_dist = 4;
+  double curr_dist = (camera->position() - focus_center).norm();
+  double scale = (curr_dist - min_dist) / (ideal_dist - min_dist);
+  camera->move(0, 0, (std::min)(zoom_in, curr_dist - min_dist) * scale);
 
   // update title
   if (config.show_fps_in_title) {

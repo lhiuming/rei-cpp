@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 
   // Set up the Viewer and Renderer
   const int height = 480;
-  int width = height * c->get_aspect();
+  int width = height * c->aspect();
   auto v = makeViewer(width, height, "Draw World from file");
   v->set_camera(c);
   v->set_scene(s);

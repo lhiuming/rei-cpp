@@ -50,14 +50,18 @@ struct CursorMove : public _CursorLineData {
 struct CursorDrag : _CursorLineData {
   using _CursorLineData::_CursorLineData;
 };
-
+struct Zoom {
+  double delta; // positive: zoom in; negative: zoom out;
+  bool altered;
+};
 
 // clang-format off
 typedef std::variant<
-  CursorPress, 
-  CursorRelease, 
-  CursorMove, 
-  CursorDrag
+  CursorPress
+  , CursorRelease
+  , CursorMove
+  , CursorDrag
+  , Zoom
 > InputVariant;
 // clang-format on
 
