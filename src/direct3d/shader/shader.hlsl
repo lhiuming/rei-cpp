@@ -46,4 +46,7 @@ float4 PS(VS_OUTPUT input) : SV_TARGET {
   float3 finalColor = diffuse * (tint * light.diffuse + light.ambient);
 
   return float4(finalColor, diffuse.a); // take the alpha channel of object
+// Fake VS entrypoint to supress IDE error
+float4 main() : SV_POSITION {
+  return float4(1, 1, 0, 1);
 }

@@ -111,29 +111,35 @@ target_link_libraries(${core_library} PRIVATE ${graphic_api_libs})
 target_link_libraries(${core_library} PRIVATE assimp)
 
 # Export the core data list to a variable
-# TODO bind this property to rei library targer 
 set(core_data_path "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${core_data_name}")
 set(core_data_source_directories "")
 set(core_data_source_files "")
+# collect data directories
 if(BUILD_OPENGL)
 	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/opengl/shader")
 endif()
 if(BUILD_DIRECT3D)
 	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/direct3d/shader")
 endif()
-message("Configure exporting core data to ${core_data_path}: ")
+# collect each data file
 foreach(core_data_src_dir ${core_data_source_directories})
-	message("	${core_data_src_dir}")
-	get_filename_component(dir_name ${core_data_src_dir} NAME)
-	add_custom_command(TARGET ${core_library} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory "${core_data_src_dir}" "${core_data_path}/${dir_name}")
 	file(GLOB_RECURSE files "${core_data_src_dir}/*")
 	list(APPEND core_data_source_files ${files})
 endforeach()
-
-# Include the asset into the project, for IDEs like Visual Studio
-if (MSVC)
-	add_custom_target(CoreData SOURCES ${core_data_source_files} )
-endif()
+# create a target for dependecy management and IDE convinience
+add_custom_target(CoreData SOURCES ${core_data_source_files})
+message("* Configure exporting core data to ${core_data_path}: ")
+# add command to copy each folder
+foreach(core_data_src_dir ${core_data_source_directories})
+	get_filename_component(dir_name ${core_data_src_dir} NAME)
+	message("	- Copy <${core_data_src_dir}> to <${core_data_path}/${dir_name}>")
+	add_custom_command(TARGET CoreData POST_BUILD
+		DEPENDS ${files}
+		COMMAND ${CMAKE_COMMAND} -E copy_directory "${core_data_src_dir}" "${core_data_path}/${dir_name}"
+	)
+endforeach()
+# add to dependency hierarchy
+add_dependencies(${core_library} CoreData)
 
 
 #------------
