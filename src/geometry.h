@@ -17,6 +17,8 @@ public:
   Geometry(std::wstring name) : name(name) {};
   virtual ~Geometry() = 0;
 
+  Geometry(Geometry&& other) = default;
+
   virtual GeometryHandle get_graphic_handle() const = 0;
   virtual void set_graphic_handle(const GeometryHandle& h) = 0 ;
 
@@ -39,41 +41,48 @@ public:
     Vec3 normal; // Vertex normal
     Color color; // Vertex color
 
-    Vertex(const Vec3& pos3)
-        : coord(pos3, 1.0), normal(pos3.normalized()), color(Colors::white) {};
+    Vertex() {}
+    Vertex(const Vec3& pos3) : coord(pos3, 1.0), normal(pos3.normalized()), color(Colors::white) {}
     Vertex(const Vec3& pos3, const Vec3& nor, const Color& c = Colors::white)
-        : coord(pos3, 1.0), normal(nor), color(c) {};
+        : coord(pos3, 1.0), normal(nor), color(c) {}
   };
 
   // Triangle template class, details depend on implementation of mesh
   template <typename VertexId>
-  struct TriangleImp {
+  struct TriangleTpl {
     VertexId a;
     VertexId b;
     VertexId c;
 
-    TriangleImp(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
+    TriangleTpl() {}
+    TriangleTpl(VertexId a, VertexId b, VertexId c) : a(a), b(b), c(c) {};
   };
 
   // Type alias
   using size_type = std::vector<Vertex>::size_type;
-  using Triangle = TriangleImp<size_type>;
+  using Size = std::vector<Vertex>::size_type;
+  using Triangle = TriangleTpl<size_type>;
+  using Index = size_type;
 
   [[deprecated]] Mesh(std::string n) : Geometry(L"deprecated") { REI_DEPRECATED }
   Mesh(std::wstring n = L"Mesh Un-named") : Geometry(n) {}
+  Mesh(std::wstring name, std::vector<Vertex> vertices, std::vector<Triangle>&& triangles) : Geometry(name), m_vertices(vertices), m_triangles(triangles) {}
+
+  Mesh(Mesh&& other) = default;
 
   // Set data (by vertices index array)
   void set(std::vector<Vertex>&& va, const std::vector<size_type>& ta);
   // Set data (by vertives index triplet array)
   void set(std::vector<Vertex>&& va, std::vector<Triangle>&& ta);
+
   // Basic queries
-  const std::vector<Vertex>& get_vertices() const { return vertices; }
-  const std::vector<Triangle>& get_triangles() const { return triangles; }
+  const std::vector<Vertex>& get_vertices() const { return m_vertices; }
+  const std::vector<Triangle>& get_triangles() const { return m_triangles; }
 
  // Convinient queries
-  bool empty() const { return triangles.empty(); }
-  bool vertices_num() const { return vertices.size(); }
-  bool triangle_num() const { return triangles.size(); }
+  bool empty() const { return m_triangles.empty(); }
+  bool vertices_num() const { return m_vertices.size(); }
+  bool triangle_num() const { return m_triangles.size(); }
 
   GeometryHandle get_graphic_handle() const override { return rendering_handle; }
   void set_graphic_handle(const GeometryHandle& h) override { rendering_handle = h; }
@@ -81,9 +90,13 @@ public:
   // Debug info
   std::wstring summary() const override;
 
+  // Some mesh-related utilities
+  static Mesh procudure_cube(Vec3 extent = {1, 1, 1}, Vec3 origin = {0, 0, 0}, Handness hand = Handness::Right);
+  static Mesh procudure_sphere(double radius = 1, Vec3 origin = {0, 0, 0});
+
 private:
-  std::vector<Vertex> vertices;
-  std::vector<Triangle> triangles;
+  std::vector<Vertex> m_vertices;
+  std::vector<Triangle> m_triangles;
 
   GeometryHandle rendering_handle;
 };
