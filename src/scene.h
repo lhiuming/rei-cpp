@@ -25,7 +25,8 @@ namespace rei {
 class Scene {
 public:
   // Member types
-  typedef const std::vector<ModelPtr>& ModelsRef;
+  typedef const std::vector<ModelPtr>& ModelsConstRef;
+  typedef std::vector<ModelPtr>& ModelsRef;
 
   //static const MaterialPtr default_material;
 
@@ -36,14 +37,14 @@ public:
   virtual ~Scene() {};
 
   void add_model(Model&& mi) { models.emplace_back(std::make_shared<Model>(mi)); }
-  void add_model(ModelPtr mp) { models.push_back(mp); }
   ModelPtr add_model(const Mat4& trans, GeometryPtr geometry, Name name) {
     ModelPtr new_model = std::make_shared<Model>(name, trans, geometry, nullptr);
-    add_model(new_model);
+    models.emplace_back(new_model);
     return new_model;
   }
 
-  virtual ModelsRef get_models() const { return models; }
+  virtual ModelsConstRef get_models() const { return models; }
+  virtual ModelsRef get_models() { return models; }
 
   // Debug info
   virtual std::wstring summary() const { return L"Base Scene"; }

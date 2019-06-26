@@ -17,29 +17,49 @@ WinApp::WinApp(Config config) : config(config) {
   // we dont do that here, because we want to create app with standard main()
   hinstance = GetModuleHandle(nullptr); // handle to the current .exe
 
-  input_bus = make_shared<InputBus>();
+  input_bus = make_unique<InputBus>();
 
   // Default renderer
-  auto d3d_renderer = make_shared<d3d::Renderer>(hinstance);
-  renderer = d3d_renderer;
+  renderer = make_unique<d3d::Renderer>(hinstance);
 
-  // view the scene
-  auto win_viewer = make_shared<WinViewer>(hinstance, config.width, config.height, config.title);
-  viewer = win_viewer;
+  // Default viewer
+  viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
   viewer->init_viewport(*renderer);
   viewer->set_input_bus(input_bus);
-
   renderer->set_viewport_clear_value(viewer->get_viewport(), config.bg_color);
+
+  // Init Scene and camera
+  scene = make_unique<Scene>();
+  camera = make_unique<Camera>();
+  renderer->update_viewport_transform(viewer->get_viewport(), *camera);
 }
 
 WinApp::~WinApp() {
   log("WinApp terminated.");
 }
 
-void WinApp::setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera) {
-  this->scene = scene;
-  this->camera = camera;
-  renderer->update_viewport_transform(viewer->get_viewport(), *camera);
+void WinApp::setup(Scene&& scene, Camera&& camera) {
+  this->scene = make_unique<Scene>(scene);
+  for (ModelPtr& m : this->scene->get_models()) {
+    REI_ASSERT(m);
+
+    // register geometry
+    GeometryPtr geo = m->get_geometry();
+    if (geo && geo->get_graphic_handle() == nullptr) {
+      GeometryHandle g_handle = renderer->create_geometry(*geo);
+      geo->set_graphic_handle(g_handle);
+    }
+
+    // register material&shader
+    MaterialPtr mat = m->get_material();
+    if (mat && mat->get_graphic_handle() == nullptr) {
+      REI_NOT_IMPLEMENTED
+    }
+
+    ModelHandle h_model = renderer->create_model(*m);
+    m->set_rendering_handle(h_model);
+  }
+  this->camera = make_unique<Camera>(camera);
 }
 
 void WinApp::on_update() {
@@ -77,6 +97,7 @@ void WinApp::on_update() {
     viewer->update_title(str.str());
   }
 
+  // Finalize
   input_bus->reset();
 }
 

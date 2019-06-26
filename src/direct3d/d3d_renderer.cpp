@@ -165,7 +165,7 @@ CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene)
   auto culling_data = make_shared<CullingData>(this);
   vector<ModelData>& culled_models = culling_data->models;
   // TODO current culling is just a dummy process
-  Scene::ModelsRef scene_models = scene.get_models();
+  Scene::ModelsConstRef scene_models = scene.get_models();
   for (ModelPtr a : scene_models) {
     ModelHandle h_model = a->get_rendering_handle();
     if (warning_if(h_model == nullptr, "Model is not create in renderer")) { continue; }

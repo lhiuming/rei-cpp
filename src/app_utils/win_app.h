@@ -31,7 +31,7 @@ public:
   WinApp(Config config);
   virtual ~WinApp();
 
-  void setup(std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera);
+  void setup(Scene&& scene, Camera&& camera);
 
   void run();
 
@@ -45,10 +45,11 @@ private:
   HINSTANCE hinstance = NULL;
 
   std::shared_ptr<InputBus> input_bus;
-  std::shared_ptr<Viewer> viewer;
-  std::shared_ptr<Renderer> renderer;
-  std::shared_ptr<Scene> scene;
-  std::shared_ptr<Camera> camera;
+
+  std::unique_ptr<Viewer> viewer;
+  std::unique_ptr<Renderer> renderer;
+  std::unique_ptr<Scene> scene;
+  std::unique_ptr<Camera> camera;
 
   using clock_t = std::chrono::high_resolution_clock;
   clock_t clock;
