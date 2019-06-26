@@ -34,20 +34,16 @@ int main() {
   Vertex v6({5, -9, 0}, {0.f, 0.f, 1.f}, {0.4f, 0.1f, 0.7f, 1.0f});
   Vertex v7({8, 4, 2}, {0.f, 0.f, 1.f}, {0.0f, 0.7f, 0.7f, 1.0f});
   Vertex v8({-6, -6, 0}, {0.f, 0.f, 1.f}, {0.2f, 0.2f, 0.7f, 0.0f});
-
-  Mesh mesh;
-  mesh.set({v0, v1, v2, v3, v4, v5, v6, v7, v8}, {0, 1, 2, 3, 4, 5, 6, 7, 8});
-  console << "Mesh model set up." << endl;
+  MeshPtr mesh = make_shared<Mesh>();
+  mesh->set({v0, v1, v2, v3, v4, v5, v6, v7, v8}, {0, 1, 2, 3, 4, 5, 6, 7, 8});
 
   // Set up the scene
-  auto s = make_shared<Scene>();
-  REI_NOT_IMPLEMENTED
-  //s->add_model(make_shared<Mesh>(std::move(mesh)), Mat4::I());
-  console << "Scene set up. " << endl;
+  Scene scene {};
+  scene.add_model(Mat4::I(), mesh, L"triangles");
 
   // Set up the camera
-  auto c = make_shared<Camera>(Vec3 {0.0, 2.0, 20.0});
-  c->set_aspect(720.0 / 480.0);
+  Camera camera (Vec3 {0.0, 2.0, 20.0});
+  camera.set_aspect(720.0 / 480.0);
   console << "Camera set up." << endl;
 
   Color colors[4] = {Colors::jo, Colors::ha, Colors::kyu, Colors::final};
@@ -60,7 +56,7 @@ int main() {
   conf.height = 480;
   conf.bg_color = rand_color;
   auto app = App(conf);
-  app.setup(s, c);
+  app.setup(std::move(scene), std::move(camera));
   app.run();
 
   console << "Viewer stopped. Program ends." << endl;
