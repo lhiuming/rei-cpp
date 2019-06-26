@@ -256,8 +256,8 @@ void DeviceResources::get_pso(
 void DeviceResources::create_mesh_buffer_common(
   const vector<VertexElement>& vertices, const vector<std::uint16_t>& indices, MeshData& mesh_res) {
   if (vertices.size() == 0 || indices.size() == 0) {
-    REI_WARNING(vertices.size() == 0);
-    REI_WARNING(indices.size() == 0);
+    REI_ERROR(vertices.size() == 0);
+    REI_ERROR(indices.size() == 0);
     return;
   }
 

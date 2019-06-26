@@ -62,7 +62,7 @@ protected:
   std::shared_ptr<MaterialData> default_material;
   std::shared_ptr<ModelData> debug_model;
 
-  const bool draw_debug_model = true;
+  const bool draw_debug_model = false;
 
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);
