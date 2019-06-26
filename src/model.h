@@ -63,6 +63,7 @@ public:
   virtual ~Model() = default;
 
   Mat4 get_transform() const { return transform; }
+  void set_transform(const Mat4 trans) { this->transform = trans; }
 
   void set_material(std::shared_ptr<Material> mat) { this->material = mat; }
   MaterialPtr get_material() const { return material; }

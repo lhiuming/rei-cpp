@@ -154,6 +154,10 @@ ModelHandle Renderer::create_model(const Model& model) {
 void Renderer::prepare(Scene& scene) {
   // TODO update data from scene
   Scene::ModelsRef models = scene.get_models();
+  for (ModelPtr& m : models) {
+    shared_ptr<ModelData> data = to_model(m->get_rendering_handle());
+    data->transform = m->get_transform();
+  }
 
   // wait to finish reresource creation commands
   // TODO make this non-block
