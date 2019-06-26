@@ -8,7 +8,6 @@
 #include <unordered_map>
 
 #include <windows.h>
-#include <d3d11.h>
 
 #include "../common.h"
 #include "../camera.h"

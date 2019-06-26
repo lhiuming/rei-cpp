@@ -7,7 +7,6 @@
 #include <memory>
 
 #include <DirectXMath.h>
-#include <d3d11.h> // todo remove this
 #include <d3d12.h>
 #include <d3dx12.h>
 #include <windows.h>
@@ -181,12 +180,6 @@ struct MeshData : GeometryData {
   ComPtr<ID3D12Resource> ind_upload_buffer;
   D3D12_INDEX_BUFFER_VIEW ibv;
   UINT index_num;
-
-  // Deprecated stuffs
-  ID3D11Buffer* meshIndexBuffer;
-  ID3D11Buffer* meshVertBuffer;
-  ID3D11Buffer* meshConstBuffer;
-  cbPerObject mesh_cb_data;
 };
 
 class ViewportResources;

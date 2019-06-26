@@ -89,7 +89,7 @@ void ViewportResources::create_size_dependent_resources() {
   chain_desc.Height = height;
   chain_desc.Format = target_spec.rt_format;
   chain_desc.Stereo = FALSE;
-  chain_desc.SampleDesc = target_spec.sample_desc; 
+  chain_desc.SampleDesc = target_spec.sample_desc;
   chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
   chain_desc.BufferCount = swapchain_buffer_count; // total frame buffer count
   chain_desc.Scaling = DXGI_SCALING_STRETCH;
@@ -119,12 +119,12 @@ void ViewportResources::create_size_dependent_resources() {
   ds_desc.Alignment = 0; // default; let the runtime choose
   ds_desc.Width = width;
   ds_desc.Height = height;
-  ds_desc.DepthOrArraySize = 1; // just a normal texture
-  ds_desc.MipLevels = 1; // see above
+  ds_desc.DepthOrArraySize = 1;           // just a normal texture
+  ds_desc.MipLevels = 1;                  // see above
   ds_desc.Format = target_spec.ds_format; // srandard choice
   ds_desc.SampleDesc = target_spec.sample_desc;
-  ds_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // defualt; TODO check this
-  ds_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;// as we intent
+  ds_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;                       // defualt; TODO check this
+  ds_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;             // as we intent
   D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_DEPTH_WRITE; // alway this state
   D3D12_CLEAR_VALUE optimized_clear = {}; // special clear value; usefull for framebuffer types
   optimized_clear.Format = target_spec.ds_format;
@@ -136,43 +136,6 @@ void ViewportResources::create_size_dependent_resources() {
   // Create depth-stencil view for the DS buffer
   D3D12_DEPTH_STENCIL_VIEW_DESC* p_dsv_desc = nullptr; // default value: same format as buffer[0]
   device->CreateDepthStencilView(depth_stencil_buffer.Get(), p_dsv_desc, get_dsv());
-
-  return;
-
-  // Render Target Interface (bound to the OutputMerge stage)
-  ID3D11Texture2D* BackBuffer; // tmp pointer to the backbuffer in swap-chain
-  hr = this->SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&BackBuffer);
-  if (FAILED(hr)) throw runtime_error("BackBuffer creation FAILED");
-  hr = this->d3d11Device->CreateRenderTargetView(BackBuffer, // resource for the view
-    NULL,                                                    // optional; render arget desc
-    &(this->renderTargetView) // receive the returned render target view
-  );
-  if (FAILED(hr)) throw runtime_error("RenderTargetView creation FAILED");
-  BackBuffer->Release();
-
-  // Depth Buffer Interface
-  D3D11_TEXTURE2D_DESC depthStencilDesc; // property for the depth buffer
-  depthStencilDesc.Width = width;
-  depthStencilDesc.Height = height;
-  depthStencilDesc.MipLevels = 1;                          // max number of mipmap level;
-  depthStencilDesc.ArraySize = 1;                          // number of textures
-  depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // 24 bit for depth
-  depthStencilDesc.SampleDesc.Count = 1;                   // multi-sampling parameters
-  depthStencilDesc.SampleDesc.Quality = 0;
-  depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-  depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-  depthStencilDesc.CPUAccessFlags = 0; // we dont access it
-  depthStencilDesc.MiscFlags = 0;      // additional settings
-  hr = this->d3d11Device->CreateTexture2D(&depthStencilDesc,
-    NULL,                       // optinoal; the data to send to the buffer; we don't set it ourself
-    &(this->depthStencilBuffer) // receive the returned buffer pointer
-  );
-  if (FAILED(hr)) throw runtime_error("DepthBuffer creation FAILED");
-  hr = this->d3d11Device->CreateDepthStencilView(this->depthStencilBuffer, // resource for the view
-    NULL,                     // optional; pointer to depth-stencil-view desc; NULL to use 0-mipmap
-    &(this->depthStencilView) // receive the returned DepthStencil View pointer
-  );
-  if (FAILED(hr)) throw runtime_error("DepthStencilView creation FAILED");
 }
 
 void ViewportResources::update_size(int width, int height) {

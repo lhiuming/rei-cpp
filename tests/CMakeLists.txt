@@ -28,9 +28,6 @@ ENDIF()
 
 IF(BUILD_DIRECTX)
 
-add_executable(test_d3d11 WIN32 test_d3d11.cpp)
-target_link_libraries (test_d3d11 ${DirectX11_LIBRARY})
-
 #copy the shader file
 file(COPY ${CMAKE_CURRENT_ROOT_DIR}test_effects.hlsl
 	DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CONFIGURATION_TYPES}")

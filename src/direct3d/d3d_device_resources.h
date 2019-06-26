@@ -13,8 +13,6 @@
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
 
-#include <d3d11.h> // remove this
-
 #include "../common.h"
 #include "../algebra.h"
 #include "../model.h"
@@ -95,35 +93,6 @@ private:
   void create_model_buffer(const Model& model, ModelData& model_data);
 
   void flush_command_queue_for_frame();
-
-
-  // below are deprecated members
-
-  // D3D interface object
-  ID3D11Device* d3d11Device;        // the device abstraction
-  ID3D11DeviceContext* d3d11DevCon; // the device context
-                                    // Default Shader objects
-  ID3D11VertexShader* VS;
-  ID3D11PixelShader* PS;
-  ID3DBlob* VS_Buffer;
-  ID3DBlob* PS_Buffer;
-
-  // Pipeline states objects
-  ID3D11RasterizerState* FaceRender; // normal
-  ID3D11RasterizerState* LineRender; // with depth bias (to draw cel-line)
-
-  // Rendering objects
-  ID3D11InputLayout* vertElementLayout;
-  ID3D11Buffer* cbPerFrameBuffer; // shader buffer to hold frame-wide data
-  cbPerFrame data_per_frame;      // memory-layouting for frame constant-buffer
-  Light g_light;                  // global light-source data, fed to frame-buffer
-
-  ID3D11Buffer* cubeIndexBuffer;
-  ID3D11Buffer* cubeVertBuffer;
-  ID3D11Buffer* cubeConstBuffer;
-  cbPerObject cube_cb_data;
-  double cube_rot = 0.0;
-
 };
 
 } // namespace d3d

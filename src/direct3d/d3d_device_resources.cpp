@@ -85,7 +85,7 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   shading_buffer_view_inc_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-// INIT: compile the default shaders
+
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
   // routine for bytecode compilation
   auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
@@ -139,26 +139,11 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
 
   result = {vs_bytecode, ps_bytecode, vertex_ele_descs};
 
-  // FIXME check blow stuffs
-  NOT_IMPLEMENTED
+  // TODO add refelction for input layout and const buffers
+
   return;
-
-  // Specify the per-frame constant-buffer
-  D3D11_BUFFER_DESC cbbd;
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC)); // reuse the DESC struct above
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerFrame);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer
-  cbbd.CPUAccessFlags = 0;
-  cbbd.MiscFlags = 0;
-  HRESULT hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cbPerFrameBuffer);
-  if (FAILED(hr)) throw runtime_error("Per-frame Buufer creation FAILED");
-
-  // Initialize a defautl Light data
-  g_light.dir = DirectX::XMFLOAT3(0.25f, 0.5f, 0.0f);
-  g_light.ambient = DirectX::XMFLOAT4(0.3f, 0.3f, 0.3f, 1.0f);
-  g_light.diffuse = DirectX::XMFLOAT4(0.9f, 0.9f, 0.9f, 1.0f);
 }
+
 
 void DeviceResources::create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers) {
   const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*device.Get(), 1, true);
@@ -166,6 +151,7 @@ void DeviceResources::create_const_buffers(const ShaderData& shader, ShaderConst
   const_buffers.per_object_CBs = make_shared<UploadBuffer<cbPerObject>>(*device.Get(), init_size, true);
   const_buffers.next_object_index = 0;
 }
+
 
 void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign) {
   {
@@ -200,6 +186,7 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
     root_sign_blob->GetBufferSize(), IID_PPV_ARGS(&root_sign));
   ASSERT(SUCCEEDED(hr));
 }
+
 
 void DeviceResources::get_pso(
   const ShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
@@ -265,6 +252,7 @@ void DeviceResources::get_pso(
   auto inserted = pso_cache.insert({cache_key, pso});
   ASSERT(inserted.second);
 }
+
 
 // common routine for debug
 void DeviceResources::create_mesh_buffer_common(
@@ -365,10 +353,12 @@ void DeviceResources::create_mesh_buffer_common(
   mesh_res.index_num = indices.size();
 }
 
+
 void DeviceResources::create_model_buffer(const Model& model, ModelData& model_data) {
-  // Allocate constant buffer for this model
-  
+  // Allocate constant buffer view descriptor for this model
+  // TODO not needed, we are using root parameter
 }
+
 
 void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   // Collect the source data
@@ -420,54 +410,6 @@ void DeviceResources::create_debug_mesh_buffer(MeshData& mesh_res) {
     4, 0, 3, 4, 3, 7};
 
   create_mesh_buffer_common(v, indices, mesh_res);
-  return;
-
-  /*
-  HRESULT hr;
-
-  // Create the vertex buffer data object
-  D3D11_BUFFER_DESC vertexBufferDesc;
-  ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-  vertexBufferDesc.Usage
-    = D3D11_USAGE_DEFAULT; // how the buffer will be read from and written to; use default
-  vertexBufferDesc.ByteWidth = sizeof(VertexElement) * ARRAYSIZE(v); // size of the buffer
-  vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;             // used as vertex buffer
-  vertexBufferDesc.CPUAccessFlags = 0;                               //  we don't use it
-  vertexBufferDesc.MiscFlags = 0;                                    // extra flags; not using
-  vertexBufferDesc.StructureByteStride = NULL;                       // not using
-  D3D11_SUBRESOURCE_DATA vertexBufferData;                           // parameter struct ?
-  ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-  vertexBufferData.pSysMem = v;
-  hr = d3d11Device->CreateBuffer(&vertexBufferDesc, // buffer description
-    &vertexBufferData,                              // parameter set above
-    &(this->cubeVertBuffer)                         // receive the returned ID3D11Buffer object
-  );
-  if (FAILED(hr)) throw runtime_error("Create cube vertex buffer FAILED");
-
-  // Create the index buffer data object
-  D3D11_BUFFER_DESC indexBufferDesc;
-  ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
-  indexBufferDesc.Usage = D3D11_USAGE_DEFAULT; // I guess this is for DRAM type
-  indexBufferDesc.ByteWidth = sizeof(DWORD) * ARRAYSIZE(indices);
-  indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER; // index !
-  indexBufferDesc.CPUAccessFlags = 0;
-  indexBufferDesc.MiscFlags = 0;
-  indexBufferDesc.StructureByteStride = NULL;
-  D3D11_SUBRESOURCE_DATA indexBufferData;
-  ZeroMemory(&indexBufferData, sizeof(indexBufferData));
-  indexBufferData.pSysMem = indices;
-  hr = d3d11Device->CreateBuffer(&indexBufferDesc, &indexBufferData, &(this->cubeIndexBuffer));
-  if (FAILED(hr)) throw runtime_error("Create cube index buffer FAILED");
-
-  // Create a constant-buffer for the cube
-  D3D11_BUFFER_DESC cbbd;
-  ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
-  cbbd.Usage = D3D11_USAGE_DEFAULT;
-  cbbd.ByteWidth = sizeof(cbPerObject);
-  cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // NOTE: we use Constant Buffer
-  hr = d3d11Device->CreateBuffer(&cbbd, NULL, &cubeConstBuffer);
-  if (FAILED(hr)) throw runtime_error("Cube Const Buffer creation FAILED");
-  */
 }
 
 void DeviceResources::flush_command_queue_for_frame() {
@@ -483,6 +425,9 @@ void DeviceResources::flush_command_queue_for_frame() {
     DWORD flags = 0; // dont signal init state; auto reset;
     DWORD access_mask = EVENT_ALL_ACCESS;
     HANDLE evt_handle = CreateEventEx(default_security, evt_name, flags, access_mask);
+    ASSERT(evt_handle);
+
+    if (evt_handle == 0) return;
 
     HRESULT hr = frame_fence->SetEventOnCompletion(current_frame_fence, evt_handle);
     ASSERT(SUCCEEDED(hr));

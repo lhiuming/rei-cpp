@@ -71,7 +71,7 @@ if(BUILD_DIRECT3D)
 	target_include_directories(d3dutils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/d3dutils)
 
 	# for new windows (10), the lib is in standrad search path, no need to find
-	set(direct3d_libs d3dutils d3d12.lib DXGI.lib d3d11.lib d3dcompiler.lib CACHE STRING "")
+	set(direct3d_libs d3dutils d3d12.lib DXGI.lib d3dcompiler.lib CACHE STRING "")
 
 endif(BUILD_DIRECT3D)
 

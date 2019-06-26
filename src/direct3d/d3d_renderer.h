@@ -82,6 +82,7 @@ protected:
   std::shared_ptr<ShaderData> to_shader(ShaderHandle h) { return get_data<ShaderHandle, ShaderData>(h); }
   std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) { return get_data<GeometryHandle, GeometryData>(h); }
   std::shared_ptr<MaterialData> to_material(MaterialHandle h) { return get_data<MaterialHandle, MaterialData>(h); }
+
 };
 
 } // namespace d3d

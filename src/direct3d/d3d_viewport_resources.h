@@ -3,7 +3,6 @@
 
 #include <windows.h>
 #include <wrl.h>
-#include <d3d11_2.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 
@@ -65,15 +64,6 @@ private:
     current_back_buffer_index = (current_back_buffer_index + 1) % swapchain_buffer_count;
   }
 
-  // below data members are deprecated
-
-  ID3D11Device* d3d11Device;        // the device abstraction
-  ID3D11DeviceContext* d3d11DevCon; // the device context
-
-  IDXGISwapChain1* SwapChain;               // double-buffering
-  ID3D11Texture2D* depthStencilBuffer;      // texture buffer for depth test
-  ID3D11RenderTargetView* renderTargetView; // render target interface
-  ID3D11DepthStencilView* depthStencilView; // depth-testing interface
 };
 
 } // namespace d3d
