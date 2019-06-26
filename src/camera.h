@@ -31,6 +31,7 @@ public:
 
   // Configurations
   void set_aspect(double width2height); // widht / height
+  void set_aspect(int width, int height) { set_aspect(double(width) / height); }
   void set_params(double aspect, double angle, double znear, double zfar);
 
   // May-be useful queries

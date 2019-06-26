@@ -54,9 +54,9 @@ class Model {
 public:
   // Default construct
   [[depreacated]]
-  Model(std::string n) { REI_DEPRECATED }
-  Model(std::wstring n) : Model(n, Mat4::I(), nullptr, nullptr) {}
-  Model(std::wstring n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
+  Model(const std::string& n) { REI_DEPRECATED }
+  Model(const std::wstring& n) : Model(n, Mat4::I(), nullptr, nullptr) {}
+  Model(const std::wstring& n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
       : name(n), transform(trans), geometry(geometry), material(material) {}
 
   // Destructor

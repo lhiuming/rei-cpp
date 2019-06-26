@@ -37,12 +37,12 @@ public:
   virtual ~Scene() {};
 
   void add_model(Model&& mi) { models.emplace_back(std::make_shared<Model>(mi)); }
-  ModelPtr add_model(const Mat4& trans, GeometryPtr geometry, Name name) {
+  void add_model(const Mat4& trans, GeometryPtr geometry, const Name& name) {
     ModelPtr new_model = std::make_shared<Model>(name, trans, geometry, nullptr);
     models.emplace_back(new_model);
-    return new_model;
   }
 
+  // TODO convert to iterator
   virtual ModelsConstRef get_models() const { return models; }
   virtual ModelsRef get_models() { return models; }
 
