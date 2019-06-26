@@ -157,5 +157,5 @@ endif()
 
 # todo seperate samples from tests
 if(BUILD_SAMPLES)
-#add_subdirectory_with_folder("Samples" samples)
+	add_subdirectory_with_folder("Samples" samples)
 endif()

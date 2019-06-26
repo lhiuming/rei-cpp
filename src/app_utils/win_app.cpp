@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "../debug.h"
 #include "../rmath.h"
 
 using std::make_shared;
@@ -28,10 +29,10 @@ WinApp::WinApp(Config config) : config(config) {
   viewer->set_input_bus(input_bus);
   renderer->set_viewport_clear_value(viewer->get_viewport(), config.bg_color);
 
-  // Init Scene and camera
+  // Create default scene and camera
   scene = make_unique<Scene>();
-  camera = make_unique<Camera>();
-  renderer->update_viewport_transform(viewer->get_viewport(), *camera);
+  camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
+  camera->set_aspect(config.width, config.height);
 }
 
 WinApp::~WinApp() {
@@ -39,7 +40,14 @@ WinApp::~WinApp() {
 }
 
 void WinApp::setup(Scene&& scene, Camera&& camera) {
-  this->scene = make_unique<Scene>(scene);
+  if (is_started) {
+    REI_WARNING("App setup is called after started");
+    return;
+  }
+  initialize_scene();
+}
+
+void WinApp::initialize_scene() {
   for (ModelPtr& m : this->scene->get_models()) {
     REI_ASSERT(m);
 
@@ -52,41 +60,75 @@ void WinApp::setup(Scene&& scene, Camera&& camera) {
 
     // register material&shader
     MaterialPtr mat = m->get_material();
-    if (mat && mat->get_graphic_handle() == nullptr) {
-      REI_NOT_IMPLEMENTED
-    }
+    if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
 
     ModelHandle h_model = renderer->create_model(*m);
     m->set_rendering_handle(h_model);
   }
-  this->camera = make_unique<Camera>(camera);
+}
+
+void WinApp::start() {
+  on_start();
+
+  initialize_scene();
+
+  is_started = true;
+}
+
+void WinApp::on_start() {
+  if (config.enable_grid_line) {
+    // todo create and draw grid line
+  }
+}
+
+void WinApp::update() {
+  // callback
+  on_update();
+
+  // Finalize
+  input_bus->reset();
 }
 
 void WinApp::on_update() {
-  // Model-centred camera control
-  Vec3 acc;
-  for (auto& input : input_bus->get<CursorDrag>()) {
-    auto mov = *(input.get<CursorDrag>());
-    acc += (mov.stop - mov.start);
-  }
-  double zoom_in = 0;
-  for (auto& input : input_bus->get<Zoom>()) {
-    auto zoom = *(input.get<Zoom>());
-    zoom_in += zoom.delta;
-  }
-  const Vec3 focus_center {0, 0, 0};
-  const Vec3 up {0, 1, 0};
-  const double rot_range = pi;
-  camera->rotate_position(focus_center, up, -acc.x / viewer->width() * rot_range);
-  camera->rotate_position(focus_center, -camera->right(), -acc.y / viewer->height() * rot_range);
-  camera->look_at(focus_center, up);
-  const double ideal_dist = 8;
-  const double min_dist = 4;
-  double curr_dist = (camera->position() - focus_center).norm();
-  double scale = (curr_dist - min_dist) / (ideal_dist - min_dist);
-  camera->move(0, 0, (std::min)(zoom_in, curr_dist - min_dist) * scale);
+  update_camera_control();
+  update_title();
+}
 
-  // update title
+void WinApp::update_camera_control() {
+  if (config.default_camera_control_enabled) {
+    const Vec3 focus_center {0, 0, 0};
+    const Vec3 up {0, 1, 0};
+
+    Vec3 acc;
+    for (auto& input : input_bus->get<CursorDrag>()) {
+      auto mov = *(input.get<CursorDrag>());
+      acc += (mov.stop - mov.start);
+    }
+    if (acc.norm2() > 0.0001) {
+      const double rot_range = pi;
+      camera->rotate_position(focus_center, up, -acc.x / viewer->width() * rot_range);
+      camera->rotate_position(
+        focus_center, -camera->right(), -acc.y / viewer->height() * rot_range);
+      camera->look_at(focus_center, up);
+    }
+
+    double zoom_in = 0;
+    for (auto& input : input_bus->get<Zoom>()) {
+      auto zoom = *(input.get<Zoom>());
+      zoom_in += zoom.delta;
+    }
+    if (std::abs(zoom_in) != 0) {
+      const double ideal_dist = 8;
+      const double block_dist = 4;
+      double curr_dist = (camera->position() - focus_center).norm();
+      double scale = std::abs((curr_dist - block_dist) / (ideal_dist - block_dist));
+      if (zoom_in < 0) scale = (std::max)(scale, 0.1);
+      camera->move(0, 0, zoom_in * scale);
+    }
+  }
+}
+
+void WinApp::update_title() {
   if (config.show_fps_in_title) {
     using millisecs = std::chrono::duration<float, std::milli>;
     float ms = millisecs(last_frame_time).count();
@@ -96,24 +138,25 @@ void WinApp::on_update() {
         << fps << "fps";
     viewer->update_title(str.str());
   }
+}
 
-  // Finalize
-  input_bus->reset();
+void WinApp::render() {
+  clock_last_check = clock.now();
+  on_render();
+  last_frame_time = clock.now() - clock_last_check;
 }
 
 void WinApp::on_render() {
-  clock_last_check = clock.now();
-
   renderer->prepare(*scene);
   ViewportHandle viewport = viewer->get_viewport();
   renderer->update_viewport_transform(viewport, *camera);
   auto culling_result = renderer->cull(viewport, *scene);
   renderer->render(viewport, culling_result);
-
-  last_frame_time = clock.now() - clock_last_check;
 }
 
 void WinApp::run() {
+  start();
+
   // Check event and do update&render
   MSG msg;
   ZeroMemory(&msg, sizeof(MSG));
@@ -124,9 +167,9 @@ void WinApp::run() {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     } else {
-      on_update();
-      on_render();
-      // Flip the buffer
+      // simple one tick
+      update();
+      render();
     }
   } // end while
 }

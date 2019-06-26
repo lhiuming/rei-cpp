@@ -25,36 +25,52 @@ public:
     bool show_fps_in_title = true;
     bool enable_vsync = false;
     Color bg_color = Colors::ayanami_blue;
+    bool default_camera_control_enabled = true;
+    bool enable_grid_line = true;
   };
 
 public:
   WinApp(Config config);
   virtual ~WinApp();
 
+  [[deprecated]]
   void setup(Scene&& scene, Camera&& camera);
 
   void run();
 
 protected:
-  virtual void on_update();
-  virtual void on_render();
-
-private:
   Config config;
-
-  HINSTANCE hinstance = NULL;
-
-  std::shared_ptr<InputBus> input_bus;
 
   std::unique_ptr<Viewer> viewer;
   std::unique_ptr<Renderer> renderer;
   std::unique_ptr<Scene> scene;
   std::unique_ptr<Camera> camera;
+  std::shared_ptr<InputBus> input_bus;
+
+  virtual void on_start();
+  virtual void on_update();
+  virtual void on_render();
+
+  // TODO should be more elegant
+  void initialize_scene();
+
+  // some useful methods
+  void update_camera_control();
+  void update_title();
+
+private:
+  HINSTANCE hinstance = NULL;
+
+  bool is_started = false;
 
   using clock_t = std::chrono::high_resolution_clock;
   clock_t clock;
   clock_t::time_point clock_last_check;
   clock_t::duration last_frame_time;
+
+  void start();
+  void update();
+  void render();
 };
 
 }
