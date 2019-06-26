@@ -9,6 +9,10 @@ protected:
   NoCopy() = default;
   ~NoCopy() = default;
 
+  // allow move
+  NoCopy(NoCopy&&) = default;
+  NoCopy& operator=(NoCopy&&) = default;
+
 private:
   NoCopy(const NoCopy&) = delete;
   NoCopy& operator=(const NoCopy&) = delete;
