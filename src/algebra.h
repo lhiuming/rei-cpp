@@ -290,13 +290,13 @@ struct Mat4 {
 
   // Initialize as rigidbody transformation (for column vectors)
   constexpr Mat4(const Vec3& translation)
-      : Mat4({1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {translation, 1}) {}
+      : Mat4({1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translation, 1.}) {}
   Mat4(const Vec3& translation, const Vec3& axis, double radian) {
     double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
     columns[0] = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
     columns[1] = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
     columns[2] = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
-    columns[3] = translation;
+    columns[3] = {translation, 1.};
   }
 
   // Initialize with row data; useful for hard-coding constant matrix
