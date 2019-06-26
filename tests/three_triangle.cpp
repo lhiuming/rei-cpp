@@ -41,7 +41,7 @@ int main() {
 
   // Set up the scene
   auto s = make_shared<Scene>();
-  NOT_IMPLEMENTED
+  REI_NOT_IMPLEMENTED
   //s->add_model(make_shared<Mesh>(std::move(mesh)), Mat4::I());
   console << "Scene set up. " << endl;
 

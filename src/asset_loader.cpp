@@ -231,7 +231,7 @@ Model AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
   } else if (node.mNumMeshes == 1) // Mesh
   {
     // Make a mesh fron aiMesh
-    NOT_IMPLEMENTED
+    REI_NOT_IMPLEMENTED
     mesh = make_mesh(*(as->mMeshes[node.mMeshes[0]]), coordinate_trans, this->materials_list);
     console << "AssetLoader: loaded node name = " << node.mName.C_Str() << ")" << endl;
   } else // Mesh aggrerate
@@ -342,7 +342,7 @@ MeshPtr AssimpLoaderImpl::make_mesh(
 
   // Set the data and material, then done
   ret->set(std::move(va), std::move(ta));
-  NOT_IMPLEMENTED
+  REI_NOT_IMPLEMENTED
   //ret->set(mat_list[mesh.mMaterialIndex]); // fix model and mesh and material stuffs
   return ret;
 

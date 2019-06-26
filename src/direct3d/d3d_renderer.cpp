@@ -33,7 +33,7 @@ Renderer::~Renderer() {
 }
 
 ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, int height) {
-  ASSERT(window_id.platform == SystemWindowID::Win);
+  REI_ASSERT(window_id.platform == SystemWindowID::Win);
 
   HWND hwnd = window_id.value.hwnd;
 
@@ -75,7 +75,7 @@ void Renderer::set_viewport_clear_value(ViewportHandle viewport_handle, Color c)
 
 void Renderer::update_viewport_vsync(ViewportHandle viewport_handle, bool enabled_vsync) {
   auto viewport = to_viewport(viewport_handle);
-  ASSERT(viewport);
+  REI_ASSERT(viewport);
   viewport->enable_vsync = enabled_vsync;
 }
 
@@ -85,7 +85,7 @@ void Renderer::update_viewport_size(ViewportHandle viewport, int width, int heig
 
 void Renderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
   shared_ptr<ViewportData> viewport = to_viewport(h_viewport);
-  ASSERT(viewport);
+  REI_ASSERT(viewport);
   viewport->update_camera_transform(camera);
 }
 
@@ -115,7 +115,7 @@ ModelHandle Renderer::create_model(const Model& model) {
 
   // set up reference
   model_data->geometry = to_geometry(model.get_geometry()->get_graphic_handle());
-  ASSERT(model_data->geometry);
+  REI_ASSERT(model_data->geometry);
   if (!model.get_material()) {
     warning("model has no material; use deafult mat");
     model_data->material = default_material;
@@ -125,22 +125,22 @@ ModelHandle Renderer::create_model(const Model& model) {
 
   // allocate const buffer
   auto shader = to_shader(model_data->material->shader);
-  ASSERT(shader);
+  REI_ASSERT(shader);
   ShaderConstBuffers& shader_cbs = shader->const_buffers;
   UINT cb_index = shader->const_buffers.next_object_index++;
-  ASSERT(cb_index < shader_cbs.per_object_CBs->size());
+  REI_ASSERT(cb_index < shader_cbs.per_object_CBs->size());
   model_data->const_buffer_index = cb_index;
 
   // allocate a cbv in the device shared heap
   ID3D12Resource* buffer = shader_cbs.per_object_CBs->resource();
-  ASSERT(buffer);
+  REI_ASSERT(buffer);
   D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
   cbv_desc.BufferLocation = shader_cbs.per_object_CBs->buffer_address(cb_index);
   cbv_desc.SizeInBytes = shader_cbs.per_object_CBs->element_bytesize();
   ID3D12DescriptorHeap* cb_heap = device_resources->shading_buffer_heap.Get();
-  ASSERT(cb_heap);
+  REI_ASSERT(cb_heap);
   UINT cbv_index = device_resources->next_shading_buffer_view_index++;
-  ASSERT(cbv_index < device_resources->max_shading_buffer_view_num);
+  REI_ASSERT(cbv_index < device_resources->max_shading_buffer_view_num);
   CD3DX12_CPU_DESCRIPTOR_HANDLE cbv {cb_heap->GetCPUDescriptorHandleForHeapStart(), (INT)cbv_index,
     device_resources->shading_buffer_view_inc_size};
   device_resources->device->CreateConstantBufferView(&cbv_desc, cbv);
@@ -170,7 +170,7 @@ CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene)
   Scene::ModelsRef scene_models = scene.get_models();
   for (ModelPtr a : scene_models) {
     ModelHandle h_model = a->get_rendering_handle();
-    ASSERT(h_model);
+    REI_ASSERT(h_model);
     shared_ptr<ModelData> a_model = to_model(h_model);
     culled_models.push_back(*a_model);
   }
@@ -186,9 +186,9 @@ CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene)
 
 void Renderer::render(const ViewportHandle viewport_handle, CullingResult culling_handle) {
   shared_ptr<ViewportData> p_viewport = to_viewport(viewport_handle);
-  ASSERT(p_viewport);
+  REI_ASSERT(p_viewport);
   shared_ptr<CullingData> p_culling = to_culling(culling_handle);
-  ASSERT(p_culling);
+  REI_ASSERT(p_culling);
   render(*p_viewport, *p_culling);
 }
 
@@ -204,8 +204,8 @@ void Renderer::upload_resources() {
 }
 
 void Renderer::render(ViewportData& viewport, CullingData& culling) {
-  ASSERT(device_resources.get());
-  ASSERT(!viewport.viewport_resources.expired());
+  REI_ASSERT(device_resources.get());
+  REI_ASSERT(!viewport.viewport_resources.expired());
 
   auto& dev_res = *device_resources;
   auto& vp_res = *(viewport.viewport_resources.lock());
@@ -225,7 +225,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   // allocator
   // ASSERT(SUCCEEDED(cmd_alloc->Reset())); // assume previous GPU tasks are finished
   if (!device_resources->is_drawing_reset) {
-    ASSERT(SUCCEEDED(cmd_list->Reset(
+    REI_ASSERT(SUCCEEDED(cmd_list->Reset(
       cmd_alloc.Get(), NULL))); // reuse the command list object; fine with null init pso
   }
 
@@ -258,11 +258,11 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   unordered_set<UploadBuffer<cbPerFrame>*> per_frame_CBs {};
   for (ModelData& model : culling.models) {
     ShaderData* shader = model.material->shader.get();
-    ASSERT(shader);
-    ASSERT(shader->const_buffers.per_frame_CB.get());
+    REI_ASSERT(shader);
+    REI_ASSERT(shader->const_buffers.per_frame_CB.get());
     per_frame_CBs.insert(shader->const_buffers.per_frame_CB.get());
   }
-  cbPerFrame frame_cb = { };
+  cbPerFrame frame_cb = {};
   frame_cb.light = {};
   frame_cb.set_camera_world_trans(viewport.view);
   frame_cb.set_camera_pos(viewport.pos);
@@ -288,7 +288,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   cmd_list->ResourceBarrier(1, &post_rt);
 
   // Finish adding commands
-  ASSERT(SUCCEEDED(cmd_list->Close()));
+  REI_ASSERT(SUCCEEDED(cmd_list->Close()));
   dev_res.is_drawing_reset = false;
 
   // Submit the only command list
@@ -307,7 +307,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   // Flush and wait
   dev_res.flush_command_queue_for_frame();
 
-  ASSERT(SUCCEEDED(cmd_alloc->Reset())); // assume previous GPU tasks are finished
+  REI_ASSERT(SUCCEEDED(cmd_alloc->Reset())); // assume previous GPU tasks are finished
 }
 
 void Renderer::create_debug_assets() {
@@ -368,7 +368,8 @@ void Renderer::draw_meshes(ModelDrawTask& task) {
     cbPerObject object_cb = {};
     object_cb.update(model.transform * view_proj_mat, model.transform);
     const_buffers.per_object_CBs->update(object_cb, model.const_buffer_index);
-    cmd_list->SetGraphicsRootConstantBufferView(0, const_buffers.per_object_CBs->buffer_address(model.const_buffer_index));
+    cmd_list->SetGraphicsRootConstantBufferView(
+      0, const_buffers.per_object_CBs->buffer_address(model.const_buffer_index));
 
     // Set geometry buffer
     cmd_list->IASetVertexBuffers(0, 1, &mesh.vbv);
@@ -377,7 +378,6 @@ void Renderer::draw_meshes(ModelDrawTask& task) {
     // Draw
     cmd_list->DrawIndexedInstanced(mesh.index_num, 1, 0, 0, 0);
   } // end for each model
-
 }
 
 } // namespace d3d

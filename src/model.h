@@ -54,7 +54,7 @@ class Model {
 public:
   // Default construct
   [[depreacated]]
-  Model(std::string n) { DEPRECATED }
+  Model(std::string n) { REI_DEPRECATED }
   Model(std::wstring n) : Model(n, Mat4::I(), nullptr, nullptr) {}
   Model(std::wstring n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
       : name(n), transform(trans), geometry(geometry), material(material) {}
@@ -73,8 +73,8 @@ public:
   void set_rendering_handle(ModelHandle h) { rendering_handle = h; }
   ModelHandle get_rendering_handle() const { return rendering_handle; }
 
-  [[deprecated]] void set(const Material& mat) { DEPRECATED }
-  [[deprecated]] void set(Material&& mat) { DEPRECATED }
+  [[deprecated]] void set(const Material& mat) { REI_DEPRECATED }
+  [[deprecated]] void set(Material&& mat) { REI_DEPRECATED }
 
   // Debug info
   virtual std::wstring summary() const;

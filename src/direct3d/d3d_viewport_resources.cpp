@@ -19,11 +19,11 @@ ViewportResources::ViewportResources(ComPtr<ID3D12Device> device,
       width(init_width),
       height(init_height),
       swapchain_buffer_count(2) {
-  ASSERT(device);
-  ASSERT(dxgi_factory);
-  ASSERT(command_queue);
-  ASSERT(hwnd);
-  ASSERT((width > 0) && (height > 0));
+  REI_ASSERT(device);
+  REI_ASSERT(dxgi_factory);
+  REI_ASSERT(command_queue);
+  REI_ASSERT(hwnd);
+  REI_ASSERT((width > 0) && (height > 0));
 
   HRESULT hr;
 
@@ -34,7 +34,7 @@ ViewportResources::ViewportResources(ComPtr<ID3D12Device> device,
   rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // TODO check this
   rtv_heap_desc.NodeMask = 0;                            // TODO check this
   hr = device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&rtv_heap));
-  ASSERT(SUCCEEDED(hr));
+  REI_ASSERT(SUCCEEDED(hr));
 
   current_back_buffer_index = 0;
   rtv_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -45,7 +45,7 @@ ViewportResources::ViewportResources(ComPtr<ID3D12Device> device,
   dsv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
   dsv_heap_desc.NodeMask = 0;
   hr = device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&dsv_heap));
-  ASSERT(SUCCEEDED(hr));
+  REI_ASSERT(SUCCEEDED(hr));
 
   // Some size-dependent resources
   create_size_dependent_resources();
@@ -56,9 +56,9 @@ ViewportResources::~ViewportResources() {
 }
 
 ComPtr<ID3D12Resource> ViewportResources::get_rt_buffer(UINT index) const {
-  ASSERT(index <= swapchain_buffer_count);
+  REI_ASSERT(index <= swapchain_buffer_count);
   ComPtr<ID3D12Resource> ret;
-  ASSERT(SUCCEEDED(swapchain->GetBuffer(index, IID_PPV_ARGS(&ret))));
+  REI_ASSERT(SUCCEEDED(swapchain->GetBuffer(index, IID_PPV_ARGS(&ret))));
   return ret;
 }
 
@@ -100,14 +100,14 @@ void ViewportResources::create_size_dependent_resources() {
     NULL, // windowed app
     NULL, // optional
     &swapchain);
-  ASSERT(SUCCEEDED(hr));
+  REI_ASSERT(SUCCEEDED(hr));
 
   // Create render target views from swapchain buffers
   D3D12_RENDER_TARGET_VIEW_DESC* default_rtv_desc = nullptr; // default initialization
   for (UINT i = 0; i < swapchain_buffer_count; i++) {
     ComPtr<ID3D12Resource> rt_buffer;
     hr = swapchain->GetBuffer(i, IID_PPV_ARGS(&rt_buffer));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
     device->CreateRenderTargetView(rt_buffer.Get(), default_rtv_desc, get_rtv(i));
   }
 
@@ -131,7 +131,7 @@ void ViewportResources::create_size_dependent_resources() {
   optimized_clear.DepthStencil = target_spec.ds_clear;
   hr = device->CreateCommittedResource(&ds_heap_prop, ds_heap_flags, &ds_desc, init_state,
     &optimized_clear, IID_PPV_ARGS(&depth_stencil_buffer));
-  ASSERT(SUCCEEDED(hr));
+  REI_ASSERT(SUCCEEDED(hr));
 
   // Create depth-stencil view for the DS buffer
   D3D12_DEPTH_STENCIL_VIEW_DESC* p_dsv_desc = nullptr; // default value: same format as buffer[0]

@@ -124,13 +124,13 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
 LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
   auto viewer = viewer_map.find(hwnd);
   if (viewer != viewer_map.end()) { return viewer->second->process_wnd_msg(msg, wParam, lParam); }
-  ERROR("Fail to find viewer");
+  REI_ERROR("Fail to find viewer");
   return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 void WinViewer::update_title(const std::wstring& new_title) {
   BOOL succeeded = SetWindowTextW(hwnd, new_title.data());
-  ASSERT(succeeded);
+  REI_ASSERT(succeeded);
   m_title = new_title;
 }
 

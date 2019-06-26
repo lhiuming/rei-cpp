@@ -38,7 +38,7 @@ void Camera::set_aspect(double aspect) {
 
 // update a bunch parameters
 void Camera::set_params(double aspect, double angle, double znear, double zfar) {
-  ASSERT((0 < znear) && (znear < zfar));
+  REI_ASSERT((0 < znear) && (znear < zfar));
   if ((angle < 5.0) || (angle > 160.0)) {
     console << "Camera Warning: unusual angle : " << angle << ", clipped." << endl;
   }
@@ -91,7 +91,7 @@ void Camera::update_rotation(const Vec3& forward, const Vec3& up_hint) {
     m_up = m_up - dot(m_up, m_direction) * m_direction;
     Vec3::normalize(m_up);
   } else {
-    WARNING("input forward is in bad form (norm < 0.01)");
+    REI_WARNING("input forward is in bad form (norm < 0.01)");
   }
   mark_view_trans_dirty();
 }

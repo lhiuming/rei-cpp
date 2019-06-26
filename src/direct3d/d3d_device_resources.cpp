@@ -10,9 +10,9 @@
 
 #include "../debug.h"
 
-using std::runtime_error;
-using std::make_unique;
 using std::make_shared;
+using std::make_unique;
+using std::runtime_error;
 using std::shared_ptr;
 using std::string;
 using std::vector;
@@ -30,7 +30,7 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   {
     // d3d12 debug layer
     ComPtr<ID3D12Debug> debug_controller;
-    ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
+    REI_ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
     debug_controller->EnableDebugLayer();
     // dxgi 4 debug layer
     dxgi_factory_flags = DXGI_CREATE_FACTORY_DEBUG;
@@ -38,16 +38,16 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
 #endif
 
   // DXGI factory
-  ASSERT(SUCCEEDED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory))));
+  REI_ASSERT(SUCCEEDED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory))));
 
   // D3D device
   IDXGIAdapter* default_adapter = nullptr;
-  ASSERT(
+  REI_ASSERT(
     SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device))));
 
   // Trace back the adapter
   LUID adapter_liud = device->GetAdapterLuid();
-  ASSERT(SUCCEEDED(dxgi_factory->EnumAdapterByLuid(adapter_liud, IID_PPV_ARGS(&dxgi_adapter))));
+  REI_ASSERT(SUCCEEDED(dxgi_factory->EnumAdapterByLuid(adapter_liud, IID_PPV_ARGS(&dxgi_adapter))));
 
   // Command list and stuffs
   UINT node_mask = 0; // Single GPU
@@ -57,13 +57,13 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
   queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
   queue_desc.NodeMask = node_mask;
-  ASSERT(SUCCEEDED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue))));
-  ASSERT(SUCCEEDED(device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&command_alloc))));
+  REI_ASSERT(SUCCEEDED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue))));
+  REI_ASSERT(SUCCEEDED(device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&command_alloc))));
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
-  ASSERT(SUCCEEDED(device->CreateCommandList(
+  REI_ASSERT(SUCCEEDED(device->CreateCommandList(
     node_mask, list_type, command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&draw_command_list))));
   draw_command_list->Close();
-  ASSERT(SUCCEEDED(device->CreateCommandList(
+  REI_ASSERT(SUCCEEDED(device->CreateCommandList(
     node_mask, list_type, command_alloc.Get(), nullptr, IID_PPV_ARGS(&upload_command_list))));
   upload_command_list->Close();
   is_drawing_reset = false;
@@ -71,7 +71,7 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
 
   // Create fence
   D3D12_FENCE_FLAGS fence_flags = D3D12_FENCE_FLAG_NONE;
-  ASSERT(SUCCEEDED(device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
+  REI_ASSERT(SUCCEEDED(device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
   current_frame_fence = 0;
 
   // Create buffer-type descriptor heap
@@ -80,11 +80,11 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   heap_desc.NumDescriptors = max_shading_buffer_view_num;
   heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // for shader resources
   heap_desc.NodeMask = 0;                                      // sinlge GPU
-  ASSERT(SUCCEEDED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&shading_buffer_heap))));
+  REI_ASSERT(SUCCEEDED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&shading_buffer_heap))));
   next_shading_buffer_view_index = 0;
-  shading_buffer_view_inc_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+  shading_buffer_view_inc_size
+    = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
-
 
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
   // routine for bytecode compilation
@@ -144,14 +144,14 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
   return;
 }
 
-
-void DeviceResources::create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers) {
+void DeviceResources::create_const_buffers(
+  const ShaderData& shader, ShaderConstBuffers& const_buffers) {
   const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*device.Get(), 1, true);
   UINT64 init_size = 128;
-  const_buffers.per_object_CBs = make_shared<UploadBuffer<cbPerObject>>(*device.Get(), init_size, true);
+  const_buffers.per_object_CBs
+    = make_shared<UploadBuffer<cbPerObject>>(*device.Get(), init_size, true);
   const_buffers.next_object_index = 0;
 }
-
 
 void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign) {
   {
@@ -171,7 +171,7 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
 
   UINT par_num = ARRAYSIZE(root_par_slots);
   D3D12_ROOT_PARAMETER* pars = root_par_slots;
-  UINT s_sampler_num = 0;               // TODO check this later
+  UINT s_sampler_num = 0; // TODO check this later
   D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
   D3D12_ROOT_SIGNATURE_FLAGS sig_flags
     = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
@@ -184,9 +184,8 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
   UINT node_mask = 0; // single GPU
   hr = device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
     root_sign_blob->GetBufferSize(), IID_PPV_ARGS(&root_sign));
-  ASSERT(SUCCEEDED(hr));
+  REI_ASSERT(SUCCEEDED(hr));
 }
-
 
 void DeviceResources::get_pso(
   const ShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
@@ -243,16 +242,15 @@ void DeviceResources::get_pso(
     desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // cache
     ComPtr<ID3D12PipelineState> return_pso;
     HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&return_pso));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
 
     return return_pso;
   };
 
   pso = create();
   auto inserted = pso_cache.insert({cache_key, pso});
-  ASSERT(inserted.second);
+  REI_ASSERT(inserted.second);
 }
-
 
 // common routine for debug
 void DeviceResources::create_mesh_buffer_common(
@@ -274,7 +272,7 @@ void DeviceResources::create_mesh_buffer_common(
     ComPtr<ID3D12Resource> result;
     HRESULT hr = device->CreateCommittedResource(
       &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&result));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
     return result;
   };
 
@@ -291,7 +289,7 @@ void DeviceResources::create_mesh_buffer_common(
     ComPtr<ID3D12Resource> upload_buffer;
     HRESULT hr = device->CreateCommittedResource(
       &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&upload_buffer));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
 
     // pre-upload transition
     D3D12_RESOURCE_BARRIER pre_upload = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -353,12 +351,10 @@ void DeviceResources::create_mesh_buffer_common(
   mesh_res.index_num = indices.size();
 }
 
-
 void DeviceResources::create_model_buffer(const Model& model, ModelData& model_data) {
   // Allocate constant buffer view descriptor for this model
   // TODO not needed, we are using root parameter
 }
-
 
 void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   // Collect the source data
@@ -425,12 +421,12 @@ void DeviceResources::flush_command_queue_for_frame() {
     DWORD flags = 0; // dont signal init state; auto reset;
     DWORD access_mask = EVENT_ALL_ACCESS;
     HANDLE evt_handle = CreateEventEx(default_security, evt_name, flags, access_mask);
-    ASSERT(evt_handle);
+    REI_ASSERT(evt_handle);
 
     if (evt_handle == 0) return;
 
     HRESULT hr = frame_fence->SetEventOnCompletion(current_frame_fence, evt_handle);
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
 
     WaitForSingleObject(evt_handle, INFINITE);
     CloseHandle(evt_handle);

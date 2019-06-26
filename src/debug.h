@@ -24,13 +24,24 @@ static inline void warning(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << "WARNING: " << msg << meta << endl;
 }
 
+template<typename T, typename LogMsg>
+static inline bool warning_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
+  if (expr) {
+    warning(msg, meta);
+    return true;
+  }
+  return false;
+}
+
 template<typename LogMsg>
 static inline void error(LogMsg msg, MetaMsg meta = k_empty_meta) {
-#if NDEBUG
   console << "ERROR: " << msg << meta << endl;
-  #else
-  throw std::runtime_error("GENERIC ERROR FOR BREAKPOINT ");
-  #endif
+}
+
+template<typename T, typename LogMsg>
+static inline bool error_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
+  if (expr) { error(msg, meta); }
+  return false;
 }
 
 static inline void not_implemented(MetaMsg meta = k_empty_meta) {
@@ -73,26 +84,27 @@ static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
 
 #define REI_THROW(msg) throw std::runtime_error(msg)
 
+#define REI_WARNING(expr) ::rei::warning_if(expr, #expr, REI_DEBUG_META)
+#define REI_ERROR(expr) ::rei::error_if(expr, #expr, REI_DEBUG_META)
+
 #if THROW
-#define ASSERT(expr) ((expr) ? true : REI_THROW(#expr))
+#define REI_ASSERT(expr) ((expr) ? true : REI_THROW(#expr))
 #else
 #define ASSERT(expr) ::rei::rassert(expr, #expr, REI_DEBUG_META)
 #endif
 
 #if THROW
-#define UNINIT(var) (var ? REI_THROW(#var " is not empry") : var, var)
+#define REI_UNINIT(var) (var ? REI_THROW(#var " is not empry") : var, var)
 #else
 #define UNINIT(var) (::rei::uninit(var, #var "is not empty", REI_DEBUG_META), var)
 #endif
 
-#define NOT_IMPLEMENT() (::rei::not_implemented(REI_DEBUG_META))
+#define REI_NOT_IMPLEMENT() (::rei::not_implemented(REI_DEBUG_META))
 
-#define NOT_IMPLEMENTED NOT_IMPLEMENT();
+#define REI_NOT_IMPLEMENTED REI_NOT_IMPLEMENT();
 
-#define DEPRECATE() (::rei::deprecated(REI_DEBUG_META))
+#define REI_DEPRECATE() (::rei::deprecated(REI_DEBUG_META))
 
-#define DEPRECATED DEPRECATE();
-
-#define WARNING(expr) ::rei::warning(expr, REI_DEBUG_META)
+#define REI_DEPRECATED REI_DEPRECATE();
 
 #endif

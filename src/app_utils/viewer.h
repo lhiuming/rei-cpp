@@ -40,12 +40,12 @@ public:
   const std::wstring& title() const { return m_title; }
 
   [[deprecated]]
-  void set_renderer(std::shared_ptr<Renderer> renderer) { DEPRECATED }
-  void set_scene(std::shared_ptr<Scene> scene) { DEPRECATED }
-  void set_camera(std::shared_ptr<Camera> cam) { DEPRECATED }
+  void set_renderer(std::shared_ptr<Renderer> renderer) { REI_DEPRECATED }
+  void set_scene(std::shared_ptr<Scene> scene) { REI_DEPRECATED }
+  void set_camera(std::shared_ptr<Camera> cam) { REI_DEPRECATED }
 
   [[deprecated]]
-  virtual void run() { DEPRECATED }
+  virtual void run() { REI_DEPRECATED }
 
 protected:
   std::size_t m_width, m_height;

@@ -33,7 +33,7 @@ public:
   ~WinViewer();
 
   void init_viewport(Renderer& renderer) override {
-    UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
+    REI_UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
   }
 
   void update_title(const std::wstring& title) override;

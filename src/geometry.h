@@ -39,9 +39,9 @@ public:
     Vec3 normal; // Vertex normal
     Color color; // Vertex color
 
-    Vertex(const Vec3& pos3, const Color& c = Color(0.5f, 0.5f, 0.5f, 1.0f))
-        : coord(pos3, 1.0), normal(), color(c) {};
-    Vertex(const Vec3& pos3, const Vec3& nor, const Color& c)
+    Vertex(const Vec3& pos3)
+        : coord(pos3, 1.0), normal(pos3.normalized()), color(Colors::white) {};
+    Vertex(const Vec3& pos3, const Vec3& nor, const Color& c = Colors::white)
         : coord(pos3, 1.0), normal(nor), color(c) {};
   };
 
@@ -59,7 +59,7 @@ public:
   using size_type = std::vector<Vertex>::size_type;
   using Triangle = TriangleImp<size_type>;
 
-  [[deprecated]] Mesh(std::string n) : Geometry(L"deprecated") { DEPRECATED }
+  [[deprecated]] Mesh(std::string n) : Geometry(L"deprecated") { REI_DEPRECATED }
   Mesh(std::wstring n = L"Mesh Un-named") : Geometry(n) {}
 
   // Set data (by vertices index array)

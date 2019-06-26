@@ -45,12 +45,12 @@ public:
     D3D12_CLEAR_VALUE* clear_value = nullptr;
     hr = device.CreateCommittedResource(&heap_prop, heap_flags, &desc,
       D3D12_RESOURCE_STATE_GENERIC_READ, clear_value, IID_PPV_ARGS(&buffer));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
 
     UINT subres = 0;
     D3D12_RANGE* range = nullptr;
     hr = buffer->Map(subres, range, (void**)(&mapped_memory));
-    ASSERT(SUCCEEDED(hr));
+    REI_ASSERT(SUCCEEDED(hr));
   }
 
   ~UploadBuffer() {
@@ -66,13 +66,13 @@ public:
   UINT element_bytesize() const { return m_element_bytesize; }
 
   void update(const Ele& value, UINT index = 0) const {
-    ASSERT(index < m_element_num);
+    REI_ASSERT(index < m_element_num);
     memcpy(mapped_memory + index * m_element_bytesize, &value, sizeof(Ele));
   }
 
   ID3D12Resource* resource() const { return buffer.Get(); }
   D3D12_GPU_VIRTUAL_ADDRESS buffer_address(UINT element_index = 0) const {
-    ASSERT(element_index < m_element_num);
+    REI_ASSERT(element_index < m_element_num);
     return buffer.Get()->GetGPUVirtualAddress() + element_index * m_element_bytesize;
   }
 
