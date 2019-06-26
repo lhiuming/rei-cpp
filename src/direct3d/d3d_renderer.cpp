@@ -26,6 +26,7 @@ namespace d3d {
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance) : hinstance(hinstance) {
   device_resources = std::make_unique<DeviceResources>(hinstance);
+  create_default_assets();
 }
 
 Renderer::~Renderer() {
@@ -109,7 +110,7 @@ GeometryHandle Renderer::create_geometry(const Geometry& geometry) {
 }
 
 ModelHandle Renderer::create_model(const Model& model) {
-  if (!model.get_geometry()) return nullptr;
+  if (REI_WARNING(model.get_geometry() == nullptr)) { return nullptr; }
 
   auto model_data = make_shared<ModelData>(this);
 
@@ -117,7 +118,7 @@ ModelHandle Renderer::create_model(const Model& model) {
   model_data->geometry = to_geometry(model.get_geometry()->get_graphic_handle());
   REI_ASSERT(model_data->geometry);
   if (!model.get_material()) {
-    warning("model has no material; use deafult mat");
+    log("model has no material; use deafult mat");
     model_data->material = default_material;
   } else {
     model_data->material = to_material(model.get_material()->get_graphic_handle());
@@ -154,9 +155,6 @@ void Renderer::prepare(Scene& scene) {
   // TODO update data from scene
   Scene::ModelsRef models = scene.get_models();
 
-  // for debugging
-  if (!debug_model) { create_debug_assets(); }
-
   // wait to finish reresource creation commands
   // TODO make this non-block
   upload_resources();
@@ -170,13 +168,13 @@ CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene)
   Scene::ModelsRef scene_models = scene.get_models();
   for (ModelPtr a : scene_models) {
     ModelHandle h_model = a->get_rendering_handle();
-    REI_ASSERT(h_model);
+    if (warning_if(h_model == nullptr, "Model is not create in renderer")) { continue; }
     shared_ptr<ModelData> a_model = to_model(h_model);
     culled_models.push_back(*a_model);
   }
 
   // TODO check if need to draw debug
-  if (debug_model) {
+  if (draw_debug_model) {
     // add the debug model to culling result
     culled_models.push_back(*debug_model);
   }
@@ -276,6 +274,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   r_task.view_proj = &viewport.view_proj;
   r_task.target_spec = &vp_res.target_spec;
   for (ModelData& model : culling.models) {
+    if (REI_WARNING(model.geometry == nullptr) || REI_WARNING(model.material == nullptr)) continue;
     r_task.model_num = 1;
     r_task.models = &model;
     draw_meshes(r_task);
@@ -310,20 +309,54 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   REI_ASSERT(SUCCEEDED(cmd_alloc->Reset())); // assume previous GPU tasks are finished
 }
 
-void Renderer::create_debug_assets() {
+void Renderer::create_default_assets() {
   // default mesh
   MeshPtr cube = make_shared<Mesh>(L"D3D-Renderer Debug Cube");
-  default_geometry = make_shared<MeshData>(this);
-  device_resources->create_debug_mesh_buffer((MeshData&)(*default_geometry));
+  vector<Mesh::Vertex> vertices = {
+    //     Position               Normal
+    {{-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f}},
+    {{-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}},
+    {{+1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}},
+    {{+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f}},
+    {{-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}},
+    {{-1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f}},
+    {{+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}},
+    {{+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}},
+  };
+  vector<Mesh::Triangle> indicies = {// front face
+    {0, 1, 2}, {0, 2, 3},
+
+    // back face
+    {4, 6, 5}, {4, 7, 6},
+
+    // left face
+    {4, 5, 1}, {4, 1, 0},
+
+    // right face
+    {3, 2, 6}, {3, 6, 7},
+
+    // top face
+    {1, 5, 6}, {1, 6, 2},
+
+    // bottom face
+    {4, 0, 3}, {4, 3, 7}};
+  cube->set(std::move(vertices), std::move(indicies));
+  MaterialPtr mat = make_shared<Material>();
+
+  // default mesh
+  auto default_mesh = make_shared<MeshData>(this);
+  device_resources->create_mesh_buffer(*cube, *default_mesh);
+  default_geometry = default_mesh;
   cube->set_graphic_handle(default_geometry);
 
   // default material & shader
   default_shader = to_shader(create_shader(L"CoreData/shader/shader.hlsl"));
   default_material = make_shared<MaterialData>(this);
   default_material->shader = default_shader;
+  mat->set_graphic_handle(default_material);
 
-  // debug model
-  Model central_cube {L"Central Cubeeee", Mat4::I(), cube, nullptr};
+  // combining the default assets
+  Model central_cube {L"Central Cubeeee", Mat4::I(), cube, mat};
   debug_model = to_model(create_model(central_cube));
 }
 

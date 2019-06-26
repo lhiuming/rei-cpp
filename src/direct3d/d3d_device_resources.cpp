@@ -255,6 +255,12 @@ void DeviceResources::get_pso(
 // common routine for debug
 void DeviceResources::create_mesh_buffer_common(
   const vector<VertexElement>& vertices, const vector<std::uint16_t>& indices, MeshData& mesh_res) {
+  if (vertices.size() == 0 || indices.size() == 0) {
+    REI_WARNING(vertices.size() == 0);
+    REI_WARNING(indices.size() == 0);
+    return;
+  }
+
   ComPtr<ID3D12GraphicsCommandList> cmd_list = upload_command_list;
   if (!is_uploading_reset) {
     // first reset in this frame
@@ -315,9 +321,9 @@ void DeviceResources::create_mesh_buffer_common(
     return upload_buffer;
   };
 
-  const void* p_vertices = &(vertices[0]);
+  const void* p_vertices = vertices.data();
   UINT64 vert_bytesize = vertices.size() * sizeof(vertices[0]);
-  const void* p_indices = &(indices[0]);
+  const void* p_indices = indices.data();
   UINT64 ind_bytesize = indices.size() * sizeof(indices[0]);
 
   // Create vertices buffer and upload data
@@ -363,7 +369,7 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   vector<std::uint16_t> indices;
   Vec3 default_normal {1.0, 1.0, 1.0};
   for (const auto& v : mesh.get_vertices())
-    vertices.emplace_back(v.coord, v.color, default_normal);
+    vertices.emplace_back(v.coord, v.color, v.normal);
   for (const auto& t : mesh.get_triangles()) {
     indices.push_back(t.a);
     indices.push_back(t.b);
@@ -371,41 +377,6 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   }
 
   create_mesh_buffer_common(vertices, indices, mesh_res);
-}
-
-
-void DeviceResources::create_debug_mesh_buffer(MeshData& mesh_res) {
-  // the data for the cube
-  vector<VertexElement> v = {
-    //     Position               Color                     Normal
-    VertexElement(-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, -1.0f),
-    VertexElement(-1.0f, +1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, +1.0f, -1.0f),
-    VertexElement(+1.0f, +1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, +1.0f, +1.0f, -1.0f),
-    VertexElement(+1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f, 1.0f, +1.0f, -1.0f, -1.0f),
-    VertexElement(-1.0f, -1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f, +1.0f),
-    VertexElement(-1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f, -1.0f, +1.0f, +1.0f),
-    VertexElement(+1.0f, +1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f, +1.0f, +1.0f, +1.0f),
-    VertexElement(+1.0f, -1.0f, +1.0f, 1.0f, 1.0f, 1.0f, 1.0f, +1.0f, -1.0f, +1.0f),
-  };
-  vector<std::uint16_t> indices = {// front face
-    0, 1, 2, 0, 2, 3,
-
-    // back face
-    4, 6, 5, 4, 7, 6,
-
-    // left face
-    4, 5, 1, 4, 1, 0,
-
-    // right face
-    3, 2, 6, 3, 6, 7,
-
-    // top face
-    1, 5, 6, 1, 6, 2,
-
-    // bottom face
-    4, 0, 3, 4, 3, 7};
-
-  create_mesh_buffer_common(v, indices, mesh_res);
 }
 
 void DeviceResources::flush_command_queue_for_frame() {

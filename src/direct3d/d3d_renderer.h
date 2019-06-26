@@ -62,6 +62,8 @@ protected:
   std::shared_ptr<MaterialData> default_material;
   std::shared_ptr<ModelData> debug_model;
 
+  const bool draw_debug_model = true;
+
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);
 
@@ -74,7 +76,7 @@ protected:
 
   void draw_meshes(ModelDrawTask& task);
 
-  void create_debug_assets();
+  void create_default_assets();
 
   std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) { return get_data<ViewportHandle, ViewportData>(h); }
   std::shared_ptr<CullingData> to_culling(CullingResult h) { return get_data<CullingResult, CullingData>(h); }
