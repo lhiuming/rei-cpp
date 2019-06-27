@@ -44,7 +44,7 @@ wstring Mesh::summary() const {
 }
 
 
-Mesh Mesh::procudure_cube(Vec3 extent, Vec3 origin, Handness hand) {
+Mesh Mesh::procudure_cube(Vec3 extent, Vec3 origin, bool flip) {
   extent.x = std::abs(extent.x);
   extent.y = std::abs(extent.y);
   extent.z = std::abs(extent.z);
@@ -55,37 +55,35 @@ Mesh Mesh::procudure_cube(Vec3 extent, Vec3 origin, Handness hand) {
   int v_count = 0;
   int t_count = 0;
 
-  // TODO add to input 
-  const bool right_hand = hand == Handness::Right;
-
   // iterate on each face normal
   for (int axis = 0; axis < 3; axis++) {
     int bi_axis = (axis + 1) % 3;
     int tan_axis = (axis + 2) % 3;
-    Vec3 normal = {}, bi_normal = {}, tangent = {};
-    normal[axis] = 1;
-    bi_normal[bi_axis] = 1;
-    tangent[tan_axis] = 1;
 
-    // interate for front side and back side, each side with 4 vertices
+    Vec3 normal = {}, bi_normal = {}, tangent = {};
+    tangent[tan_axis] = 1;
     for (int side = 1; side >= -1; side -= 2) {
+      normal[axis] = side;
+      bi_normal[bi_axis] = side;
+
+      // interate for front side and back side, each side with 4 vertices
       Index i_0 = v_count;
       // vertex
       for (int u = -1; u <= 1; u += 2) {
         for (int v = -1; v <= 1; v += 2) {
-          Vec3 pos = side * normal + u * bi_normal + v * tangent;
-          vertices[v_count++] = {pos, side * normal};
+          Vec3 local_pos = normal + u * bi_normal + v * tangent;
+          Vec3 pos = local_pos * extent + origin;
+          vertices[v_count++] = {pos, normal};
         }
       }
       // triangle
       Index i_1 = i_0 + 1, i_2 = i_0 + 2, i_3 = i_0 + 3;
-      bool flip = side < 0;
-      if (right_hand ^ flip) {
-        triangles[t_count++] = {i_0, i_2, i_1};
-        triangles[t_count++] = {i_1, i_2, i_3};
-      } else {
+      if (flip) {
         triangles[t_count++] = {i_0, i_1, i_2};
         triangles[t_count++] = {i_1, i_3, i_2};
+      } else {
+        triangles[t_count++] = {i_0, i_2, i_1};
+        triangles[t_count++] = {i_1, i_2, i_3};
       }
     }
   }

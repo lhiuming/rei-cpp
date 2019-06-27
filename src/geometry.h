@@ -91,7 +91,8 @@ public:
   std::wstring summary() const override;
 
   // Some mesh-related utilities
-  static Mesh procudure_cube(Vec3 extent = {1, 1, 1}, Vec3 origin = {0, 0, 0}, Handness hand = Handness::Right);
+  // Set `flip` to true if the orientation handness is different from coordinate handness
+  static Mesh procudure_cube(Vec3 extent = {1, 1, 1}, Vec3 origin = {0, 0, 0}, bool flip = false);
   static Mesh procudure_sphere(double radius = 1, Vec3 origin = {0, 0, 0});
 
 private:
