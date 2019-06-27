@@ -28,7 +28,9 @@ template <typename Ele>
 class UploadBuffer : NoCopy {
 public:
   struct Hasher {
-    std::size_t operator()(const UploadBuffer& value) const { return std::uintptr_t(value.resource()); }
+    std::size_t operator()(const UploadBuffer& value) const {
+      return std::uintptr_t(value.resource());
+    }
   };
 
   UploadBuffer(ID3D12Device& device, UINT64 element_num, bool is_const_buffer)
@@ -195,7 +197,7 @@ struct ViewportData : BaseViewportData {
   D3D12_RECT scissor;
   std::weak_ptr<ViewportResources> viewport_resources;
 
-  void update_camera_transform(const Camera& cam) { 
+  void update_camera_transform(const Camera& cam) {
     pos = cam.position();
     view = cam.view(Handness::Right, Handness::Left, VectorTarget::Row);
     proj = cam.project(Handness::Left, Handness::Left, VectorTarget::Row);
@@ -234,7 +236,12 @@ struct ModelData : BaseModelData {
   std::shared_ptr<GeometryData> geometry;
   std::shared_ptr<MaterialData> material;
   UINT const_buffer_index; // in shader cb buffer
-  UINT cbv_index; // in device shared heap
+  UINT cbv_index;          // in device shared heap
+
+  void update_transform(Model& model) {
+    // NOTE: check how ViewportData store the transforms
+    this->transform = model.get_transform(Handness::Right, Handness::Right, VectorTarget::Row);
+  }
 };
 
 // Data proxy for all obejct in a scene

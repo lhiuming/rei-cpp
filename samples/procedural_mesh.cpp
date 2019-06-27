@@ -20,21 +20,31 @@ class ProceduralApp : public App {
   using Base::Base;
   void on_start() override;
   void on_update() override;
-
-  MeshPtr cube;
 };
 
 void ProceduralApp::on_start() {
   MeshPtr cube = std::make_shared<Mesh>(std::move(Mesh::procudure_cube()));
-  scene->add_model(Mat4::I(), cube, L"Big Cube");
+  MeshPtr pillar = std::make_shared<Mesh>(std::move(Mesh::procudure_cube({0.5, 4, 0.5})));
+  MeshPtr plane = std::make_shared<Mesh>(std::move(Mesh::procudure_cube({4, 0.125, 4})));
+  scene->add_model(
+    Mat4::translate({0, 1, 0}) * Mat4::from_diag({0.3, 0.3, 0.3, 1.0}), cube, L"Small Cube");
+  scene->add_model(Mat4::translate({-2.5, 1, -2}), cube, L"Big Cube");
+  scene->add_model(Mat4::translate({3, 4, -2}), pillar, L"Tall Pillar");
+  scene->add_model(Mat4::translate({0, -0.125, 0}), plane, L"Lager Plane");
+
+  camera->move(0, 3, 0);
+  camera->look_at({0, 0, 0});
 }
 
 void ProceduralApp::on_update() {
   Base::on_update();
 
   Scene::ModelsRef models = scene->get_models();
-  static Mat4 rotations[1] = {Mat4 {{}, {0, 1, 0}, 0.0005},};
-  for (ModelPtr& m : models) {
+  static Mat4 rotations[1] = {
+    Mat4::translate_rotate({}, {0, 1, 0}, 0.0005),
+  };
+  { // rotating the small cube
+    ModelPtr& m = models[0];
     Mat4 mat = m->get_transform();
     mat = mat * rotations[0];
     m->set_transform(mat);

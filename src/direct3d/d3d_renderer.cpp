@@ -156,7 +156,7 @@ void Renderer::prepare(Scene& scene) {
   Scene::ModelsRef models = scene.get_models();
   for (ModelPtr& m : models) {
     shared_ptr<ModelData> data = to_model(m->get_rendering_handle());
-    data->transform = m->get_transform();
+    data->update_transform(*m);
   }
 
   // wait to finish reresource creation commands
