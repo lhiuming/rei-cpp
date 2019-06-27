@@ -20,10 +20,10 @@ namespace rei {
 
 // Indicating the handness of intented coordinate space. Default should be Right.
 enum Handness : unsigned char { Right, Left };
-// Indicating the usage of transform matrix. 
+// Indicating the usage of transform matrix.
 // For example, matrix targeting column-vector should be used in the form `M*v`.
 // Column vector as default, to match whth column-major storage.
-enum VectorTarget : unsigned char { Column, Row }; 
+enum VectorTarget : unsigned char { Column, Row };
 
 // Vec3 //////////////////////////////////////////////////////////////////////
 // A general 3D vector class
@@ -123,6 +123,11 @@ inline double dot(const Vec3& a, const Vec3& b) {
 // Vec3 cross product
 inline Vec3 cross(const Vec3& a, const Vec3& b) {
   return Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
+}
+
+// Common data transform
+inline void flip_z(Vec3& v) {
+  v.z = -v.z;
 }
 
 // Print 3D vector
@@ -263,14 +268,14 @@ struct Vec4 {
   }
 };
 
+// print 4D vector
+std::wostream& operator<<(std::wostream& os, const Vec4& v);
+
 // Scalar multiplications from left
 Vec4 operator*(double c, const Vec4& x);
 
 // Dot product
 double dot(const Vec4& a, const Vec4& b);
-
-// print 4D vector
-std::wostream& operator<<(std::wostream& os, const Vec4& v);
 
 // Mat4 ///////////////////////////////////////////////////////////////////////
 // 4x4 matrix. Useful to represent affine transformation in homogenous
@@ -288,17 +293,6 @@ struct Mat4 {
       : columns {c1, c2, c3, c4} {}
   // constexpr Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
 
-  // Initialize as rigidbody transformation (for column vectors)
-  constexpr Mat4(const Vec3& translation)
-      : Mat4({1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translation, 1.}) {}
-  Mat4(const Vec3& translation, const Vec3& axis, double radian) {
-    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
-    columns[0] = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
-    columns[1] = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
-    columns[2] = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
-    columns[3] = {translation, 1.};
-  }
-
   // Initialize with row data; useful for hard-coding constant matrix
   Mat4(const double rows[16]);
   constexpr Mat4(double a00, double a01, double a02, double a03, double a10, double a11, double a12,
@@ -308,8 +302,33 @@ struct Mat4 {
           Vec4(a03, a13, a23, a33)} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
-  constexpr Mat4(const Vec4& diag)
-      : Mat4({diag.x, 0, 0, 0}, {0, diag.y, 0, 0}, {0, 0, diag.z, 0}, {0, 0, 0, diag.h}) {};
+  constexpr static Mat4 from_diag(const Vec4& diag) {
+    return {
+      {diag.x, 0, 0, 0},
+      {0, diag.y, 0, 0},
+      {0, 0, diag.z, 0},
+      {0, 0, 0, diag.h},
+    };
+  }
+
+  // Construct a Identity matrix
+  constexpr static Mat4 I() { return from_diag({1.0, 1.0, 1.0, 1.0}); }
+
+  // Construct a translation matrix
+  constexpr static Mat4 translate(const Vec3& translate, VectorTarget target = VectorTarget::Column) {
+    return {{1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translate, 1.0}};
+  }
+
+  // Construct a translation and rotation matrix (translate first, then rotate locally)
+  static Mat4 translate_rotate(
+    const Vec3& translate, const Vec3& axis, double radian, Handness rot_hand = Handness::Right) {
+    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
+    Vec4 c0 = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
+    Vec4 c1 = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
+    Vec4 c2 = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
+    Vec4 c3 = {translate, 1.};
+    return {c0, c1, c2, c3};
+  }
 
   // Access by column
   Vec4& operator[](int i) { return columns[i]; }
@@ -330,8 +349,6 @@ struct Mat4 {
   static void inverse(Mat4& A);
   Mat4 inv() const;
 
-  // Identity matrix
-  static Mat4 I() { return Mat4(Vec4(1.0, 1.0, 1.0, 1.0)); }
 
   // Matrix multiplication, or transform composition
   Mat4 operator*(const Mat4& rhs) const;
@@ -371,6 +388,35 @@ inline Vec4 operator*(const Mat4& A, const Vec4& x) { // linear combination of c
 // Row-vector transformation : xA
 inline Vec4 operator*(const Vec4& x, const Mat4& A) {
   return Vec4(dot(x, A[0]), dot(x, A[1]), dot(x, A[2]), dot(x, A[3]));
+}
+
+// Common data transform
+inline void flip_z_column(Mat4& m) {
+  m[2] = -m[2];
+}
+
+inline void flip_z_row(Mat4& m) {
+  m(2, 0) *= -1;
+  m(2, 1) *= -1;
+  m(2, 2) *= -1;
+  m(2, 3) *= -1;
+}
+
+inline void handness_convert(Mat4& mat, bool rhs_handness_flip, bool lhs_handness_flip) {
+  if (rhs_handness_flip) { flip_z_column(mat); }
+  if (lhs_handness_flip) { flip_z_row(mat); }
+}
+
+inline void convention_convert(
+  Mat4& mat, bool rhs_handness_flip, bool lhs_handness_flip, bool target_flip) {
+  handness_convert(mat, rhs_handness_flip, lhs_handness_flip);
+  if (target_flip) Mat4::transpose(mat);
+}
+inline Mat4 convention_convert(
+  const Mat4& mat, bool rhs_handness_flip, bool lhs_handness_flip, bool target_flip) {
+  Mat4 ret = mat;
+  handness_convert(ret, rhs_handness_flip, lhs_handness_flip);
+  return target_flip ? ret.T() : ret;
 }
 
 } // namespace rei

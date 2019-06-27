@@ -108,7 +108,7 @@ void Camera::update_world_to_camera() {
   // NOTE: translate first, than rotate
 
   // translation
-  Mat4 T(-m_position);
+  Mat4 T = Mat4::translate(-m_position);
 
   // orthogonal coordiante for camera space (as rotation)
   Vec3 orth_w = -m_direction; // `forward direction` looking into -Z axis
@@ -143,7 +143,7 @@ void Camera::update_camera_to_device() {
   double pillar_half_width = tan(angle * (0.5 * degree)); // use radian
   double pillar_half_height = pillar_half_width / m_aspect;
   double pillar_half_depth = (1.0 / znear - 1.0 / zfar) / 2.0;
-  Mat4 C(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height, 1.0 / pillar_half_depth, 1.0));
+  Mat4 C = Mat4::from_diag(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height, 1.0 / pillar_half_depth, 1.0));
 
   // composition
   m_camera_to_device = C * M * P;

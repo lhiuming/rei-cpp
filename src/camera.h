@@ -50,31 +50,28 @@ public:
   void update_rotation(const Vec3& forward, const Vec3& up_hint = {0, 0, 0});
 
   // Get transforms (result in Left Hand Coordinate;
-  Mat4 world_to_camera(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
-    Mat4 ret = m_world_to_camera;
-    if (from == Handness::Left) flip_z_column(ret);
-    if (to == Handness::Left) flip_z_row(ret);
-    return vec == VectorTarget::Column ? ret : ret.T();
+  Mat4 world_to_camera(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
+    return convert(m_world_to_camera, from, to, vec);
   }
-  Mat4 camera_to_device(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
-    Mat4 ret = m_camera_to_device;
-    if (from == Handness::Left) flip_z_column(ret);
-    if (to == Handness::Left) flip_z_row(ret);
-    return vec == VectorTarget::Column ? ret : ret.T();
+  Mat4 camera_to_device(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
+    return convert(m_camera_to_device, from, to, vec);
   }
-  Mat4 world_to_device(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
-    Mat4 ret = m_world_to_c_to_device;
-    if (from == Handness::Left) flip_z_column(ret);
-    if (to == Handness::Left) flip_z_row(ret);
-    return vec == VectorTarget::Column ? ret : ret.T();
+  Mat4 world_to_device(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
+    return convert(m_world_to_c_to_device, from, to, vec);
   }
-  Mat4 view(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+  Mat4 view(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
     return world_to_camera(from, to, vec);
   }
-  Mat4 project(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+  Mat4 project(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
     return camera_to_device(from, to, vec);
   }
-  Mat4 view_proj(Handness from = Handness::Right, Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) const {
+  Mat4 view_proj(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
     return world_to_device(from, to, vec);
   }
 
@@ -103,13 +100,10 @@ private:
   Mat4 m_world_to_c_to_device;        // composed from above 2
   Mat4 m_world_to_c_to_d_to_viewport; // above combined with a static normalized->viewport step
 
-  static inline void flip_z(Vec3& v) { v.z = -v.z; }
-  static inline void flip_z_column(Mat4& m) { m[2] = -m[2]; }
-  static inline void flip_z_row(Mat4& m) {
-    m(2, 0) *= -1;
-    m(2, 1) *= -1;
-    m(2, 2) *= -1;
-    m(2, 3) *= -1;
+  // helper for interface
+  static inline Mat4 convert(const Mat4& mat, Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) {
+    return convention_convert(mat, from != Handness::Right, to != Handness::Right, vec != VectorTarget::Column);
   }
 
   // helpers to update transforms
