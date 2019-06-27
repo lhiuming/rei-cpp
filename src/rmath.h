@@ -2,6 +2,7 @@
 #define REI_MATH_H
 
 #include <cmath>
+#include <algorithm>
 
 // TODO check boost for existing funcionalities
 
@@ -18,6 +19,23 @@ constexpr double pi = pi_d;
 constexpr double degree = pi_d / 180;
 constexpr double degree_inv = 180 / pi_d;
 
+// fast integer power
+template <typename D>
+inline constexpr D fase_pow_tpl(D d, int p, D identity) {
+  D binary_power = d;
+  D ret = identity;
+  while (p > 0) {
+    if ((p & 0x1)) ret = ret * binary_power;
+    binary_power = binary_power * binary_power;
+    p = p >> 1;
+  }
+  return ret;
 }
+
+inline constexpr int pow_i(int i, int p) {
+  return fase_pow_tpl<int>(i, p, 1);
+}
+
+} // namespace rei
 
 #endif
