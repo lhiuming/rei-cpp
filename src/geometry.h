@@ -93,7 +93,10 @@ public:
   // Some mesh-related utilities
   // Set `flip` to true if the orientation handness is different from coordinate handness
   static Mesh procudure_cube(Vec3 extent = {1, 1, 1}, Vec3 origin = {0, 0, 0}, bool flip = false);
-  static Mesh procudure_sphere(double radius = 1, Vec3 origin = {0, 0, 0});
+  static Mesh procudure_sphere(int quality = 2, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false) {
+    return procudure_sphere_icosahedron(quality, radius, origin, flip);
+  }
+  static Mesh procudure_sphere_icosahedron(int subdivision = 0, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false);
 
 private:
   std::vector<Vertex> m_vertices;
