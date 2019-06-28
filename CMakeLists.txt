@@ -105,7 +105,8 @@ if (BUILD_DIRECT3D)
 	list(APPEND graphic_api_libs ${direct3d_libs})
 endif()
 message("Build with graphic API libraries: ${graphic_api_libs}")
-target_link_libraries(${core_library} PRIVATE ${graphic_api_libs})
+# TODO set up pubblic include header and make this PRIVATE
+target_link_libraries(${core_library} PUBLIC ${graphic_api_libs})
 
 # Link assimp
 target_link_libraries(${core_library} PRIVATE assimp)

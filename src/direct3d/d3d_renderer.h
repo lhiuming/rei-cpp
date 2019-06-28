@@ -29,12 +29,22 @@ struct ShaderData;
 struct ViewportData;
 struct CullingData;
 
+enum RenderMode {
+  Rasterization,
+  RealtimeRaytracing,
+};
+
 class Renderer : public rei::Renderer {
   using Self = typename Renderer;
   using Base = typename rei::Renderer;
 
 public:
-  Renderer(HINSTANCE hinstance);
+  struct Options {
+    RenderMode init_render_mode = RenderMode::Rasterization;
+    bool enable_realtime_raytracing = true;
+  };
+
+  Renderer(HINSTANCE hinstance, Options options = {});
   ~Renderer() override;
 
   ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) override;
@@ -46,6 +56,7 @@ public:
   ShaderHandle create_shader(std::wstring shader_path) override;
   GeometryHandle create_geometry(const Geometry& geometry) override;
   ModelHandle create_model(const Model& model) override;
+  SceneHandle build_enviroment(const Scene& scene) override;
 
   void prepare(Scene& scene) override;
   CullingResult cull(ViewportHandle viewport, const Scene& scene) override;
@@ -53,6 +64,8 @@ public:
 
 protected:
   HINSTANCE hinstance;
+  RenderMode mode;
+  const bool is_dxr_enabled;
 
   std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
   std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
@@ -78,6 +91,13 @@ protected:
 
   void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task);
 
+  void build_global_rootsignature();
+  void build_raytracing_pso();
+  void build_dxr_acceleration_structure();
+  void build_shader_table();
+  void raytracing(ViewportData& viewport, CullingData& culling);
+
+  // Debug support
   void create_default_assets();
 
   std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) { return get_data<ViewportHandle, ViewportData>(h); }

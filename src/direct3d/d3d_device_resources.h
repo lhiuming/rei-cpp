@@ -51,7 +51,11 @@ using PSOCache = std::unordered_map<PSOKey, ComPtr<ID3D12PipelineState>, PSOKeyH
 
 class DeviceResources : NoCopy {
 public:
-  DeviceResources(HINSTANCE hInstance);
+  struct Options {
+    bool is_dxr_enabled = true;
+  };
+
+  DeviceResources(HINSTANCE hInstance, Options options = {});
   ~DeviceResources() = default;
 
   IDXGIFactory4& dxgi_factory() const { return *m_dxgi_factory.Get(); }
@@ -86,19 +90,28 @@ public:
   void create_model_buffer(const Model& model, ModelData& model_data);
 
   ID3D12GraphicsCommandList& prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  ID3D12GraphicsCommandList4& prepare_command_list_dxr(ID3D12PipelineState* init_pso = nullptr) {
+    prepare_command_list();
+    return *m_dxr_command_list.Get();
+  }
   void flush_command_list();
   void flush_command_queue_for_frame();
 
 private:
   HINSTANCE hinstance;
 
+  // Flatten options
+  const bool is_dxr_enabled;
+
   ComPtr<IDXGIFactory4> m_dxgi_factory;
   ComPtr<IDXGIAdapter2> m_dxgi_adapter;
   ComPtr<ID3D12Device> m_device;
+  ComPtr<ID3D12Device5> m_dxr_device; // newer interface of m_device
 
   ComPtr<ID3D12CommandQueue> m_command_queue;
   ComPtr<ID3D12CommandAllocator> m_command_alloc;
   ComPtr<ID3D12GraphicsCommandList> m_command_list;
+  ComPtr<ID3D12GraphicsCommandList4> m_dxr_command_list; // newer interface of m_command_list
   bool is_using_cmd_list;
 
   UINT64 current_frame_fence;

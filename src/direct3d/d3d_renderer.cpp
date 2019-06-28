@@ -24,8 +24,13 @@ namespace rei {
 namespace d3d {
 
 // Default Constructor
-Renderer::Renderer(HINSTANCE hinstance) : hinstance(hinstance) {
-  device_resources = std::make_shared<DeviceResources>(hinstance);
+Renderer::Renderer(HINSTANCE hinstance, Options opt)
+    : hinstance(hinstance),
+      mode(opt.init_render_mode),
+      is_dxr_enabled(opt.enable_realtime_raytracing) {
+  DeviceResources::Options dev_opt;
+  dev_opt.is_dxr_enabled = is_dxr_enabled;
+  device_resources = std::make_shared<DeviceResources>(hinstance, dev_opt);
   create_default_assets();
 }
 
@@ -152,6 +157,24 @@ ModelHandle Renderer::create_model(const Model& model) {
   return ModelHandle(model_data);
 }
 
+SceneHandle Renderer::build_enviroment(const Scene& scene) {
+  auto scene_data = make_shared<SceneData>(this);
+
+  // TODO
+  build_global_rootsignature();
+
+  // TODO
+  build_raytracing_pso();
+
+  // TODO
+  build_dxr_acceleration_structure();
+
+  // TODO
+  build_shader_table();
+
+  return SceneHandle(scene_data);
+}
+
 void Renderer::prepare(Scene& scene) {
   // TODO update data from scene
   Scene::ModelsRef models = scene.get_models();
@@ -192,7 +215,12 @@ void Renderer::render(const ViewportHandle viewport_handle, CullingResult cullin
   REI_ASSERT(p_viewport);
   shared_ptr<CullingData> p_culling = to_culling(culling_handle);
   REI_ASSERT(p_culling);
-  render(*p_viewport, *p_culling);
+
+  if (mode == RenderMode::Rasterization) {
+    render(*p_viewport, *p_culling);
+  } else {
+    raytracing(*p_viewport, *p_culling);
+  }
 }
 
 void Renderer::upload_resources() {
@@ -290,6 +318,12 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
 
   // Flush and wait
   dev_res.flush_command_queue_for_frame();
+}
+
+void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
+  // Dispatch ray and write to raytracing output
+
+  // Copy to frame buffer
 }
 
 void Renderer::create_default_assets() {
@@ -393,6 +427,22 @@ void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& t
     // Draw
     cmd_list.DrawIndexedInstanced(mesh.index_num, 1, 0, 0, 0);
   } // end for each model
+}
+
+void Renderer::build_global_rootsignature() {
+  REI_NOT_IMPLEMENT("Build Raytracing root signature");
+}
+
+void Renderer::build_raytracing_pso() {
+  REI_NOT_IMPLEMENT("Build Raytracing PSO");
+}
+
+void Renderer::build_dxr_acceleration_structure() {
+  REI_NOT_IMPLEMENT("Build BLAS and TLAS");
+}
+
+void Renderer::build_shader_table() {
+  REI_NOT_IMPLEMENT("Build Shader Table");
 }
 
 } // namespace d3d

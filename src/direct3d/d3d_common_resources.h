@@ -245,11 +245,14 @@ struct ModelData : BaseModelData {
 };
 
 // Data proxy for all obejct in a scene
-struct SceneData {};
+struct SceneData : BaseSceneData {
+  using BaseSceneData::BaseSceneData;
+};
 
 struct CullingData : BaseCullingData {
   using BaseCullingData::BaseCullingData;
   std::vector<ModelData> models;
+  std::shared_ptr<SceneData> scene;
 };
 
 } // namespace d3d

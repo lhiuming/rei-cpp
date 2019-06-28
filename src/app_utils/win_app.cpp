@@ -67,6 +67,8 @@ void WinApp::initialize_scene() {
     ModelHandle h_model = m_renderer->create_model(*m);
     m->set_rendering_handle(h_model);
   }
+
+  m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
 }
 
 void WinApp::start() {

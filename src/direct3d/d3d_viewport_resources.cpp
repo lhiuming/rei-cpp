@@ -133,6 +133,9 @@ void ViewportResources::create_size_dependent_resources() {
   // Create depth-stencil view for the DS buffer
   D3D12_DEPTH_STENCIL_VIEW_DESC* p_dsv_desc = nullptr; // default value: same format as buffer[0]
   device().CreateDepthStencilView(m_depth_stencil_buffer.Get(), p_dsv_desc, get_dsv());
+
+  // TODO 
+  REI_NOT_IMPLEMENT("Create UAV buffer for raytracing output");
 }
 
 void ViewportResources::update_size(int width, int height) {

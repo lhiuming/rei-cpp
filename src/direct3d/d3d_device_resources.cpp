@@ -22,7 +22,8 @@ namespace rei {
 
 namespace d3d {
 
-DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
+DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
+    : hinstance(hinstance), is_dxr_enabled(opt.is_dxr_enabled) {
   HRESULT hr;
 
   UINT dxgi_factory_flags = 0;
@@ -44,6 +45,9 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   IDXGIAdapter* default_adapter = nullptr;
   REI_ASSERT(
     SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device))));
+  if (is_dxr_enabled) {
+    REI_ASSERT(SUCCEEDED(m_device->QueryInterface(IID_PPV_ARGS(&m_dxr_device))));
+  }
 
   // Trace back the adapter
   LUID adapter_liud = m_device->GetAdapterLuid();
@@ -62,9 +66,12 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   REI_ASSERT(
     SUCCEEDED(m_device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&m_command_alloc))));
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
-  REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(node_mask, list_type, m_command_alloc.Get(),
-    init_pip_state, IID_PPV_ARGS(&m_command_list))));
+  REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(
+    node_mask, list_type, m_command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&m_command_list))));
   m_command_list->Close();
+  if (is_dxr_enabled) {
+    REI_ASSERT(SUCCEEDED(m_command_list->QueryInterface(IID_PPV_ARGS(&m_dxr_command_list))));
+  }
   is_using_cmd_list = false;
 
   // Create fence
