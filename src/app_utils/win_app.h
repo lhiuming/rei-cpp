@@ -29,8 +29,7 @@ public:
     bool enable_grid_line = true;
   };
 
-public:
-  WinApp(Config config);
+  WinApp(Config config) : WinApp(config, nullptr) {}
   virtual ~WinApp();
 
   [[deprecated]]
@@ -38,21 +37,23 @@ public:
 
   void run();
 
+  // init helper
+  static inline HINSTANCE get_hinstance() { return GetModuleHandle(nullptr); }
+
 protected:
   Config config;
 
-  std::unique_ptr<Viewer> viewer;
-  std::unique_ptr<Renderer> renderer;
-  std::unique_ptr<Scene> scene;
-  std::unique_ptr<Camera> camera;
-  std::shared_ptr<InputBus> input_bus;
+  WinApp(Config config, std::unique_ptr<Renderer>&& renderer);
+
+  Viewer& viewer() const { return *m_viewer; }
+  Renderer& renderer() const { return *m_renderer; }
+  Scene& scene() const { return *m_scene; }
+  Camera& camera() const { return *m_camera; }
+  InputBus& input_bus() const { return *m_input_bus; }
 
   virtual void on_start();
   virtual void on_update();
   virtual void on_render();
-
-  // TODO should be more elegant
-  void initialize_scene();
 
   // some useful methods
   void update_camera_control();
@@ -60,6 +61,12 @@ protected:
 
 private:
   HINSTANCE hinstance = NULL;
+
+  std::unique_ptr<Viewer> m_viewer;
+  std::unique_ptr<Renderer> m_renderer;
+  std::unique_ptr<Scene> m_scene;
+  std::unique_ptr<Camera> m_camera;
+  std::shared_ptr<InputBus> m_input_bus;
 
   bool is_started = false;
 
@@ -69,6 +76,7 @@ private:
   clock_t::duration last_frame_time;
 
   void start();
+  void initialize_scene(); // TODO should be more elegant
   void update();
   void render();
 };

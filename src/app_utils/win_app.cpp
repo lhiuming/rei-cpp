@@ -10,29 +10,31 @@
 
 using std::make_shared;
 using std::make_unique;
+using std::shared_ptr;
+using std::unique_ptr;
 
 namespace rei {
 
-WinApp::WinApp(Config config) : config(config) {
+WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer) : config(config), m_renderer(std::move(renderer)) {
   // NOTE: Handle normally get from WinMain;
   // we dont do that here, because we want to create app with standard main()
-  hinstance = GetModuleHandle(nullptr); // handle to the current .exe
+  hinstance = get_hinstance(); // handle to the current .exe
 
-  input_bus = make_unique<InputBus>();
+  m_input_bus = make_unique<InputBus>();
 
   // Default renderer
-  renderer = make_unique<d3d::Renderer>(hinstance);
+  if (m_renderer == nullptr) { m_renderer = make_unique<d3d::Renderer>(hinstance); }
 
   // Default viewer
-  viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
-  viewer->init_viewport(*renderer);
-  viewer->set_input_bus(input_bus);
-  renderer->set_viewport_clear_value(viewer->get_viewport(), config.bg_color);
+  m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
+  m_viewer->init_viewport(*m_renderer);
+  m_viewer->set_input_bus(m_input_bus);
+  m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
 
   // Create default scene and camera
-  scene = make_unique<Scene>();
-  camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
-  camera->set_aspect(config.width, config.height);
+  m_scene = make_unique<Scene>();
+  m_camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
+  m_camera->set_aspect(config.width, config.height);
 }
 
 WinApp::~WinApp() {
@@ -48,13 +50,13 @@ void WinApp::setup(Scene&& scene, Camera&& camera) {
 }
 
 void WinApp::initialize_scene() {
-  for (ModelPtr& m : this->scene->get_models()) {
+  for (ModelPtr& m : this->m_scene->get_models()) {
     REI_ASSERT(m);
 
     // register geometry
     GeometryPtr geo = m->get_geometry();
     if (geo && geo->get_graphic_handle() == nullptr) {
-      GeometryHandle g_handle = renderer->create_geometry(*geo);
+      GeometryHandle g_handle = m_renderer->create_geometry(*geo);
       geo->set_graphic_handle(g_handle);
     }
 
@@ -62,7 +64,7 @@ void WinApp::initialize_scene() {
     MaterialPtr mat = m->get_material();
     if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
 
-    ModelHandle h_model = renderer->create_model(*m);
+    ModelHandle h_model = m_renderer->create_model(*m);
     m->set_rendering_handle(h_model);
   }
 }
@@ -86,7 +88,7 @@ void WinApp::update() {
   on_update();
 
   // Finalize
-  input_bus->reset();
+  m_input_bus->reset();
 }
 
 void WinApp::on_update() {
@@ -100,30 +102,30 @@ void WinApp::update_camera_control() {
     const Vec3 up {0, 1, 0};
 
     Vec3 acc;
-    for (auto& input : input_bus->get<CursorDrag>()) {
+    for (auto& input : m_input_bus->get<CursorDrag>()) {
       auto mov = *(input.get<CursorDrag>());
       acc += (mov.stop - mov.start);
     }
     if (acc.norm2() > 0.0001) {
       const double rot_range = pi;
-      camera->rotate_position(focus_center, up, -acc.x / viewer->width() * rot_range);
-      camera->rotate_position(
-        focus_center, -camera->right(), -acc.y / viewer->height() * rot_range);
-      camera->look_at(focus_center, up);
+      m_camera->rotate_position(focus_center, up, -acc.x / m_viewer->width() * rot_range);
+      m_camera->rotate_position(
+        focus_center, -m_camera->right(), -acc.y / m_viewer->height() * rot_range);
+      m_camera->look_at(focus_center, up);
     }
 
     double zoom_in = 0;
-    for (auto& input : input_bus->get<Zoom>()) {
+    for (auto& input : m_input_bus->get<Zoom>()) {
       auto zoom = *(input.get<Zoom>());
       zoom_in += zoom.delta;
     }
     if (std::abs(zoom_in) != 0) {
       const double ideal_dist = 8;
       const double block_dist = 4;
-      double curr_dist = (camera->position() - focus_center).norm();
+      double curr_dist = (m_camera->position() - focus_center).norm();
       double scale = std::abs((curr_dist - block_dist) / (ideal_dist - block_dist));
       if (zoom_in < 0) scale = (std::max)(scale, 0.1);
-      camera->move(0, 0, zoom_in * scale);
+      m_camera->move(0, 0, zoom_in * scale);
     }
   }
 }
@@ -136,7 +138,7 @@ void WinApp::update_title() {
     std::wstringstream str {};
     str << config.title << " -- frame info: " << std::setw(16) << ms << "ms, " << std::setw(16)
         << fps << "fps";
-    viewer->update_title(str.str());
+    m_viewer->update_title(str.str());
   }
 }
 
@@ -147,11 +149,11 @@ void WinApp::render() {
 }
 
 void WinApp::on_render() {
-  renderer->prepare(*scene);
-  ViewportHandle viewport = viewer->get_viewport();
-  renderer->update_viewport_transform(viewport, *camera);
-  auto culling_result = renderer->cull(viewport, *scene);
-  renderer->render(viewport, culling_result);
+  m_renderer->prepare(*m_scene);
+  ViewportHandle viewport = m_viewer->get_viewport();
+  m_renderer->update_viewport_transform(viewport, *m_camera);
+  auto culling_result = m_renderer->cull(viewport, *m_scene);
+  m_renderer->render(viewport, culling_result);
 }
 
 void WinApp::run() {
