@@ -54,13 +54,15 @@ public:
 protected:
   HINSTANCE hinstance;
 
-  std::unique_ptr<DeviceResources> device_resources;
+  std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
   std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
 
   std::shared_ptr<GeometryData> default_geometry;
   std::shared_ptr<ShaderData> default_shader;
   std::shared_ptr<MaterialData> default_material;
   std::shared_ptr<ModelData> debug_model;
+
+  bool is_uploading_resources = false;
 
   const bool draw_debug_model = false;
 
@@ -74,7 +76,7 @@ protected:
     const RenderTargetSpec* target_spec;
   };
 
-  void draw_meshes(ModelDrawTask& task);
+  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task);
 
   void create_default_assets();
 

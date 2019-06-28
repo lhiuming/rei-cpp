@@ -38,16 +38,17 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
 #endif
 
   // DXGI factory
-  REI_ASSERT(SUCCEEDED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&dxgi_factory))));
+  REI_ASSERT(SUCCEEDED(CreateDXGIFactory2(dxgi_factory_flags, IID_PPV_ARGS(&m_dxgi_factory))));
 
   // D3D device
   IDXGIAdapter* default_adapter = nullptr;
   REI_ASSERT(
-    SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device))));
+    SUCCEEDED(D3D12CreateDevice(default_adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&m_device))));
 
   // Trace back the adapter
-  LUID adapter_liud = device->GetAdapterLuid();
-  REI_ASSERT(SUCCEEDED(dxgi_factory->EnumAdapterByLuid(adapter_liud, IID_PPV_ARGS(&dxgi_adapter))));
+  LUID adapter_liud = m_device->GetAdapterLuid();
+  REI_ASSERT(
+    SUCCEEDED(m_dxgi_factory->EnumAdapterByLuid(adapter_liud, IID_PPV_ARGS(&m_dxgi_adapter))));
 
   // Command list and stuffs
   UINT node_mask = 0; // Single GPU
@@ -57,21 +58,18 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
   queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
   queue_desc.NodeMask = node_mask;
-  REI_ASSERT(SUCCEEDED(device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&command_queue))));
-  REI_ASSERT(SUCCEEDED(device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&command_alloc))));
+  REI_ASSERT(SUCCEEDED(m_device->CreateCommandQueue(&queue_desc, IID_PPV_ARGS(&m_command_queue))));
+  REI_ASSERT(
+    SUCCEEDED(m_device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&m_command_alloc))));
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
-  REI_ASSERT(SUCCEEDED(device->CreateCommandList(
-    node_mask, list_type, command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&draw_command_list))));
-  draw_command_list->Close();
-  REI_ASSERT(SUCCEEDED(device->CreateCommandList(
-    node_mask, list_type, command_alloc.Get(), nullptr, IID_PPV_ARGS(&upload_command_list))));
-  upload_command_list->Close();
-  is_drawing_reset = false;
-  is_uploading_reset = false;
+  REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(node_mask, list_type, m_command_alloc.Get(),
+    init_pip_state, IID_PPV_ARGS(&m_command_list))));
+  m_command_list->Close();
+  is_using_cmd_list = false;
 
   // Create fence
   D3D12_FENCE_FLAGS fence_flags = D3D12_FENCE_FLAG_NONE;
-  REI_ASSERT(SUCCEEDED(device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
+  REI_ASSERT(SUCCEEDED(m_device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
   current_frame_fence = 0;
 
   // Create buffer-type descriptor heap
@@ -80,10 +78,11 @@ DeviceResources::DeviceResources(HINSTANCE h_inst) : hinstance(hinstance) {
   heap_desc.NumDescriptors = max_shading_buffer_view_num;
   heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // for shader resources
   heap_desc.NodeMask = 0;                                      // sinlge GPU
-  REI_ASSERT(SUCCEEDED(device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&shading_buffer_heap))));
+  REI_ASSERT(
+    SUCCEEDED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&shading_buffer_heap))));
   next_shading_buffer_view_index = 0;
   shading_buffer_view_inc_size
-    = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
@@ -146,10 +145,10 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
 
 void DeviceResources::create_const_buffers(
   const ShaderData& shader, ShaderConstBuffers& const_buffers) {
-  const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*device.Get(), 1, true);
+  const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*m_device.Get(), 1, true);
   UINT64 init_size = 128;
   const_buffers.per_object_CBs
-    = make_shared<UploadBuffer<cbPerObject>>(*device.Get(), init_size, true);
+    = make_shared<UploadBuffer<cbPerObject>>(*m_device.Get(), init_size, true);
   const_buffers.next_object_index = 0;
 }
 
@@ -182,7 +181,7 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
     &sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &root_sign_blob, &error_blob);
   if (!SUCCEEDED(hr)) { error("TODO log root signature error here"); }
   UINT node_mask = 0; // single GPU
-  hr = device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
+  hr = m_device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
     root_sign_blob->GetBufferSize(), IID_PPV_ARGS(&root_sign));
   REI_ASSERT(SUCCEEDED(hr));
 }
@@ -241,7 +240,7 @@ void DeviceResources::get_pso(
                  // https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12PipelineStateCache
     desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // cache
     ComPtr<ID3D12PipelineState> return_pso;
-    HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&return_pso));
+    HRESULT hr = m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&return_pso));
     REI_ASSERT(SUCCEEDED(hr));
 
     return return_pso;
@@ -261,12 +260,7 @@ void DeviceResources::create_mesh_buffer_common(
     return;
   }
 
-  ComPtr<ID3D12GraphicsCommandList> cmd_list = upload_command_list;
-  if (!is_uploading_reset) {
-    // first reset in this frame
-    upload_command_list->Reset(command_alloc.Get(), nullptr);
-    is_uploading_reset = true;
-  }
+  ID3D12GraphicsCommandList* cmd_list = &prepare_command_list();
 
   // shared routine for create a default buffer in GPU
   auto create = [&](UINT bytesize) -> ComPtr<ID3D12Resource> {
@@ -276,7 +270,7 @@ void DeviceResources::create_mesh_buffer_common(
     D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_COMMON;
     D3D12_CLEAR_VALUE* p_clear_value = nullptr; // optional
     ComPtr<ID3D12Resource> result;
-    HRESULT hr = device->CreateCommittedResource(
+    HRESULT hr = m_device->CreateCommittedResource(
       &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&result));
     REI_ASSERT(SUCCEEDED(hr));
     return result;
@@ -293,7 +287,7 @@ void DeviceResources::create_mesh_buffer_common(
     D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_GENERIC_READ;
     D3D12_CLEAR_VALUE* p_clear_value = nullptr; // optional
     ComPtr<ID3D12Resource> upload_buffer;
-    HRESULT hr = device->CreateCommittedResource(
+    HRESULT hr = m_device->CreateCommittedResource(
       &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&upload_buffer));
     REI_ASSERT(SUCCEEDED(hr));
 
@@ -310,7 +304,7 @@ void DeviceResources::create_mesh_buffer_common(
     sub_res_data.RowPitch = bsize; // length of memory to copy
     sub_res_data.SlicePitch
       = sub_res_data.SlicePitch; // for buffer-type sub-res, same with row pitch  TODO check this
-    UpdateSubresources(cmd_list.Get(), dest_buffer.Get(), upload_buffer.Get(), upload_offset,
+    UpdateSubresources(cmd_list, dest_buffer.Get(), upload_buffer.Get(), upload_offset,
       upload_first_sub_res, 1, &sub_res_data);
 
     // post-upload transition
@@ -379,12 +373,32 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   create_mesh_buffer_common(vertices, indices, mesh_res);
 }
 
+ID3D12GraphicsCommandList& DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
+  if (!is_using_cmd_list) {
+    HRESULT hr = m_command_list->Reset(m_command_alloc.Get(), nullptr);
+    REI_ASSERT((SUCCEEDED(hr)));
+    is_using_cmd_list = true;
+  }
+  return *m_command_list.Get();
+}
+
+void DeviceResources::flush_command_list() {
+  // TODO check is not empty
+  HRESULT hr = m_command_list->Close();
+  REI_ASSERT(SUCCEEDED(hr));
+  is_using_cmd_list = false;
+  ID3D12CommandList* temp_cmd_lists[1] = {m_command_list.Get()};
+  m_command_queue->ExecuteCommandLists(1, temp_cmd_lists);
+}
+
 void DeviceResources::flush_command_queue_for_frame() {
+  HRESULT hr;
+
   // Advance frame fence value
   current_frame_fence++;
 
   // Wait to finish all submitted commands (and reach current frame fence value)
-  command_queue->Signal(frame_fence.Get(), current_frame_fence);
+  m_command_queue->Signal(frame_fence.Get(), current_frame_fence);
   if (frame_fence->GetCompletedValue() < current_frame_fence) {
     // TODO can we reuse the event handle
     LPSECURITY_ATTRIBUTES default_security = nullptr;
@@ -396,12 +410,16 @@ void DeviceResources::flush_command_queue_for_frame() {
 
     if (evt_handle == 0) return;
 
-    HRESULT hr = frame_fence->SetEventOnCompletion(current_frame_fence, evt_handle);
+    hr = frame_fence->SetEventOnCompletion(current_frame_fence, evt_handle);
     REI_ASSERT(SUCCEEDED(hr));
 
     WaitForSingleObject(evt_handle, INFINITE);
     CloseHandle(evt_handle);
   }
+
+  // Reset allocator since commands are finished
+  hr = m_command_alloc->Reset();
+  REI_ASSERT(SUCCEEDED(hr));
 }
 
 } // namespace d3d

@@ -3,18 +3,18 @@
 
 #if DIRECT3D_ENABLED
 
-#include <vector>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
+#include <d3d12.h>
+#include <d3dcompiler.h>
+#include <dxgi1_4.h>
 #include <windows.h>
 #include <wrl.h>
-#include <d3d12.h>
-#include <dxgi1_4.h>
-#include <d3dcompiler.h>
 
-#include "../common.h"
 #include "../algebra.h"
+#include "../common.h"
 #include "../model.h"
 #include "../scene.h"
 #include "d3d_common_resources.h"
@@ -25,14 +25,13 @@ namespace d3d {
 
 using Microsoft::WRL::ComPtr;
 
-class Renderer;
-
 // PSO caching
 struct PSOKey {
   ID3D12RootSignature* p_root_sign;
   RenderTargetSpec rt_spec;
 
-  //PSOKey(ID3D12RootSignature* p_root_sign, const RenderTargetSpec& rt_spect) : p_root_sign(p_root_sign), rt_spec(rt_spec) {}
+  // PSOKey(ID3D12RootSignature* p_root_sign, const RenderTargetSpec& rt_spect) :
+  // p_root_sign(p_root_sign), rt_spec(rt_spec) {}
 
   bool operator==(const PSOKey& other) const {
     return p_root_sign == other.p_root_sign && rt_spec == other.rt_spec;
@@ -40,7 +39,7 @@ struct PSOKey {
 };
 
 struct PSOKeyHasher {
-  std::size_t operator()(PSOKey const& k) const noexcept { 
+  std::size_t operator()(PSOKey const& k) const noexcept {
     std::size_t hash0 = (uintptr_t)k.p_root_sign;
     std::size_t hash1 = k.rt_spec.simple_hash();
     // TODO use some better hash combine scheme
@@ -55,25 +54,57 @@ public:
   DeviceResources(HINSTANCE hInstance);
   ~DeviceResources() = default;
 
-private:
-  friend class Renderer;
+  IDXGIFactory4& dxgi_factory() const { return *m_dxgi_factory.Get(); }
+  IDXGIAdapter2& dxgi_adapter() const { return *m_dxgi_adapter.Get(); }
+  ID3D12Device& device() const { return *m_device.Get(); }
 
+  ID3D12CommandQueue& command_queue() const { return *m_command_queue.Get(); }
+  //ID3D12CommandAllocator& command_alloc() const { return *m_command_alloc.Get(); }
+  //ID3D12GraphicsCommandList& command_list() const { return *m_draw_command_list.Get(); }
+
+  ID3D12DescriptorHeap& descriptor_heap() const { return common_descriptor_heap(); }
+  ID3D12DescriptorHeap& common_descriptor_heap() const { return *shading_buffer_heap.Get(); }
+  UINT alloc_descriptor() {
+    ID3D12DescriptorHeap* heap = shading_buffer_heap.Get();
+    REI_ASSERT(heap);
+    UINT alloc_index = next_shading_buffer_view_index++;
+    REI_ASSERT(alloc_index < max_shading_buffer_view_num);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE descriptor {
+      heap->GetCPUDescriptorHandleForHeapStart(), (INT)alloc_index, shading_buffer_view_inc_size};
+    return alloc_index;
+  }
+
+  void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
+  void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
+  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign);
+  void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec,
+    ComPtr<ID3D12PipelineState>& pso);
+
+  void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
+  void create_debug_mesh_buffer(MeshData& mesh_data);
+
+  void create_model_buffer(const Model& model, ModelData& model_data);
+
+  ID3D12GraphicsCommandList& prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  void flush_command_list();
+  void flush_command_queue_for_frame();
+
+private:
   HINSTANCE hinstance;
 
-  ComPtr<IDXGIFactory4> dxgi_factory;
-  ComPtr<IDXGIAdapter2> dxgi_adapter;
-  ComPtr<ID3D12Device> device;
+  ComPtr<IDXGIFactory4> m_dxgi_factory;
+  ComPtr<IDXGIAdapter2> m_dxgi_adapter;
+  ComPtr<ID3D12Device> m_device;
 
-  ComPtr<ID3D12CommandQueue> command_queue;
-  ComPtr<ID3D12CommandAllocator> command_alloc;
-  ComPtr<ID3D12GraphicsCommandList> draw_command_list;
-  ComPtr<ID3D12GraphicsCommandList> upload_command_list;
-  bool is_drawing_reset;
-  bool is_uploading_reset;
+  ComPtr<ID3D12CommandQueue> m_command_queue;
+  ComPtr<ID3D12CommandAllocator> m_command_alloc;
+  ComPtr<ID3D12GraphicsCommandList> m_command_list;
+  bool is_using_cmd_list;
 
   UINT64 current_frame_fence;
   ComPtr<ID3D12Fence> frame_fence;
 
+  // Naive descriptor allocator
   UINT max_shading_buffer_view_num = 128;
   UINT next_shading_buffer_view_index;
   ComPtr<ID3D12DescriptorHeap> shading_buffer_heap;
@@ -81,18 +112,8 @@ private:
 
   PSOCache pso_cache;
 
-  void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
-  void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
-  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign);
-  void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso);
-
-  void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
-  void create_debug_mesh_buffer(MeshData& mesh_data);
-  void create_mesh_buffer_common(const std::vector<VertexElement>& vertices, const std::vector<std::uint16_t>& indices, MeshData& mesh_res);
-
-  void create_model_buffer(const Model& model, ModelData& model_data);
-
-  void flush_command_queue_for_frame();
+  void create_mesh_buffer_common(const std::vector<VertexElement>& vertices,
+    const std::vector<std::uint16_t>& indices, MeshData& mesh_res);
 };
 
 } // namespace d3d
