@@ -85,7 +85,13 @@ static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
 #define REI_THROW(msg) throw std::runtime_error(msg)
 
 #define REI_WARNING(expr) ::rei::warning_if(expr, #expr, REI_DEBUG_META)
+
+
+#if THROW
+#define REI_ERROR(expr) ((expr) ? REI_THROW(#expr) : false)
+#else
 #define REI_ERROR(expr) ::rei::error_if(expr, #expr, REI_DEBUG_META)
+#endif
 
 #if THROW
 #define REI_ASSERT(expr) ((expr) ? true : REI_THROW(#expr))
