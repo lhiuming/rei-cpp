@@ -81,6 +81,7 @@ public:
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
   void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
   void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign);
+  void create_root_signature(const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec,
     ComPtr<ID3D12PipelineState>& pso);
 

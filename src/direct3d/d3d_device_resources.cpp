@@ -9,6 +9,7 @@
 #include <d3dx12.h>
 
 #include "../debug.h"
+#include "d3d_utils.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -92,6 +93,7 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
     = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
+
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
   // routine for bytecode compilation
   auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
@@ -164,8 +166,6 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
     // TODO return the cached root signature if property
   }
 
-  HRESULT hr;
-
   /*
    * Parameters should be ordered by frequency of update, from most-often updated to least.
    */
@@ -181,11 +181,18 @@ void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign)
   D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
   D3D12_ROOT_SIGNATURE_FLAGS sig_flags
     = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
-  CD3DX12_ROOT_SIGNATURE_DESC sig_desc(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
+  CD3DX12_ROOT_SIGNATURE_DESC root_desc(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
+
+  create_root_signature(root_desc, root_sign);
+}
+
+void DeviceResources::create_root_signature(
+  const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
+  HRESULT hr;
   ComPtr<ID3DBlob> root_sign_blob;
   ComPtr<ID3DBlob> error_blob;
   hr = D3D12SerializeRootSignature(
-    &sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &root_sign_blob, &error_blob);
+    &root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &root_sign_blob, &error_blob);
   if (!SUCCEEDED(hr)) { error("TODO log root signature error here"); }
   UINT node_mask = 0; // single GPU
   hr = m_device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
@@ -265,59 +272,18 @@ void DeviceResources::create_mesh_buffer_common(
     return;
   }
 
+  ID3D12Device* device = &this->device();
   ID3D12GraphicsCommandList* cmd_list = &prepare_command_list();
 
   // shared routine for create a default buffer in GPU
   auto create = [&](UINT bytesize) -> ComPtr<ID3D12Resource> {
-    D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bytesize);
-    D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
-    D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_COMMON;
-    D3D12_CLEAR_VALUE* p_clear_value = nullptr; // optional
-    ComPtr<ID3D12Resource> result;
-    HRESULT hr = m_device->CreateCommittedResource(
-      &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&result));
-    REI_ASSERT(SUCCEEDED(hr));
-    return result;
+    return create_default_buffer(device, bytesize);
   };
 
-  // shared routine for upload data to default heap, with an intermediate upload buffer (newly
-  // created)
+  // shared routine for upload data to default heap
   auto upload = [&](const void* data, UINT64 bsize,
                   ComPtr<ID3D12Resource> dest_buffer) -> ComPtr<ID3D12Resource> {
-    // create upalod buffer
-    D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bsize);
-    D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
-    D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_GENERIC_READ;
-    D3D12_CLEAR_VALUE* p_clear_value = nullptr; // optional
-    ComPtr<ID3D12Resource> upload_buffer;
-    HRESULT hr = m_device->CreateCommittedResource(
-      &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&upload_buffer));
-    REI_ASSERT(SUCCEEDED(hr));
-
-    // pre-upload transition
-    D3D12_RESOURCE_BARRIER pre_upload = CD3DX12_RESOURCE_BARRIER::Transition(
-      dest_buffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-    cmd_list->ResourceBarrier(1, &pre_upload);
-
-    // upload it
-    UINT upload_offset = 0;
-    UINT upload_first_sub_res = 0;
-    D3D12_SUBRESOURCE_DATA sub_res_data = {};
-    sub_res_data.pData = data;     // memory for uploading from
-    sub_res_data.RowPitch = bsize; // length of memory to copy
-    sub_res_data.SlicePitch
-      = sub_res_data.SlicePitch; // for buffer-type sub-res, same with row pitch  TODO check this
-    UpdateSubresources(cmd_list, dest_buffer.Get(), upload_buffer.Get(), upload_offset,
-      upload_first_sub_res, 1, &sub_res_data);
-
-    // post-upload transition
-    D3D12_RESOURCE_BARRIER post_upload = CD3DX12_RESOURCE_BARRIER::Transition(
-      dest_buffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
-    cmd_list->ResourceBarrier(1, &post_upload);
-
-    return upload_buffer;
+    return upload_to_default_buffer(device, cmd_list, data, bsize, dest_buffer.Get());
   };
 
   const void* p_vertices = vertices.data();
@@ -342,8 +308,7 @@ void DeviceResources::create_mesh_buffer_common(
   // make a view for indicew buffer, for later use
   D3D12_INDEX_BUFFER_VIEW ibv;
   ibv.BufferLocation = ind_buffer->GetGPUVirtualAddress();
-  ibv.Format = DXGI_FORMAT_D32_FLOAT;
-  ibv.Format = DXGI_FORMAT_R16_UINT;
+  ibv.Format = c_index_format;
   ibv.SizeInBytes = ind_bytesize;
 
   // populate the result
