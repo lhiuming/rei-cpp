@@ -67,6 +67,8 @@ endif()
 # Resolve external dependencies
 
 add_subdirectory_with_folder("Externals" externals)
+get_property(external_libs GLOBAL PROPERTY rei_external_libs)
+get_property(external_deps GLOBAL PROPERTY rei_external_deps)
 
 
 #-----------------------
@@ -95,18 +97,17 @@ target_compile_features(${core_library} PUBLIC cxx_std_17)
 
 
 # Link Graphic api libraries
-set(graphic_api_libs "")
 if (BUILD_OPENGL)
 	target_compile_definitions(${core_library} PRIVATE OPENGL_ENABLED)
-	list(APPEND graphic_api_libs ${opengl_libs})
 endif()
 if (BUILD_DIRECT3D)
 	target_compile_definitions(${core_library} PRIVATE DIRECT3D_ENABLED)
-	list(APPEND graphic_api_libs ${direct3d_libs})
 endif()
-message("Build with graphic API libraries: ${graphic_api_libs}")
 # TODO set up pubblic include header and make this PRIVATE
-target_link_libraries(${core_library} PUBLIC ${graphic_api_libs})
+target_link_libraries(${core_library} PUBLIC ${external_libs})
+add_dependencies(${core_library} ${external_deps})
+message("Build with external libraries: ${external_libs}")
+message("Build with external dependencies: ${external_deps}")
 
 # Link assimp
 target_link_libraries(${core_library} PRIVATE assimp)
@@ -126,6 +127,8 @@ endif()
 foreach(core_data_src_dir ${core_data_source_directories})
 	file(GLOB_RECURSE files "${core_data_src_dir}/*")
 	list(APPEND core_data_source_files ${files})
+	# prevent Visual Studio to compiler the shaders unintendedly
+    set_source_files_properties(${files} PROPERTIES VS_TOOL_OVERRIDE "None")
 endforeach()
 # create a target for dependecy management and IDE convinience
 add_custom_target(CoreData SOURCES ${core_data_source_files})

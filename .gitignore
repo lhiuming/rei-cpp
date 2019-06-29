@@ -32,6 +32,10 @@
 *.out
 *.app
 
+# But include the external binaries
+!externals/
+!externals/**/*
+
 #------
 # Misc
 #------
