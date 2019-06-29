@@ -261,9 +261,7 @@ void DeviceResources::get_pso(
 // common routine for debug
 void DeviceResources::create_mesh_buffer_common(
   const vector<VertexElement>& vertices, const vector<std::uint16_t>& indices, MeshData& mesh_res) {
-  if (vertices.size() == 0 || indices.size() == 0) {
-    REI_ERROR(vertices.size() == 0);
-    REI_ERROR(indices.size() == 0);
+  if (REI_ERRORIF(vertices.size() == 0) || REI_ERRORIF(indices.size() == 0)) {
     return;
   }
 

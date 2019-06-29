@@ -114,7 +114,7 @@ GeometryHandle Renderer::create_geometry(const Geometry& geometry) {
 }
 
 ModelHandle Renderer::create_model(const Model& model) {
-  if (REI_WARNING(model.get_geometry() == nullptr)) { return nullptr; }
+  if (REI_WARNINGIF(model.get_geometry() == nullptr)) { return nullptr; }
 
   auto model_data = make_shared<ModelData>(this);
 
@@ -293,7 +293,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   r_task.view_proj = &viewport.view_proj;
   r_task.target_spec = &target_spec;
   for (ModelData& model : culling.models) {
-    if (REI_WARNING(model.geometry == nullptr) || REI_WARNING(model.material == nullptr)) continue;
+    if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr)) continue;
     r_task.model_num = 1;
     r_task.models = &model;
     draw_meshes(cmd_list, r_task);
