@@ -83,13 +83,13 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   // Create buffer-type descriptor heap
   D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
   heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  heap_desc.NumDescriptors = max_shading_buffer_view_num;
+  heap_desc.NumDescriptors = max_descriptor_num;
   heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // for shader resources
   heap_desc.NodeMask = 0;                                      // sinlge GPU
   REI_ASSERT(
-    SUCCEEDED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&shading_buffer_heap))));
-  next_shading_buffer_view_index = 0;
-  shading_buffer_view_inc_size
+    SUCCEEDED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_descriotpr_heap))));
+  next_descriptor_index = 0;
+  m_descriptor_size
     = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -272,8 +272,8 @@ void DeviceResources::create_mesh_buffer_common(
     return;
   }
 
-  ID3D12Device* device = &this->device();
-  ID3D12GraphicsCommandList* cmd_list = &prepare_command_list();
+  ID3D12Device* device = this->device();
+  ID3D12GraphicsCommandList* cmd_list = this->prepare_command_list();
 
   // shared routine for create a default buffer in GPU
   auto create = [&](UINT bytesize) -> ComPtr<ID3D12Resource> {
@@ -343,13 +343,13 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   create_mesh_buffer_common(vertices, indices, mesh_res);
 }
 
-ID3D12GraphicsCommandList& DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
+ID3D12GraphicsCommandList* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
   if (!is_using_cmd_list) {
     HRESULT hr = m_command_list->Reset(m_command_alloc.Get(), nullptr);
     REI_ASSERT((SUCCEEDED(hr)));
     is_using_cmd_list = true;
   }
-  return *m_command_list.Get();
+  return m_command_list.Get();
 }
 
 void DeviceResources::flush_command_list() {

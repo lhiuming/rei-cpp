@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <wrl.h>
 
+#include "d3d_utils.h"
 #include "d3d_common_resources.h"
 #include "d3d_device_resources.h"
 
@@ -22,9 +23,9 @@ public:
     std::shared_ptr<DeviceResources> device_resources, HWND hwnd, int init_width, int init_height);
   ~ViewportResources();
 
-  ID3D12DescriptorHeap& rtv_heap() const { return *m_rtv_heap.Get(); }
-  ID3D12DescriptorHeap& dsv_heap() const { return *m_dsv_heap.Get(); }
-  IDXGISwapChain1& swapchain() const { return *m_swapchain.Get(); }
+  ID3D12DescriptorHeap* rtv_heap() const { return m_rtv_heap.Get(); }
+  ID3D12DescriptorHeap* dsv_heap() const { return m_dsv_heap.Get(); }
+  IDXGISwapChain1* swapchain() const { return m_swapchain.Get(); }
 
   void update_size(int width, int height);
 
@@ -42,9 +43,9 @@ public:
   }
 
 protected:
-  ID3D12Device& device() const { return m_device_resources->device(); }
-  IDXGIFactory4& dxgi_factory() const { return m_device_resources->dxgi_factory(); }
-  ID3D12CommandQueue& command_queue() const { return m_device_resources->command_queue(); }
+  ID3D12Device* device() const { return m_device_resources->device(); }
+  IDXGIFactory4* dxgi_factory() const { return m_device_resources->dxgi_factory(); }
+  ID3D12CommandQueue* command_queue() const { return m_device_resources->command_queue(); }
   // ID3D12CommandList& command_list() const { return m_device_resources->command_list(); }
 
   void create_size_dependent_resources();
@@ -58,6 +59,7 @@ private:
   HWND hwnd;
   std::shared_ptr<DeviceResources> m_device_resources;
 
+  // Swapchain objects
   ComPtr<ID3D12DescriptorHeap> m_rtv_heap;
   ComPtr<ID3D12DescriptorHeap> m_dsv_heap;
   ComPtr<IDXGISwapChain1> m_swapchain;

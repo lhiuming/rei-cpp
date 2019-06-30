@@ -244,30 +244,30 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   const RenderTargetSpec& target_spec = vp_res.target_spec();
 
   // Prepare command list
-  ID3D12GraphicsCommandList& cmd_list = dev_res.prepare_command_list();
+  ID3D12GraphicsCommandList* cmd_list = dev_res.prepare_command_list();
 
   // Prepare render target
   D3D12_RESOURCE_BARRIER pre_rt
     = CD3DX12_RESOURCE_BARRIER::Transition(vp_res.get_current_rt_buffer(),
       D3D12_RESOURCE_STATE_PRESENT, // previous either COMMON of PRESENT
       D3D12_RESOURCE_STATE_RENDER_TARGET);
-  cmd_list.ResourceBarrier(1, &pre_rt);
+  cmd_list->ResourceBarrier(1, &pre_rt);
 
   // Set Viewport and scissor
-  cmd_list.RSSetViewports(1, &d3d_vp);
-  cmd_list.RSSetScissorRects(1, &scissor);
+  cmd_list->RSSetViewports(1, &d3d_vp);
+  cmd_list->RSSetScissorRects(1, &scissor);
 
   // Specify render target
-  cmd_list.OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, &vp_res.get_dsv());
+  cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, &vp_res.get_dsv());
 
   // Clear
   const FLOAT* clear_color = viewport.clear_color.data();
   D3D12_RECT* entire_view = nullptr;
-  cmd_list.ClearRenderTargetView(vp_res.get_current_rtv(), clear_color, 0, entire_view);
+  cmd_list->ClearRenderTargetView(vp_res.get_current_rtv(), clear_color, 0, entire_view);
   D3D12_CLEAR_FLAGS ds_clear_flags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
   FLOAT clear_depth = target_spec.ds_clear.Depth;
   FLOAT clear_stencil = target_spec.ds_clear.Stencil;
-  cmd_list.ClearDepthStencilView(
+  cmd_list->ClearDepthStencilView(
     vp_res.get_dsv(), ds_clear_flags, clear_depth, clear_stencil, 0, entire_view);
 
   // Update per-frame buffers for all shaders
@@ -293,26 +293,27 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
   r_task.view_proj = &viewport.view_proj;
   r_task.target_spec = &target_spec;
   for (ModelData& model : culling.models) {
-    if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr)) continue;
+    if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr))
+      continue;
     r_task.model_num = 1;
     r_task.models = &model;
-    draw_meshes(cmd_list, r_task);
+    draw_meshes(*cmd_list, r_task);
   }
 
   // Finish writing render target
   D3D12_RESOURCE_BARRIER post_rt
     = CD3DX12_RESOURCE_BARRIER::Transition(vp_res.get_current_rt_buffer(),
       D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-  cmd_list.ResourceBarrier(1, &post_rt);
+  cmd_list->ResourceBarrier(1, &post_rt);
 
   // Finish adding commands
   device_resources->flush_command_list();
 
   // Present and flip
   if (viewport.enable_vsync) {
-    vp_res.swapchain().Present(1, 0);
+    vp_res.swapchain()->Present(1, 0);
   } else {
-    vp_res.swapchain().Present(0, 0);
+    vp_res.swapchain()->Present(0, 0);
   }
   vp_res.flip_backbuffer();
 
