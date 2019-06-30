@@ -131,7 +131,7 @@ foreach(core_data_src_dir ${core_data_source_directories})
     set_source_files_properties(${files} PROPERTIES VS_TOOL_OVERRIDE "None")
 endforeach()
 # create a target for dependecy management and IDE convinience
-add_custom_target(CoreData SOURCES ${core_data_source_files})
+add_custom_target(CoreData ALL SOURCES ${core_data_source_files} DEPENDS ${core_data_source_files})
 message("* Configure exporting core data to ${core_data_path}: ")
 # add command to copy each folder
 foreach(core_data_src_dir ${core_data_source_directories})
