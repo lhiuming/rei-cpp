@@ -39,6 +39,8 @@ public:
   std::size_t height() const { return m_height; }
   const std::wstring& title() const { return m_title; }
 
+  virtual bool is_destroyed() const = 0;
+
   [[deprecated]]
   void set_renderer(std::shared_ptr<Renderer> renderer) { REI_DEPRECATED }
   void set_scene(std::shared_ptr<Scene> scene) { REI_DEPRECATED }

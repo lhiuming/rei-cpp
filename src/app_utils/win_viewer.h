@@ -27,7 +27,6 @@ namespace rei {
 
 class WinViewer : public Viewer {
 public:
-
   WinViewer() = delete;
   WinViewer(HINSTANCE h_instance, std::size_t window_w, std::size_t window_h, std::wstring title);
   ~WinViewer();
@@ -36,6 +35,8 @@ public:
     REI_UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
   }
 
+  bool is_destroyed() const override { return m_is_destroyed; }
+
   void update_title(const std::wstring& title) override;
 
 private:
@@ -43,19 +44,26 @@ private:
     WindowID(HWND hwnd) : SystemWindowID {Win, hwnd} {}
   };
 
+  // Configuration
+  bool m_post_quit_on_destroy_msg = true;
+
+  // Window states
+  bool m_is_destroyed = false;
+
   // Windows interface object
-  HINSTANCE h_instance;
+  const HINSTANCE h_instance = NULL;
   LPCWSTR WndClassName = L"rei_Viewer_Window";
-  HWND hwnd;
+  HWND hwnd = NULL;
 
   // Some input state
   bool mouse_in_window = false;
   POINTS last_mouse_pos_regular;
 
   void initialize_window(HINSTANCE hInstance, int ShowWnd, int width, int height, bool windowed);
+  void on_window_destroy();
 
   // Converto to basis with origin at Left-Bottom
-  inline POINTS regularize(POINTS p) { return POINTS { p.x, SHORT(m_height) - p.y}; }
+  inline POINTS regularize(POINTS p) { return POINTS {p.x, SHORT(m_height) - p.y}; }
 
   LRESULT process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -70,6 +78,6 @@ private:
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
 
-}
+} // namespace rei
 
 #endif

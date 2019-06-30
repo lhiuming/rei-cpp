@@ -22,13 +22,12 @@ WinViewer::WinViewer(HINSTANCE h_instance, size_t window_w, size_t window_h, std
 
 // Destructor
 WinViewer::~WinViewer() {
-  // Destroy the window
-  DestroyWindow(hwnd);
-
-  // Un-register from the global mao
-  viewer_map.erase(hwnd);
-
-  console << "D3DViewer is destructed." << std::endl;
+  if (!m_is_destroyed) {
+    // Destroy the window
+    DestroyWindow(hwnd);
+    // Un-register from the global mao
+    viewer_map.erase(hwnd);
+  }
 }
 
 void WinViewer::initialize_window(
@@ -55,7 +54,7 @@ void WinViewer::initialize_window(
   // Create the window
   hwnd = CreateWindowExW(0,       // choose an extended window style; 0 is default
     WndClassName,                 // optional; a registered class name
-    m_title.c_str(),                // used in the window title bar (if any)
+    m_title.c_str(),              // used in the window title bar (if any)
     WS_OVERLAPPEDWINDOW,          // window style; using the most ordinary combination
     CW_USEDEFAULT, CW_USEDEFAULT, // window default position, see MSDN
     width, height,                // window size
@@ -71,9 +70,16 @@ void WinViewer::initialize_window(
 
   // register to the global map
   viewer_map[hwnd] = this;
+  m_is_destroyed = false;
 
   ShowWindow(this->hwnd, ShowWnd); // show it anyway
   UpdateWindow(this->hwnd);        // paint the client area
+}
+
+void WinViewer::on_window_destroy() {
+  m_is_destroyed = true;
+  hwnd = NULL;
+  viewer_map.erase(hwnd);
 }
 
 LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -85,7 +91,10 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
       }
       return 0;
     case WM_DESTROY: // click (X)
-      PostQuitMessage(0);
+      if (m_post_quit_on_destroy_msg) { PostQuitMessage(0); }
+      on_window_destroy();
+      return 0;
+    case WM_PAINT:
       return 0;
   }
 
@@ -93,11 +102,6 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
   if (!input_bus.expired()) {
     InputBus& input = (*input_bus.lock());
     switch (msg) {
-      case WM_KEYDOWN:
-        if (wParam == VK_ESCAPE) { // press ESC
-          DestroyWindow(hwnd);
-        }
-        return 0;
       case WM_MOUSEMOVE:
         POINTS p1 = regularize(MAKEPOINTS(lParam));
         if (mouse_in_window) {
@@ -128,6 +132,10 @@ LRESULT CALLBACK WinViewer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM l
 }
 
 void WinViewer::update_title(const std::wstring& new_title) {
+  if (m_is_destroyed) {
+    REI_WARNING("Window is already destroyed");
+    return;
+  }
   BOOL succeeded = SetWindowTextW(hwnd, new_title.data());
   REI_ASSERT(succeeded);
   m_title = new_title;

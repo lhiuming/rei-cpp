@@ -133,7 +133,7 @@ void WinApp::update_camera_control() {
 }
 
 void WinApp::update_title() {
-  if (config.show_fps_in_title) {
+  if (config.show_fps_in_title && !m_viewer->is_destroyed()) {
     using millisecs = std::chrono::duration<float, std::milli>;
     float ms = millisecs(last_frame_time).count();
     float fps = 1000.f / ms;
@@ -165,16 +165,16 @@ void WinApp::run() {
   MSG msg;
   ZeroMemory(&msg, sizeof(MSG));
   while (true) {
-    if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) // passge message to WndProc
-    {
+    // pass message to WndProc
+    if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       if (msg.message == WM_QUIT) break;
       TranslateMessage(&msg);
       DispatchMessage(&msg);
-    } else {
-      // simple one tick
-      update();
-      render();
     }
+
+    // simple one tick
+    update();
+    render();
   } // end while
 }
 
