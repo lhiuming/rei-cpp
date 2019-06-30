@@ -2,15 +2,20 @@
 // Source of d3d_renderer.h
 #include "d3d_renderer.h"
 
+#include <iomanip>
+#include <sstream>
+#include <string>
 #include <unordered_set>
 
 #include <d3d12.h>
 #include <d3dx12.h>
 
 #include "../debug.h"
+#include "../string_utils.h"
 
 #include "d3d_common_resources.h"
 #include "d3d_device_resources.h"
+#include "d3d_utils.h"
 #include "d3d_viewport_resources.h"
 
 using std::make_shared;
@@ -22,6 +27,30 @@ using std::weak_ptr;
 namespace rei {
 
 namespace d3d {
+
+namespace dxr {
+/*
+ * Hard code the root siagnature for dxr
+ * FIXME
+ */
+namespace GlobalRootSignLayout {
+enum Data { OuputTextureUAV_SingleTable = 0, TLAS_SRV, Count };
+}
+namespace LocalRootSignLayout {
+enum Data { ViewportConstants = 0, Count };
+
+} // namespace LocalRootSignLayout
+
+struct RaygenConstantBuffer {
+  float x, y, z, w;
+};
+
+const wchar_t* c_hit_group_name = L"hit_group0";
+const wchar_t* c_raygen_shader_name = L"raygen_shader";
+const wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
+const wchar_t* c_miss_shader_name = L"miss_shader";
+
+} // namespace dxr
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
@@ -160,16 +189,12 @@ ModelHandle Renderer::create_model(const Model& model) {
 SceneHandle Renderer::build_enviroment(const Scene& scene) {
   auto scene_data = make_shared<SceneData>(this);
 
-  // TODO
-  build_global_rootsignature();
+  build_raytracing_rootsignatures();
 
-  // TODO
   build_raytracing_pso();
 
-  // TODO
-  build_dxr_acceleration_structure();
+  build_dxr_acceleration_structure(nullptr, 0);
 
-  // TODO
   build_shader_table();
 
   return SceneHandle(scene_data);
@@ -322,9 +347,70 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
 }
 
 void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
+  auto cmd_list = device_resources->prepare_command_list_dxr();
+
+  auto viewport_resources = viewport.viewport_resources.lock();
+
   // Dispatch ray and write to raytracing output
+  {
+    cmd_list->SetComputeRootSignature(device_resources->global_root_sign.Get());
+    cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
+    cmd_list->SetPipelineState1(device_resources->dxr_pso.Get());
+
+    // Bind global root arguments
+    cmd_list->SetComputeRootDescriptorTable(dxr::GlobalRootSignLayout::OuputTextureUAV_SingleTable, viewport_resources->raytracing_output_gpu_uav());
+    cmd_list->SetComputeRootShaderResourceView(
+      dxr::GlobalRootSignLayout::TLAS_SRV, this->tlas_buffer->GetGPUVirtualAddress());
+
+    // Dispatch
+    D3D12_DISPATCH_RAYS_DESC desc = {};
+    desc.RayGenerationShaderRecord.StartAddress = raygen_shader_table->GetGPUVirtualAddress();
+    desc.RayGenerationShaderRecord.SizeInBytes = raygen_shader_table->GetDesc().Width;
+    desc.MissShaderTable.StartAddress = miss_shader_table->GetGPUVirtualAddress();
+    desc.MissShaderTable.SizeInBytes = miss_shader_table->GetDesc().Width;
+    desc.MissShaderTable.StrideInBytes = miss_shader_table->GetDesc().Width; // sinlge element
+    desc.HitGroupTable.StartAddress = hitgroup_shader_table->GetGPUVirtualAddress();
+    desc.HitGroupTable.SizeInBytes = hitgroup_shader_table->GetDesc().Width;
+    desc.HitGroupTable.StrideInBytes = hitgroup_shader_table->GetDesc().Width; // single element
+    desc.Width = viewport_resources->raytracing_output_width();
+    desc.Height = viewport_resources->raytracing_output_height();
+    desc.Depth = 1;
+    cmd_list->DispatchRays(&desc);
+  }
 
   // Copy to frame buffer
+  {
+    auto render_target = viewport_resources->get_current_rt_buffer();
+    auto raytracing_output = viewport_resources->raytracing_output_buffer();
+
+    D3D12_RESOURCE_BARRIER pre_copy[2];
+    pre_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+      raytracing_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    pre_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+      render_target, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
+    cmd_list->ResourceBarrier(2, pre_copy);
+
+    cmd_list->CopyResource(render_target, raytracing_output);
+
+    D3D12_RESOURCE_BARRIER post_copy[2];
+    post_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(raytracing_output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    post_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(render_target, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
+    cmd_list->ResourceBarrier(2, post_copy);
+  }
+
+  // Done
+  device_resources->flush_command_list();
+
+ // Present and flip
+  if (viewport.enable_vsync) {
+    viewport_resources->swapchain()->Present(1, 0);
+  } else {
+    viewport_resources->swapchain()->Present(0, 0);
+  }
+  viewport_resources->flip_backbuffer();
+
+  // Wait
+  device_resources->flush_command_queue_for_frame();
 }
 
 void Renderer::create_default_assets() {
@@ -430,20 +516,275 @@ void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& t
   } // end for each model
 }
 
-void Renderer::build_global_rootsignature() {
-  REI_NOT_IMPLEMENT("Build Raytracing root signature");
+void Renderer::build_raytracing_rootsignatures() {
+  // Global root signature
+  {
+    constexpr int param_count = static_cast<int>(dxr::GlobalRootSignLayout::Count);
+    CD3DX12_ROOT_PARAMETER root_params[param_count] = {};
+    CD3DX12_DESCRIPTOR_RANGE output_uav(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+    root_params[dxr::GlobalRootSignLayout::OuputTextureUAV_SingleTable].InitAsDescriptorTable(
+      1, &output_uav); // Texture must be bound through table
+    root_params[dxr::GlobalRootSignLayout::TLAS_SRV].InitAsShaderResourceView(0);
+    CD3DX12_ROOT_SIGNATURE_DESC desc(param_count, root_params);
+    device_resources->create_root_signature(desc, device_resources->global_root_sign);
+  }
+
+  // Local root signature
+  {
+    constexpr int param_count = static_cast<int>(dxr::LocalRootSignLayout::Count);
+    CD3DX12_ROOT_PARAMETER root_params[param_count];
+    root_params[dxr::LocalRootSignLayout::ViewportConstants].InitAsConstants(
+      sizeof(dxr::RaygenConstantBuffer) / sizeof(int32_t), 0, 0);
+    CD3DX12_ROOT_SIGNATURE_DESC desc(ARRAYSIZE(root_params), root_params);
+    desc.Flags
+      = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE; // special flag for dxr local root signature
+    device_resources->create_root_signature(desc, device_resources->local_root_sign);
+  }
 }
 
 void Renderer::build_raytracing_pso() {
-  REI_NOT_IMPLEMENT("Build Raytracing PSO");
+  // hard-coded properties
+  const std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
+  const UINT payload_max_size = sizeof(float) * 4;
+  const UINT attr_max_size = sizeof(float) * 2;
+  const UINT max_raytracing_recursion_depth = 2;
+
+  // short cut
+  auto device = device_resources->dxr_device();
+
+  CD3DX12_STATE_OBJECT_DESC raytracing_pipeline_desc(D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE);
+
+  ComPtr<IDxcBlob> shader_blobs[3];
+  D3D12_SHADER_BYTECODE bytecode[3];
+  { // compile and bind the shaders
+    const wchar_t* names[3]
+      = {dxr::c_raygen_shader_name, dxr::c_closest_hit_shader_name, dxr::c_miss_shader_name};
+    for (int i = 0; i < 3; i++) {
+      auto dxil_lib = raytracing_pipeline_desc.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+      shader_blobs[i]
+        = compile_dxr_shader(shader_path.data(), names[i]); // TODO the entry point may be incalid
+      bytecode[i] = CD3DX12_SHADER_BYTECODE(
+        shader_blobs[i]->GetBufferPointer(), shader_blobs[i]->GetBufferSize());
+      dxil_lib->SetDXILLibrary(&bytecode[i]);
+      dxil_lib->DefineExport(names[i]);
+    }
+  }
+
+  { // setup hit group
+    auto hit_group = raytracing_pipeline_desc.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
+    hit_group->SetClosestHitShaderImport(
+      dxr::c_closest_hit_shader_name); // not any-hit or intersection shader
+    hit_group->SetHitGroupExport(dxr::c_hit_group_name);
+    hit_group->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
+  }
+
+  { // DXR shader config
+    auto shader_config
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
+    shader_config->Config(payload_max_size, attr_max_size);
+  }
+
+  { // bind local root signature and association
+    auto local_root
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
+    auto sign = device_resources->local_root_sign;
+    local_root->SetRootSignature(sign.Get());
+
+    auto rootSignatureAssociation
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
+    rootSignatureAssociation->SetSubobjectToAssociate(*local_root);
+    rootSignatureAssociation->AddExport(dxr::c_raygen_shader_name);
+  }
+
+  { // bind global root signature
+    auto global_root
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
+    auto sign = device_resources->global_root_sign;
+    global_root->SetRootSignature(sign.Get());
+  }
+
+  { // pipeline config
+    auto pso_config
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_RAYTRACING_PIPELINE_CONFIG_SUBOBJECT>();
+    pso_config->Config(max_raytracing_recursion_depth);
+  }
+
+  HRESULT hr
+    = device->CreateStateObject(raytracing_pipeline_desc, IID_PPV_ARGS(&device_resources->dxr_pso));
+  REI_ASSERT(SUCCEEDED(hr));
 }
 
-void Renderer::build_dxr_acceleration_structure() {
-  REI_NOT_IMPLEMENT("Build BLAS and TLAS");
+void Renderer::build_dxr_acceleration_structure(ModelData* models, int count) {
+  auto device = device_resources->dxr_device();
+  auto cmd_list = device_resources->prepare_command_list_dxr();
+
+  // Create a triangle for test
+  struct Vec3f {
+    float x, y, z;
+  };
+  {
+    UINT16 indices[] = {0, 1, 2};
+    float depthValue = 1.0;
+    float offset = 0.7f;
+    Vec3f vertices[]
+      = {{0, -offset, depthValue}, {-offset, offset, depthValue}, {offset, offset, depthValue}};
+    index_buffer = create_upload_buffer(device, indices, 3);
+    vertex_buffer = create_upload_buffer(device, vertices, 3);
+  }
+
+  // Collect all model/geometry-instances in the raytracing scene
+  std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geo_descs;
+  {
+    // TODO only support mesh currently
+
+    // ModelData& m = *models;
+    // MeshData& mesh = static_cast<MeshData&>(*m.geometry);
+    bool is_opaque = true;
+
+    D3D12_RAYTRACING_GEOMETRY_DESC geo_desc {};
+    geo_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+    geo_desc.Triangles.Transform3x4 = NULL; // not used TODO check this
+    geo_desc.Triangles.IndexFormat = c_index_format;
+    geo_desc.Triangles.VertexFormat = c_accel_struct_vertex_format;
+    geo_desc.Triangles.IndexCount = 3;
+    geo_desc.Triangles.VertexCount = 3;
+    geo_desc.Triangles.IndexBuffer = index_buffer->GetGPUVirtualAddress();
+    geo_desc.Triangles.VertexBuffer.StartAddress = vertex_buffer->GetGPUVirtualAddress();
+    geo_desc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vec3f);
+    if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+    geo_descs.push_back(geo_desc);
+  }
+
+  int instance_count = 1;
+
+  // Prepare: get the prebuild info for BLAS and TLAS
+  D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO tl_prebuild = {};
+  D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS toplevel_input = {};
+  {
+    toplevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+    toplevel_input.Flags
+      = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
+    toplevel_input.NumDescs = instance_count;
+    toplevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    toplevel_input.pGeometryDescs = NULL; // instance desc in GPU memory; set latter
+    device->GetRaytracingAccelerationStructurePrebuildInfo(&toplevel_input, &tl_prebuild);
+    REI_ASSERT(tl_prebuild.ResultDataMaxSizeInBytes > 0);
+  }
+  D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bl_prebuild = {};
+  D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevel_input = {};
+  {
+    bottomlevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+    bottomlevel_input.Flags
+      = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
+    bottomlevel_input.NumDescs = geo_descs.size();
+    bottomlevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    bottomlevel_input.pGeometryDescs = geo_descs.data();
+    device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevel_input, &bl_prebuild);
+    REI_ASSERT(bl_prebuild.ResultDataMaxSizeInBytes > 0);
+  }
+
+  // Create scratch space (shared by two AS contruction)
+  UINT64 scratch_size = max(bl_prebuild.ScratchDataSizeInBytes, tl_prebuild.ScratchDataSizeInBytes);
+  scratch_buffer = create_uav_buffer(device, scratch_size);
+
+  // Allocate BLAS and TLAS buffer
+  {
+    blas_buffer = create_accel_struct_buffer(device, bl_prebuild.ResultDataMaxSizeInBytes);
+    tlas_buffer = create_accel_struct_buffer(device, tl_prebuild.ResultDataMaxSizeInBytes);
+  }
+
+  // BLAS
+  D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blas_desc {};
+  {
+    blas_desc.DestAccelerationStructureData = blas_buffer->GetGPUVirtualAddress();
+    blas_desc.Inputs = bottomlevel_input;
+    blas_desc.SourceAccelerationStructureData = NULL; // used when updating
+    blas_desc.ScratchAccelerationStructureData = scratch_buffer->GetGPUVirtualAddress();
+  }
+
+  // TLAS
+  D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC tlas_desc {};
+  ComPtr<ID3D12Resource> instance_buffer;
+  {
+    // TLAS need the instance descs in GPU
+    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instance_descs {};
+    {
+      D3D12_RAYTRACING_INSTANCE_DESC desc {};
+      FLOAT(&T)[3][4] = desc.Transform;
+      T[0][0] = T[1][1] = T[2][2] = 1; // identity matric
+      desc.InstanceID = 0;
+      desc.InstanceMask = 1;
+      desc.InstanceContributionToHitGroupIndex = 0;     // used in shader entry index calculation
+      desc.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE; // not used TODO check this
+      desc.AccelerationStructure = blas_buffer->GetGPUVirtualAddress();
+
+      instance_descs.push_back(desc);
+    }
+
+    instance_buffer = create_upload_buffer(device, instance_descs.data(), instance_descs.size());
+    toplevel_input.InstanceDescs = instance_buffer->GetGPUVirtualAddress();
+  }
+  {
+    tlas_desc.DestAccelerationStructureData = tlas_buffer->GetGPUVirtualAddress();
+    tlas_desc.Inputs = toplevel_input;
+    tlas_desc.SourceAccelerationStructureData = NULL;
+    tlas_desc.ScratchAccelerationStructureData = scratch_buffer->GetGPUVirtualAddress();
+  }
+
+  // Build them
+  // TODO investigate the postbuild info
+  cmd_list->BuildRaytracingAccelerationStructure(&blas_desc, 0, nullptr);
+  cmd_list->ResourceBarrier(
+    1, &CD3DX12_RESOURCE_BARRIER::UAV(blas_buffer.Get())); // sync before use
+  cmd_list->BuildRaytracingAccelerationStructure(&tlas_desc, 0, nullptr);
+  cmd_list->ResourceBarrier(
+    1, &CD3DX12_RESOURCE_BARRIER::UAV(tlas_buffer.Get())); // sync before use
+
+  // FIXME finish uploading before the locally created test buffer out ot scope
+  device_resources->flush_command_list();
+  device_resources->flush_command_queue_for_frame();
 }
 
 void Renderer::build_shader_table() {
-  REI_NOT_IMPLEMENT("Build Shader Table");
+  // input
+  auto device = device_resources->dxr_device();
+
+  HRESULT hr;
+
+  // prepare
+  UINT64 shader_id_bytesize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+  ComPtr<ID3D12StateObjectProperties> state_object_prop;
+  hr = device_resources->dxr_pso.As(&state_object_prop);
+  REI_ASSERT(SUCCEEDED(hr));
+
+  // Raygen shaders
+  {
+    struct RaygenRootArgument {
+      dxr::RaygenConstantBuffer raygen_cb;
+    } raygen_root_arg;
+    raygen_root_arg.raygen_cb = {-1, -1, 1, 1};
+    UINT64 raygen_root_argument_bytesize = sizeof(RaygenRootArgument);
+    void* raygen_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_raygen_shader_name);
+    byte* shader_record = new byte[shader_id_bytesize + raygen_root_argument_bytesize];
+    memcpy(shader_record, raygen_shader_id, shader_id_bytesize);
+    memcpy(shader_record + shader_id_bytesize, &raygen_root_arg, raygen_root_argument_bytesize);
+    raygen_shader_table = create_upload_buffer(
+      device, shader_id_bytesize + raygen_root_argument_bytesize, shader_record);
+    delete[] shader_record;
+  }
+
+  // Miss shaders
+  { // no arguments
+    void* miss_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_miss_shader_name);
+    miss_shader_table = create_upload_buffer(device, shader_id_bytesize, miss_shader_id);
+  }
+
+  // Hit group
+  { // no arguments
+    void* hitgroup_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_hit_group_name);
+    hitgroup_shader_table = create_upload_buffer(device, shader_id_bytesize, hitgroup_shader_id);
+  }
 }
 
 } // namespace d3d

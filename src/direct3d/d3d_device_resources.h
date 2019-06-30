@@ -67,8 +67,8 @@ public:
   // ID3D12CommandAllocator& command_alloc() const { return *m_command_alloc.Get(); }
   // ID3D12GraphicsCommandList& command_list() const { return *m_draw_command_list.Get(); }
 
-  //ID3D12DescriptorHeap& descriptor_heap() const { return common_descriptor_heap(); }
-  //ID3D12DescriptorHeap& common_descriptor_heap() const { return *m_descriotpr_heap.Get(); }
+  ID3D12DescriptorHeap*const* descriptor_heap_ptr() const { return m_descriotpr_heap.GetAddressOf(); }
+  ID3D12DescriptorHeap* descriptor_heap() const { return m_descriotpr_heap.Get(); }
 
   // Naive descriptor allocator
   UINT alloc_descriptor(CD3DX12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,

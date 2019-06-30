@@ -143,8 +143,29 @@ void ViewportResources::create_size_dependent_resources() {
     device->CreateDepthStencilView(m_depth_stencil_buffer.Get(), p_dsv_desc, get_dsv());
   }
 
+  // Create UAV buffer for raytracing output (raygen shader)
+  {
+    D3D12_RESOURCE_DESC uav_buffer_desc
+      = CD3DX12_RESOURCE_DESC::Tex2D(m_target_spec.rt_format, width, height);
+    uav_buffer_desc.MipLevels = 1;
+    uav_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
+    D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    hr = device->CreateCommittedResource(&heap_prop, heap_flags, &uav_buffer_desc, init_state,
+      nullptr, IID_PPV_ARGS(&m_raytracing_output_buffer));
+    REI_ASSERT(SUCCEEDED(hr));
 
+    // Allocate a descriptor from the shared descriptor heap
+    m_device_resources->alloc_descriptor(&m_raytracing_output_cpu_uav, &m_raytracing_output_gpu_uav);
 
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uav_desc.Texture2D = {};           // defualt
+    ID3D12Resource* counter = nullptr; // TOTO check
+    device->CreateUnorderedAccessView(
+      m_raytracing_output_buffer.Get(), counter, &uav_desc, m_raytracing_output_cpu_uav);
+  }
 }
 
 void ViewportResources::update_size(int width, int height) {

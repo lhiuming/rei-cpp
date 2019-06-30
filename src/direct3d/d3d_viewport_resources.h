@@ -6,9 +6,9 @@
 #include <windows.h>
 #include <wrl.h>
 
-#include "d3d_utils.h"
 #include "d3d_common_resources.h"
 #include "d3d_device_resources.h"
+#include "d3d_utils.h"
 
 namespace rei {
 
@@ -37,6 +37,11 @@ public:
   D3D12_CPU_DESCRIPTOR_HANDLE get_rtv(UINT offset) const;
   ID3D12Resource* get_ds_buffer() const { return m_depth_stencil_buffer.Get(); }
   D3D12_CPU_DESCRIPTOR_HANDLE get_dsv() const;
+
+  ID3D12Resource* raytracing_output_buffer() const { return m_raytracing_output_buffer.Get(); }
+  D3D12_GPU_DESCRIPTOR_HANDLE raytracing_output_gpu_uav() const { return m_raytracing_output_gpu_uav; }
+  int raytracing_output_width() const { return width; }
+  int raytracing_output_height() const { return height; }
 
   void flip_backbuffer() {
     current_back_buffer_index = (current_back_buffer_index + 1) % swapchain_buffer_count;
@@ -67,6 +72,11 @@ private:
 
   UINT64 rtv_descriptor_size = -1;
   UINT current_back_buffer_index = 0;
+
+  // Raytracing output UAV
+  ComPtr<ID3D12Resource> m_raytracing_output_buffer;
+  CD3DX12_CPU_DESCRIPTOR_HANDLE m_raytracing_output_cpu_uav;
+  CD3DX12_GPU_DESCRIPTOR_HANDLE m_raytracing_output_gpu_uav;
 };
 
 } // namespace d3d

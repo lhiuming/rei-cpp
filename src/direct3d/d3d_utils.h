@@ -71,7 +71,14 @@ inline ComPtr<ID3D12Resource> create_uav_buffer(ID3D12Device* device, size_t byt
   return create_default_buffer(device, bytesize, init_state, flags);
 }
 
-inline ComPtr<ID3D12Resource> craete_accel_struct_buffer(ID3D12Device* device, size_t bytesize,
+// Create a simple default buffer ready for accessing as UAV 2d texture
+inline ComPtr<ID3D12Resource> create_uav_texture2d(ID3D12Device* device, size_t bytesize,
+  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS) {
+  D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+  return create_default_buffer(device, bytesize, init_state, flags);
+}
+
+inline ComPtr<ID3D12Resource> create_accel_struct_buffer(ID3D12Device* device, size_t bytesize,
   D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
   constexpr D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
   // acceleration structure must allow unordered access

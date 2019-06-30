@@ -62,6 +62,18 @@ public:
   CullingResult cull(ViewportHandle viewport, const Scene& scene) override;
   void render(ViewportHandle viewport, CullingResult culling_result) override;
 
+  // temporarily for raytracing kick-up
+  ComPtr<ID3D12Resource> index_buffer;
+  ComPtr<ID3D12Resource> vertex_buffer;
+
+  ComPtr<ID3D12Resource> scratch_buffer;
+  ComPtr<ID3D12Resource> blas_buffer;
+  ComPtr<ID3D12Resource> tlas_buffer;
+
+  ComPtr<ID3D12Resource> raygen_shader_table;
+  ComPtr<ID3D12Resource> miss_shader_table;
+  ComPtr<ID3D12Resource> hitgroup_shader_table;
+
 protected:
   HINSTANCE hinstance;
   RenderMode mode;
@@ -91,9 +103,9 @@ protected:
 
   void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task);
 
-  void build_global_rootsignature();
+  void build_raytracing_rootsignatures();
   void build_raytracing_pso();
-  void build_dxr_acceleration_structure();
+  void build_dxr_acceleration_structure(ModelData* models, int count);
   void build_shader_table();
   void raytracing(ViewportData& viewport, CullingData& culling);
 
