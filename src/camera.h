@@ -62,6 +62,11 @@ public:
     VectorTarget vec = VectorTarget::Column) const {
     return convert(m_world_to_c_to_device, from, to, vec);
   }
+  Mat4 world_to_device_halfz(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
+    return convert(m_world_to_c_to_device_h, from, to, vec);
+  }
+ 
   Mat4 view(Handness from = Handness::Right, Handness to = Handness::Right,
     VectorTarget vec = VectorTarget::Column) const {
     return world_to_camera(from, to, vec);
@@ -74,6 +79,11 @@ public:
     VectorTarget vec = VectorTarget::Column) const {
     return world_to_device(from, to, vec);
   }
+  Mat4 view_proj_halfz(Handness from = Handness::Right, Handness to = Handness::Right,
+    VectorTarget vec = VectorTarget::Column) const {
+    return world_to_device_halfz(from, to, vec);
+  }
+
 
   // Misc query
   Vec3 bln() const {
@@ -97,7 +107,9 @@ private:
 
   Mat4 m_world_to_camera;             // defined by position and direction/up
   Mat4 m_camera_to_device;            //  projection and normalization
+  Mat4 m_camera_to_device_h;            //  projection and normalization, but with narrower z-range ([0, 1]) in device space
   Mat4 m_world_to_c_to_device;        // composed from above 2
+  Mat4 m_world_to_c_to_device_h;        // composed from above 2, but with narrower z-range ([0, 1]) in device space
   Mat4 m_world_to_c_to_d_to_viewport; // above combined with a static normalized->viewport step
 
   // helper for interface

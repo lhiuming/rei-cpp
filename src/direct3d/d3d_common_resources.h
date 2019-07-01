@@ -28,6 +28,9 @@ using Microsoft::WRL::ComPtr;
 constexpr DXGI_FORMAT c_index_format = DXGI_FORMAT_R16_UINT;
 constexpr DXGI_FORMAT c_accel_struct_vertex_format = DXGI_FORMAT_R32G32B32_FLOAT;
 
+// Reminder: using right-hand coordinate throughout the pipeline
+constexpr bool is_right_handed = true;
+
 inline static DirectX::XMMATRIX rei_to_D3D(const Mat4& A) {
   return DirectX::XMMatrixSet( // must transpose
     A(0, 0), A(1, 0), A(2, 0), A(3, 0), A(0, 1), A(1, 1), A(2, 1), A(3, 1), A(0, 2), A(1, 2),
@@ -125,7 +128,6 @@ struct ViewportData : BaseViewportData {
   using BaseViewportData::BaseViewportData;
   Vec3 pos = {};
   Mat4 view = Mat4::I();
-  Mat4 proj = Mat4::I();
   Mat4 view_proj = Mat4::I();
   std::array<FLOAT, 4> clear_color;
   D3D12_VIEWPORT d3d_viewport;
@@ -133,10 +135,10 @@ struct ViewportData : BaseViewportData {
   std::weak_ptr<ViewportResources> viewport_resources;
 
   void update_camera_transform(const Camera& cam) {
+    REI_ASSERT(is_right_handed);
     pos = cam.position();
-    view = cam.view(Handness::Right, Handness::Left, VectorTarget::Row);
-    proj = cam.project(Handness::Left, Handness::Left, VectorTarget::Row);
-    view_proj = cam.view_proj(Handness::Right, Handness::Left, VectorTarget::Row);
+    view = cam.view();
+    view_proj = cam.view_proj_halfz();
   }
 };
 
@@ -175,7 +177,8 @@ struct ModelData : BaseModelData {
 
   void update_transform(Model& model) {
     // NOTE: check how ViewportData store the transforms
-    this->transform = model.get_transform(Handness::Right, Handness::Right, VectorTarget::Row);
+    REI_ASSERT(is_right_handed);
+    this->transform = model.get_transform();
   }
 };
 

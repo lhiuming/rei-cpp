@@ -27,10 +27,10 @@ struct VS_OUTPUT {
 VS_OUTPUT VS(float4 inPos : POSITION, float4 inColor : COLOR, float3 normal : NORMAL) {
   VS_OUTPUT output;
 
-  output.Pos = mul(inPos, WVP);
+  output.Pos = mul(WVP, inPos);
   output.Color = inColor;
-  output.Normal = mul(normal, World);
-  float4 pos_w = mul(inPos, World);
+  output.Normal = mul(World, normal);
+  float4 pos_w = mul(World, inPos);
   output.pos_w = pos_w.xyz / pos_w.w;
 
   return output;

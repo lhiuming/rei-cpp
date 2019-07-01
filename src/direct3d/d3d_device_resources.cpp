@@ -93,7 +93,6 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
     = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
   // routine for bytecode compilation
   auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
@@ -220,9 +219,12 @@ void DeviceResources::get_pso(
   // some default value
   D3D12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);            // TODO check this
   D3D12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO check this
+  REI_ASSERT(is_right_handed);
   raster_state.FrontCounterClockwise = true; // d3d default is false
   D3D12_DEPTH_STENCIL_DESC depth_stencil
     = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // TODO check this
+  REI_ASSERT(is_right_handed);
+  depth_stencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topo
     = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // TODO maybe check this
   UINT rt_num = 1;                            // TODO maybe check this

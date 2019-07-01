@@ -146,13 +146,22 @@ void Camera::update_camera_to_device() {
   Mat4 C = Mat4::from_diag(Vec4(1.0 / pillar_half_width, 1.0 / pillar_half_height, 1.0 / pillar_half_depth, 1.0));
 
   // composition
-  m_camera_to_device = C * M * P;
+  Mat4 CMP = C * M * P;
+  m_camera_to_device = CMP;
+ constexpr Mat4 shrink_z{
+    2.0, 0.0, 0.0, 0.0, //
+    0.0, 2.0, 0.0, 0.0, //
+    0.0, 0.0, 1.0, 1.0, //
+    0.0, 0.0, 0.0, 2.0, //
+  };
+  m_camera_to_device_h = shrink_z * CMP;
 }
 
 // Compose and cache them
 void Camera::update_world_to_camera_to_device() {
   // NOTE: matrix are targeting column vectors
   m_world_to_c_to_device = m_camera_to_device * m_world_to_camera;
+  m_world_to_c_to_device_h = m_camera_to_device_h * m_world_to_camera;
   constexpr Mat4 device_to_viewport {
     1.0, 0.0, 0.0, 1.0, //
     0.0, 1.0, 0.0, 1.0, //

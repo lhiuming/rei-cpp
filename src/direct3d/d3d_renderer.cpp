@@ -81,8 +81,8 @@ ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, in
   d3d_vp.TopLeftY = 0.0f;
   d3d_vp.Width = width;
   d3d_vp.Height = height;
-  d3d_vp.MinDepth = 0.0f;
-  d3d_vp.MaxDepth = 1.0f;
+  d3d_vp.MinDepth = D3D12_MIN_DEPTH;
+  d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
 
   D3D12_RECT scissor {};
   scissor.left = 0;
@@ -414,6 +414,7 @@ void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
 }
 
 void Renderer::create_default_assets() {
+  REI_ASSERT(is_right_handed);
   // default mesh
   MeshPtr cube = make_shared<Mesh>(L"D3D-Renderer Debug Cube");
   vector<Mesh::Vertex> vertices = {
@@ -502,7 +503,8 @@ void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& t
     cmd_list.SetGraphicsRootConstantBufferView(1, const_buffers.per_frame_CB->buffer_address());
     // Per object data
     cbPerObject object_cb = {};
-    object_cb.update(model.transform * view_proj_mat, model.transform);
+    REI_ASSERT(is_right_handed);
+    object_cb.update(view_proj_mat * model.transform, model.transform);
     const_buffers.per_object_CBs->update(object_cb, model.const_buffer_index);
     cmd_list.SetGraphicsRootConstantBufferView(
       0, const_buffers.per_object_CBs->buffer_address(model.const_buffer_index));
