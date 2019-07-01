@@ -24,9 +24,8 @@ public:
 #ifdef USE_MSVC
       char_type buf[] = {traits_type::to_char_type(c), '\0'};
       OutputDebugStringW(buf);
-#else
-      std::cout.put(c);
 #endif
+      std::cout.put(c);
     }
     return c;
   }

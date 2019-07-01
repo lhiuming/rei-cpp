@@ -89,7 +89,7 @@ static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
 
 #if THROW
 #define REI_ERROR(msg) (::rei::error(msg, REI_DEBUG_META), REI_THROW(msg))
-#define REI_ERRORIF(expr) ((expr) ? REI_ERROR(#expr) : false)
+#define REI_ERRORIF(expr) ((expr) ? ::rei::error_if(#expr, REI_DEBUG_META) : false)
 #else
 #define REI_ERROR(msg) ::rei::error(msg, REI_DEBUG_META)
 #define REI_ERRORIF(expr) ::rei::error_if(expr, #expr, REI_DEBUG_META)
