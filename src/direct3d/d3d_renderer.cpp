@@ -19,7 +19,9 @@
 #include "d3d_viewport_resources.h"
 
 using std::make_shared;
+using std::make_unique;
 using std::shared_ptr;
+using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
 using std::weak_ptr;
@@ -27,30 +29,6 @@ using std::weak_ptr;
 namespace rei {
 
 namespace d3d {
-
-namespace dxr {
-/*
- * Hard code the root siagnature for dxr
- * FIXME
- */
-namespace GlobalRootSignLayout {
-enum Data { OuputTextureUAV_SingleTable = 0, TLAS_SRV, Count };
-}
-namespace LocalRootSignLayout {
-enum Data { ViewportConstants = 0, Count };
-
-} // namespace LocalRootSignLayout
-
-struct RaygenConstantBuffer {
-  float x, y, z, w;
-};
-
-const wchar_t* c_hit_group_name = L"hit_group0";
-const wchar_t* c_raygen_shader_name = L"raygen_shader";
-const wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
-const wchar_t* c_miss_shader_name = L"miss_shader";
-
-} // namespace dxr
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
@@ -189,13 +167,21 @@ ModelHandle Renderer::create_model(const Model& model) {
 SceneHandle Renderer::build_enviroment(const Scene& scene) {
   auto scene_data = make_shared<SceneData>(this);
 
-  build_raytracing_rootsignatures();
+  if (is_dxr_enabled) {
+    build_raytracing_rootsignatures();
 
-  build_raytracing_pso();
+    build_raytracing_pso();
 
-  build_dxr_acceleration_structure(nullptr, 0);
+    build_dxr_acceleration_structure(nullptr, 0);
 
-  build_shader_table();
+    // Create global const buffer here for convinience
+    {
+      auto device = device_resources->device();
+      m_perframe_cb = make_unique<UploadBuffer<dxr::PerFrameConstantBuffer>>(*device, 1, true);
+    }
+
+    build_shader_table();
+  }
 
   return SceneHandle(scene_data);
 }
@@ -351,6 +337,14 @@ void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
 
   auto viewport_resources = viewport.viewport_resources.lock();
 
+  // Update perframe const buffer
+  {
+    dxr::PerFrameConstantBuffer perframe_cb_value = {};
+    perframe_cb_value.proj_to_world = rei_to_D3D(viewport.view_proj.inv());
+    perframe_cb_value.camera_pos = rei_to_D3D(viewport.pos);
+    m_perframe_cb->update(perframe_cb_value, 0);
+  }
+
   // Dispatch ray and write to raytracing output
   {
     cmd_list->SetComputeRootSignature(device_resources->global_root_sign.Get());
@@ -358,9 +352,16 @@ void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
     cmd_list->SetPipelineState1(device_resources->dxr_pso.Get());
 
     // Bind global root arguments
-    cmd_list->SetComputeRootDescriptorTable(dxr::GlobalRootSignLayout::OuputTextureUAV_SingleTable, viewport_resources->raytracing_output_gpu_uav());
+    cmd_list->SetComputeRootDescriptorTable(dxr::GlobalRSLayout::OuputTextureUAV_SingleTable,
+      viewport_resources->raytracing_output_gpu_uav());
     cmd_list->SetComputeRootShaderResourceView(
-      dxr::GlobalRootSignLayout::TLAS_SRV, this->tlas_buffer->GetGPUVirtualAddress());
+      dxr::GlobalRSLayout::AccelStructSRV, this->tlas_buffer->GetGPUVirtualAddress());
+    cmd_list->SetComputeRootConstantBufferView(
+      dxr::GlobalRSLayout::PerFrameCBV, m_perframe_cb->buffer_address());
+    REI_ASSERT(culling.models.size() > 0);
+    MeshData& mesh = *static_cast<MeshData*>(culling.models[0].geometry.get());
+    cmd_list->SetComputeRootDescriptorTable(
+      dxr::GlobalRSLayout::SceneMeshBuffer_Table, mesh.ind_srv_gpu);
 
     // Dispatch
     D3D12_DISPATCH_RAYS_DESC desc = {};
@@ -393,15 +394,17 @@ void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
     cmd_list->CopyResource(render_target, raytracing_output);
 
     D3D12_RESOURCE_BARRIER post_copy[2];
-    post_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(raytracing_output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    post_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(render_target, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
+    post_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+      raytracing_output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    post_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+      render_target, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
     cmd_list->ResourceBarrier(2, post_copy);
   }
 
   // Done
   device_resources->flush_command_list();
 
- // Present and flip
+  // Present and flip
   if (viewport.enable_vsync) {
     viewport_resources->swapchain()->Present(1, 0);
   } else {
@@ -521,26 +524,36 @@ void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& t
 void Renderer::build_raytracing_rootsignatures() {
   // Global root signature
   {
-    constexpr int param_count = static_cast<int>(dxr::GlobalRootSignLayout::Count);
+    constexpr int param_count = static_cast<int>(dxr::GlobalRSLayout::Count);
     CD3DX12_ROOT_PARAMETER root_params[param_count] = {};
+
     CD3DX12_DESCRIPTOR_RANGE output_uav(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-    root_params[dxr::GlobalRootSignLayout::OuputTextureUAV_SingleTable].InitAsDescriptorTable(
+    root_params[dxr::GlobalRSLayout::OuputTextureUAV_SingleTable].InitAsDescriptorTable(
       1, &output_uav); // Texture must be bound through table
-    root_params[dxr::GlobalRootSignLayout::TLAS_SRV].InitAsShaderResourceView(0);
+
+    root_params[dxr::GlobalRSLayout::AccelStructSRV].InitAsShaderResourceView(0);
+
+    root_params[dxr::GlobalRSLayout::PerFrameCBV].InitAsConstantBufferView(0);
+
+    CD3DX12_DESCRIPTOR_RANGE mesh_srvs(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 1);
+    root_params[dxr::GlobalRSLayout::SceneMeshBuffer_Table].InitAsDescriptorTable(1, &mesh_srvs);
+
     CD3DX12_ROOT_SIGNATURE_DESC desc(param_count, root_params);
     device_resources->create_root_signature(desc, device_resources->global_root_sign);
   }
 
   // Local root signature
   {
-    constexpr int param_count = static_cast<int>(dxr::LocalRootSignLayout::Count);
+    /*
+    constexpr int param_count = static_cast<int>(dxr::RaygenRSLayout::Count);
     CD3DX12_ROOT_PARAMETER root_params[param_count];
-    root_params[dxr::LocalRootSignLayout::ViewportConstants].InitAsConstants(
-      sizeof(dxr::RaygenConstantBuffer) / sizeof(int32_t), 0, 0);
+    root_params[dxr::RaygenRSLayout::ViewportConstants].InitAsConstants(
+      sizeof(dxr::RaygenConstantBuffer) / sizeof(int32_t), 1, 0);
     CD3DX12_ROOT_SIGNATURE_DESC desc(ARRAYSIZE(root_params), root_params);
     desc.Flags
       = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE; // special flag for dxr local root signature
     device_resources->create_root_signature(desc, device_resources->local_root_sign);
+    */
   }
 }
 
@@ -586,16 +599,20 @@ void Renderer::build_raytracing_pso() {
     shader_config->Config(payload_max_size, attr_max_size);
   }
 
-  { // bind local root signature and association
+  {
+    // bind local root signature and association
+    /*
     auto local_root
       = raytracing_pipeline_desc.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
     auto sign = device_resources->local_root_sign;
     local_root->SetRootSignature(sign.Get());
 
     auto rootSignatureAssociation
-      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
+      = raytracing_pipeline_desc
+          .CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
     rootSignatureAssociation->SetSubobjectToAssociate(*local_root);
     rootSignatureAssociation->AddExport(dxr::c_raygen_shader_name);
+    */
   }
 
   { // bind global root signature
@@ -621,6 +638,7 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, int count) {
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
   // Create a triangle for test
+  /*
   struct Vec3f {
     float x, y, z;
   };
@@ -633,26 +651,30 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, int count) {
     index_buffer = create_upload_buffer(device, indices, 3);
     vertex_buffer = create_upload_buffer(device, vertices, 3);
   }
+  */
 
   // Collect all model/geometry-instances in the raytracing scene
   std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geo_descs;
   {
     // TODO only support mesh currently
 
-    // ModelData& m = *models;
-    // MeshData& mesh = static_cast<MeshData&>(*m.geometry);
+    // TODO currently only on mesh, for raytracing kick-up
+    MeshData& mesh = *default_geometry;
+    auto vertex_buffer = mesh.vert_buffer;
+    auto index_buffer = mesh.ind_buffer;
+
     bool is_opaque = true;
 
     D3D12_RAYTRACING_GEOMETRY_DESC geo_desc {};
     geo_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
     geo_desc.Triangles.Transform3x4 = NULL; // not used TODO check this
-    geo_desc.Triangles.IndexFormat = c_index_format;
-    geo_desc.Triangles.VertexFormat = c_accel_struct_vertex_format;
-    geo_desc.Triangles.IndexCount = 3;
-    geo_desc.Triangles.VertexCount = 3;
+    geo_desc.Triangles.IndexFormat = mesh.index_format;
+    geo_desc.Triangles.VertexFormat = mesh.vertex_pos_format;
+    geo_desc.Triangles.IndexCount = mesh.index_num;
+    geo_desc.Triangles.VertexCount = mesh.vertex_num;
     geo_desc.Triangles.IndexBuffer = index_buffer->GetGPUVirtualAddress();
     geo_desc.Triangles.VertexBuffer.StartAddress = vertex_buffer->GetGPUVirtualAddress();
-    geo_desc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vec3f);
+    geo_desc.Triangles.VertexBuffer.StrideInBytes = mesh.vbv.StrideInBytes;
     if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
 
     geo_descs.push_back(geo_desc);
@@ -712,6 +734,7 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, int count) {
     // TLAS need the instance descs in GPU
     std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instance_descs {};
     {
+      // TODO pass tranfrom from model
       D3D12_RAYTRACING_INSTANCE_DESC desc {};
       FLOAT(&T)[3][4] = desc.Transform;
       T[0][0] = T[1][1] = T[2][2] = 1; // identity matric
@@ -749,7 +772,7 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, int count) {
 }
 
 void Renderer::build_shader_table() {
-  // input
+  // short-cuts
   auto device = device_resources->dxr_device();
 
   HRESULT hr;
@@ -762,18 +785,8 @@ void Renderer::build_shader_table() {
 
   // Raygen shaders
   {
-    struct RaygenRootArgument {
-      dxr::RaygenConstantBuffer raygen_cb;
-    } raygen_root_arg;
-    raygen_root_arg.raygen_cb = {-1, -1, 1, 1};
-    UINT64 raygen_root_argument_bytesize = sizeof(RaygenRootArgument);
     void* raygen_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_raygen_shader_name);
-    byte* shader_record = new byte[shader_id_bytesize + raygen_root_argument_bytesize];
-    memcpy(shader_record, raygen_shader_id, shader_id_bytesize);
-    memcpy(shader_record + shader_id_bytesize, &raygen_root_arg, raygen_root_argument_bytesize);
-    raygen_shader_table = create_upload_buffer(
-      device, shader_id_bytesize + raygen_root_argument_bytesize, shader_record);
-    delete[] shader_record;
+    raygen_shader_table = create_upload_buffer(device, shader_id_bytesize, raygen_shader_id);
   }
 
   // Miss shaders

@@ -111,7 +111,7 @@ public:
 
   // temporary for raytracing kick-up
   ComPtr<ID3D12RootSignature> global_root_sign;
-  ComPtr<ID3D12RootSignature> local_root_sign;
+  //ComPtr<ID3D12RootSignature> local_root_sign;
   ComPtr<ID3D12StateObject> dxr_pso;
 
 private:

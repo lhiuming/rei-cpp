@@ -29,6 +29,39 @@ struct ShaderData;
 struct ViewportData;
 struct CullingData;
 
+namespace dxr {
+/*
+ * Hard code the root siagnature for dxr kick up
+ */
+struct GlobalRSLayout {
+  enum Slots {
+    OuputTextureUAV_SingleTable = 0,
+    AccelStructSRV,
+    PerFrameCBV,
+    SceneMeshBuffer_Table,
+    Count
+  };
+};
+
+struct RaygenRSLayout {};
+
+struct HitgroupRSLayout {};
+
+struct PerFrameConstantBuffer {
+  DirectX::XMMATRIX proj_to_world;
+  DirectX::XMFLOAT4 camera_pos;
+  DirectX::XMFLOAT4 ambient_color;
+  DirectX::XMFLOAT4 light_pos;
+  DirectX::XMFLOAT4 light_color;
+};
+
+constexpr wchar_t* c_hit_group_name = L"hit_group0";
+constexpr wchar_t* c_raygen_shader_name = L"raygen_shader";
+constexpr wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
+constexpr wchar_t* c_miss_shader_name = L"miss_shader";
+
+} // namespace dxr
+
 enum RenderMode {
   Rasterization,
   RealtimeRaytracing,
@@ -41,7 +74,7 @@ class Renderer : public rei::Renderer {
 public:
   struct Options {
     RenderMode init_render_mode = RenderMode::Rasterization;
-    bool enable_realtime_raytracing = true;
+    bool enable_realtime_raytracing = false;
   };
 
   Renderer(HINSTANCE hinstance, Options options = {});
@@ -63,12 +96,13 @@ public:
   void render(ViewportHandle viewport, CullingResult culling_result) override;
 
   // temporarily for raytracing kick-up
-  ComPtr<ID3D12Resource> index_buffer;
-  ComPtr<ID3D12Resource> vertex_buffer;
-
+  // ComPtr<ID3D12Resource> index_buffer;
+  // ComPtr<ID3D12Resource> vertex_buffer;
   ComPtr<ID3D12Resource> scratch_buffer;
   ComPtr<ID3D12Resource> blas_buffer;
   ComPtr<ID3D12Resource> tlas_buffer;
+
+  std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
 
   ComPtr<ID3D12Resource> raygen_shader_table;
   ComPtr<ID3D12Resource> miss_shader_table;
@@ -82,14 +116,14 @@ protected:
   std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
   std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
 
-  std::shared_ptr<GeometryData> default_geometry;
+  std::shared_ptr<MeshData> default_geometry;
   std::shared_ptr<ShaderData> default_shader;
   std::shared_ptr<MaterialData> default_material;
   std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
 
-  const bool draw_debug_model = false;
+  const bool draw_debug_model = true;
 
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);
@@ -112,13 +146,22 @@ protected:
   // Debug support
   void create_default_assets();
 
-  std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) { return get_data<ViewportHandle, ViewportData>(h); }
-  std::shared_ptr<CullingData> to_culling(CullingResult h) { return get_data<CullingResult, CullingData>(h); }
+  std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) {
+    return get_data<ViewportHandle, ViewportData>(h);
+  }
+  std::shared_ptr<CullingData> to_culling(CullingResult h) {
+    return get_data<CullingResult, CullingData>(h);
+  }
   std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
-  std::shared_ptr<ShaderData> to_shader(ShaderHandle h) { return get_data<ShaderHandle, ShaderData>(h); }
-  std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) { return get_data<GeometryHandle, GeometryData>(h); }
-  std::shared_ptr<MaterialData> to_material(MaterialHandle h) { return get_data<MaterialHandle, MaterialData>(h); }
-
+  std::shared_ptr<ShaderData> to_shader(ShaderHandle h) {
+    return get_data<ShaderHandle, ShaderData>(h);
+  }
+  std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) {
+    return get_data<GeometryHandle, GeometryData>(h);
+  }
+  std::shared_ptr<MaterialData> to_material(MaterialHandle h) {
+    return get_data<MaterialHandle, MaterialData>(h);
+  }
 };
 
 } // namespace d3d

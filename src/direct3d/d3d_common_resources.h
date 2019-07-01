@@ -31,7 +31,12 @@ constexpr DXGI_FORMAT c_accel_struct_vertex_format = DXGI_FORMAT_R32G32B32_FLOAT
 // Reminder: using right-hand coordinate throughout the pipeline
 constexpr bool is_right_handed = true;
 
+inline static DirectX::XMFLOAT4 rei_to_D3D(const Vec4& v) {
+  return DirectX::XMFLOAT4(v.x, v.y, v.z, v.h);
+}
+
 inline static DirectX::XMMATRIX rei_to_D3D(const Mat4& A) {
+  // REMARK: Mat4 is column major, while D3D is row major by default
   return DirectX::XMMatrixSet( // must transpose
     A(0, 0), A(1, 0), A(2, 0), A(3, 0), A(0, 1), A(1, 1), A(2, 1), A(3, 1), A(0, 2), A(1, 2),
     A(2, 2), A(3, 2), A(0, 3), A(1, 3), A(2, 3), A(3, 3));
@@ -115,11 +120,20 @@ struct MeshData : GeometryData {
   ComPtr<ID3D12Resource> vert_buffer;
   ComPtr<ID3D12Resource> vert_upload_buffer;
   D3D12_VERTEX_BUFFER_VIEW vbv;
+  UINT vertex_num;
+
+  CD3DX12_GPU_DESCRIPTOR_HANDLE vert_srv_gpu;
+  CD3DX12_CPU_DESCRIPTOR_HANDLE vert_srv_cpu;
+  DXGI_FORMAT vertex_pos_format;
 
   ComPtr<ID3D12Resource> ind_buffer;
   ComPtr<ID3D12Resource> ind_upload_buffer;
   D3D12_INDEX_BUFFER_VIEW ibv;
   UINT index_num;
+
+  CD3DX12_GPU_DESCRIPTOR_HANDLE ind_srv_gpu;
+  CD3DX12_CPU_DESCRIPTOR_HANDLE ind_srv_cpu;
+  DXGI_FORMAT index_format;
 };
 
 class ViewportResources;

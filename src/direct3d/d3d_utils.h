@@ -54,8 +54,8 @@ ComPtr<ID3D12Resource> create_upload_buffer(ID3D12Device* device, T* elements, s
 }
 
 // Create a default buffer with custom init state and flags
-ComPtr<ID3D12Resource> create_default_buffer(
-  ID3D12Device* device, size_t bytesize, D3D12_RESOURCE_STATES init_state, D3D12_RESOURCE_FLAGS flags);
+ComPtr<ID3D12Resource> create_default_buffer(ID3D12Device* device, size_t bytesize,
+  D3D12_RESOURCE_STATES init_state, D3D12_RESOURCE_FLAGS flags);
 
 // Create a simple default buffer
 inline ComPtr<ID3D12Resource> create_default_buffer(ID3D12Device* device, size_t bytesize) {
@@ -149,12 +149,12 @@ public:
   }
 
 private:
-  UINT m_element_num;
-  UINT m_element_bytesize;
-  bool m_is_const_buffer;
+  UINT m_element_num = 0;
+  UINT m_element_bytesize = 0;
+  bool m_is_const_buffer = false;
 
   ComPtr<ID3D12Resource> buffer;
-  byte* mapped_memory;
+  byte* mapped_memory = nullptr;
 };
 
 } // namespace d3d

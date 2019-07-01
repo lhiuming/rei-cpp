@@ -270,23 +270,10 @@ void DeviceResources::get_pso(
 // common routine for debug
 void DeviceResources::create_mesh_buffer_common(
   const vector<VertexElement>& vertices, const vector<std::uint16_t>& indices, MeshData& mesh_res) {
-  if (REI_ERRORIF(vertices.size() == 0) || REI_ERRORIF(indices.size() == 0)) {
-    return;
-  }
+  if (REI_ERRORIF(vertices.size() == 0) || REI_ERRORIF(indices.size() == 0)) { return; }
 
   ID3D12Device* device = this->device();
   ID3D12GraphicsCommandList* cmd_list = this->prepare_command_list();
-
-  // shared routine for create a default buffer in GPU
-  auto create = [&](UINT bytesize) -> ComPtr<ID3D12Resource> {
-    return create_default_buffer(device, bytesize);
-  };
-
-  // shared routine for upload data to default heap
-  auto upload = [&](const void* data, UINT64 bsize,
-                  ComPtr<ID3D12Resource> dest_buffer) -> ComPtr<ID3D12Resource> {
-    return upload_to_default_buffer(device, cmd_list, data, bsize, dest_buffer.Get());
-  };
 
   const void* p_vertices = vertices.data();
   UINT64 vert_bytesize = vertices.size() * sizeof(vertices[0]);
@@ -294,8 +281,9 @@ void DeviceResources::create_mesh_buffer_common(
   UINT64 ind_bytesize = indices.size() * sizeof(indices[0]);
 
   // Create vertices buffer and upload data
-  ComPtr<ID3D12Resource> vert_buffer = create(vert_bytesize);
-  ComPtr<ID3D12Resource> vert_upload_buffer = upload(p_vertices, vert_bytesize, vert_buffer);
+  ComPtr<ID3D12Resource> vert_buffer = create_default_buffer(device, vert_bytesize);
+  ComPtr<ID3D12Resource> vert_upload_buffer
+    = upload_to_default_buffer(device, cmd_list, p_vertices, vert_bytesize, vert_buffer.Get());
 
   // make a view for vertice buffer, for later use
   D3D12_VERTEX_BUFFER_VIEW vbv;
@@ -304,8 +292,9 @@ void DeviceResources::create_mesh_buffer_common(
   vbv.SizeInBytes = vert_bytesize;
 
   // Create indices buffer and update data
-  ComPtr<ID3D12Resource> ind_buffer = create(ind_bytesize);
-  ComPtr<ID3D12Resource> ind_upload_buffer = upload(p_indices, ind_bytesize, ind_buffer);
+  ComPtr<ID3D12Resource> ind_buffer = create_default_buffer(device, ind_bytesize);
+  ComPtr<ID3D12Resource> ind_upload_buffer
+    = upload_to_default_buffer(device, cmd_list, p_indices, ind_bytesize, ind_buffer.Get());
 
   // make a view for indicew buffer, for later use
   D3D12_INDEX_BUFFER_VIEW ibv;
@@ -313,10 +302,56 @@ void DeviceResources::create_mesh_buffer_common(
   ibv.Format = c_index_format;
   ibv.SizeInBytes = ind_bytesize;
 
+  if (is_dxr_enabled) {
+    // Using srv to allow hit-group shader acessing the geometry attributes
+    CD3DX12_GPU_DESCRIPTOR_HANDLE vertex_srv_gpu;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE vertex_srv_cpu;
+    CD3DX12_GPU_DESCRIPTOR_HANDLE index_srv_gpu;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE index_srv_cpu;
+
+    // index first
+    auto i_index = this->alloc_descriptor(&index_srv_cpu, &index_srv_gpu);
+    auto v_index = this->alloc_descriptor(&vertex_srv_cpu, &vertex_srv_gpu);
+    REI_ASSERT(v_index = i_index + 1);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
+    common_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    common_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+    // vertex srv
+    {
+      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
+      desc.Format = DXGI_FORMAT_UNKNOWN;
+      desc.Buffer.NumElements = vert_bytesize / sizeof(VertexElement);
+      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+      desc.Buffer.StructureByteStride = vbv.StrideInBytes;
+      device->CreateShaderResourceView(vert_buffer.Get(), &desc, vertex_srv_cpu);
+    }
+
+    // index src
+    {
+      // FIXME why the sample do it this way; should be okay to just use a ConstantBuffer<uint>
+      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
+      desc.Format = DXGI_FORMAT_R32_TYPELESS;
+      desc.Buffer.NumElements = ind_bytesize / sizeof(int32_t); // pack to R32
+      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+      desc.Buffer.StructureByteStride = 0;
+      device->CreateShaderResourceView(ind_buffer.Get(), &desc, index_srv_cpu);
+    }
+
+    mesh_res.vert_srv_cpu = vertex_srv_cpu;
+    mesh_res.vert_srv_gpu = vertex_srv_gpu;
+    mesh_res.vertex_pos_format = c_accel_struct_vertex_format;
+    mesh_res.ind_srv_cpu = index_srv_cpu;
+    mesh_res.ind_srv_gpu = index_srv_gpu;
+    mesh_res.index_format = c_index_format;
+  }
+
   // populate the result
   mesh_res.vert_buffer = vert_buffer;
   mesh_res.vert_upload_buffer = vert_upload_buffer;
   mesh_res.vbv = vbv;
+  mesh_res.vertex_num = vertices.size();
   mesh_res.ind_buffer = ind_buffer;
   mesh_res.ind_upload_buffer = ind_upload_buffer;
   mesh_res.ibv = ibv;
