@@ -9,6 +9,7 @@ Currently the first goal is to implement a real-time ray-traced physically based
 > Look what I found! A boring cube floating in the air!  ---- lhiuming
 
 ![](/docs/img/screenshots/raytraced_dull_cube.png)
+![](/docs/img/screenshots/rasterized_dull_procedural_meshes.png)
 
 ## Download
 
