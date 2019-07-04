@@ -15,7 +15,8 @@ using std::unique_ptr;
 
 namespace rei {
 
-WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer) : config(config), m_renderer(std::move(renderer)) {
+WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer)
+    : config(config), m_renderer(std::move(renderer)) {
   // NOTE: Handle normally get from WinMain;
   // we dont do that here, because we want to create app with standard main()
   hinstance = get_hinstance(); // handle to the current .exe
@@ -80,6 +81,12 @@ void WinApp::start() {
 }
 
 void WinApp::on_start() {
+  // init camera control
+  if (config.default_camera_control_enabled) { 
+    double init_target_dist = m_camera->position().norm();
+    camera_target = m_camera->position() + m_camera->forward() * init_target_dist;
+  }
+
   if (config.enable_grid_line) {
     // todo create and draw grid line
   }
@@ -100,22 +107,35 @@ void WinApp::on_update() {
 
 void WinApp::update_camera_control() {
   if (config.default_camera_control_enabled) {
-    const Vec3 focus_center {0, 0, 0};
     const Vec3 up {0, 1, 0};
 
-    Vec3 acc;
+    // Rotate around target, and translate in the view plane
+    Vec3 rotate;
+    Vec3 translate;
     for (auto& input : m_input_bus->get<CursorDrag>()) {
       auto mov = *(input.get<CursorDrag>());
-      acc += (mov.stop - mov.start);
+      if (mov.alter == CursorAlterType::Left || mov.alter == CursorAlterType::None) {
+        rotate += (mov.stop - mov.start);
+      } else {
+        translate += (mov.stop - mov.start);
+      }
     }
-    if (acc.norm2() > 0.0001) {
+    if (rotate.norm2() > 0.0001) {
       const double rot_range = pi;
-      m_camera->rotate_position(focus_center, up, -acc.x / m_viewer->width() * rot_range);
+      m_camera->rotate_position(camera_target, up, -rotate.x / m_viewer->width() * rot_range);
       m_camera->rotate_position(
-        focus_center, -m_camera->right(), -acc.y / m_viewer->height() * rot_range);
-      m_camera->look_at(focus_center, up);
+        camera_target, -m_camera->right(), -rotate.y / m_viewer->height() * rot_range);
+      m_camera->look_at(camera_target, up);
+    }
+    if (translate.norm2() > 0.0001) {
+      constexpr double scale = 0.02;
+      Vec3 scaled_trans = (-1 * scale) * translate;
+      double target_dist = (m_camera->position() - camera_target).norm();
+      m_camera->move(scaled_trans.x, scaled_trans.y, 0);
+      camera_target = m_camera->position() + m_camera->forward() * target_dist;
     }
 
+    // Zoom in-or-out
     double zoom_in = 0;
     for (auto& input : m_input_bus->get<Zoom>()) {
       auto zoom = *(input.get<Zoom>());
@@ -124,7 +144,7 @@ void WinApp::update_camera_control() {
     if (std::abs(zoom_in) != 0) {
       const double ideal_dist = 8;
       const double block_dist = 4;
-      double curr_dist = (m_camera->position() - focus_center).norm();
+      double curr_dist = (m_camera->position() - camera_target).norm();
       double scale = std::abs((curr_dist - block_dist) / (ideal_dist - block_dist));
       if (zoom_in < 0) scale = (std::max)(scale, 0.1);
       m_camera->move(0, 0, zoom_in * scale);

@@ -38,6 +38,12 @@ struct _CursorLineData {
 };
 
 // Typed input data
+enum class CursorAlterType {
+  None,
+  Left, 
+  Right,
+  Middle
+};
 struct CursorPress : _CursorPointData {
   using _CursorPointData::_CursorPointData;
 };
@@ -49,6 +55,9 @@ struct CursorMove : public _CursorLineData {
 };
 struct CursorDrag : _CursorLineData {
   using _CursorLineData::_CursorLineData;
+  CursorAlterType alter = CursorAlterType::None;
+  CursorDrag(float x0, float y0, float x1, float y1, CursorAlterType alter)
+      : _CursorLineData(x0, y0, x1, y1), alter(alter) {}
 };
 struct Zoom {
   double delta; // positive: zoom in; negative: zoom out;

@@ -75,6 +75,9 @@ private:
   clock_t::time_point clock_last_check;
   clock_t::duration last_frame_time;
 
+  // camera control
+  Vec3 camera_target;
+
   void start();
   void initialize_scene(); // TODO should be more elegant
   void update();

@@ -39,6 +39,8 @@ public:
   double fov_h() const { return angle; }
   double fov_v() const { return angle / m_aspect; }
   Vec3 position() const { return m_position; }
+  Vec3 forward() const { return m_direction; }
+  Vec3 up() const { return m_up; }
   Vec3 right() const { return cross(m_direction, m_up); }
 
   // Dynamic Configurations
