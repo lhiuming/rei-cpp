@@ -30,36 +30,8 @@ struct ViewportData;
 struct CullingData;
 
 namespace dxr {
-/*
- * Hard code the root siagnature for dxr kick up
- */
-struct GlobalRSLayout {
-  enum Slots {
-    OuputTextureUAV_SingleTable = 0,
-    AccelStructSRV,
-    PerFrameCBV,
-    SceneMeshBuffer_Table,
-    Count
-  };
-};
-
-struct RaygenRSLayout {};
-
-struct HitgroupRSLayout {};
-
-struct PerFrameConstantBuffer {
-  DirectX::XMMATRIX proj_to_world;
-  DirectX::XMFLOAT4 camera_pos;
-  DirectX::XMFLOAT4 ambient_color;
-  DirectX::XMFLOAT4 light_pos;
-  DirectX::XMFLOAT4 light_color;
-};
-
-constexpr wchar_t* c_hit_group_name = L"hit_group0";
-constexpr wchar_t* c_raygen_shader_name = L"raygen_shader";
-constexpr wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
-constexpr wchar_t* c_miss_shader_name = L"miss_shader";
-
+struct PerFrameConstantBuffer;
+struct HitgroupRootArguments;
 } // namespace dxr
 
 enum RenderMode {
@@ -75,6 +47,8 @@ public:
   struct Options {
     RenderMode init_render_mode = RenderMode::Rasterization;
     bool enable_realtime_raytracing = false;
+    // debug switched
+    bool draw_debug_model = false;
   };
 
   Renderer(HINSTANCE hinstance, Options options = {});
@@ -96,22 +70,28 @@ public:
   void render(ViewportHandle viewport, CullingResult culling_result) override;
 
   // temporarily for raytracing kick-up
-  // ComPtr<ID3D12Resource> index_buffer;
-  // ComPtr<ID3D12Resource> vertex_buffer;
   ComPtr<ID3D12Resource> scratch_buffer;
-  ComPtr<ID3D12Resource> blas_buffer;
   ComPtr<ID3D12Resource> tlas_buffer;
+
+  UINT next_tlas_instance_id = 0;
+  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
 
   std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
 
   ComPtr<ID3D12Resource> raygen_shader_table;
   ComPtr<ID3D12Resource> miss_shader_table;
-  ComPtr<ID3D12Resource> hitgroup_shader_table;
+
+  void* m_hitgroup_shader_id;
+  std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
 
 protected:
   HINSTANCE hinstance;
   RenderMode mode;
   const bool is_dxr_enabled;
+  const bool draw_debug_model;
+
+  // some const config
+  constexpr static VectorTarget model_trans_target = VectorTarget::Column;
 
   std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
   std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
@@ -122,8 +102,6 @@ protected:
   std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
-
-  const bool draw_debug_model = true;
 
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);
@@ -139,8 +117,9 @@ protected:
 
   void build_raytracing_rootsignatures();
   void build_raytracing_pso();
-  void build_dxr_acceleration_structure(ModelData* models, int count);
+  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count);
   void build_shader_table();
+  void update_shader_table(const ModelData* models, std::size_t count);
   void raytracing(ViewportData& viewport, CullingData& culling);
 
   // Debug support
@@ -155,6 +134,10 @@ protected:
   std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
   std::shared_ptr<ShaderData> to_shader(ShaderHandle h) {
     return get_data<ShaderHandle, ShaderData>(h);
+  }
+  template <typename DataType>
+  std::shared_ptr<DataType> to_geometry(GeometryHandle h) {
+    return get_data<GeometryHandle, DataType>(h);
   }
   std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) {
     return get_data<GeometryHandle, GeometryData>(h);

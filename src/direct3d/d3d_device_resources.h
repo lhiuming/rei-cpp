@@ -111,7 +111,7 @@ public:
 
   // temporary for raytracing kick-up
   ComPtr<ID3D12RootSignature> global_root_sign;
-  //ComPtr<ID3D12RootSignature> local_root_sign;
+  ComPtr<ID3D12RootSignature> hitgroup_root_sign;
   ComPtr<ID3D12StateObject> dxr_pso;
 
 private:
@@ -141,9 +141,6 @@ private:
   UINT m_descriptor_size = UINT_MAX;
 
   PSOCache pso_cache;
-
-  void create_mesh_buffer_common(const std::vector<VertexElement>& vertices,
-    const std::vector<std::uint16_t>& indices, MeshData& mesh_res);
 };
 
 } // namespace d3d
