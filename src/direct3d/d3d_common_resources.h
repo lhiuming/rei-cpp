@@ -26,7 +26,7 @@ using Microsoft::WRL::ComPtr;
 
 // Some contants
 constexpr DXGI_FORMAT c_index_format = DXGI_FORMAT_R16_UINT;
-constexpr DXGI_FORMAT c_accel_struct_vertex_format = DXGI_FORMAT_R32G32B32_FLOAT;
+constexpr DXGI_FORMAT c_accel_struct_vertex_pos_format = DXGI_FORMAT_R32G32B32_FLOAT;
 
 // Reminder: using right-hand coordinate throughout the pipeline
 constexpr bool is_right_handed = true;
@@ -119,21 +119,24 @@ struct MeshData : GeometryData {
   using GeometryData::GeometryData;
   ComPtr<ID3D12Resource> vert_buffer;
   ComPtr<ID3D12Resource> vert_upload_buffer;
-  D3D12_VERTEX_BUFFER_VIEW vbv;
-  UINT vertex_num;
+  D3D12_VERTEX_BUFFER_VIEW vbv = {NULL, UINT_MAX, UINT_MAX};
+  UINT vertex_num = UINT_MAX;
 
-  CD3DX12_GPU_DESCRIPTOR_HANDLE vert_srv_gpu;
-  CD3DX12_CPU_DESCRIPTOR_HANDLE vert_srv_cpu;
+  CD3DX12_GPU_DESCRIPTOR_HANDLE vert_srv_gpu = {D3D12_DEFAULT};
+  CD3DX12_CPU_DESCRIPTOR_HANDLE vert_srv_cpu = {D3D12_DEFAULT};
   DXGI_FORMAT vertex_pos_format;
 
   ComPtr<ID3D12Resource> ind_buffer;
   ComPtr<ID3D12Resource> ind_upload_buffer;
-  D3D12_INDEX_BUFFER_VIEW ibv;
-  UINT index_num;
+  D3D12_INDEX_BUFFER_VIEW ibv = {NULL, UINT_MAX, DXGI_FORMAT_UNKNOWN};
+  UINT index_num = UINT_MAX;
 
-  CD3DX12_GPU_DESCRIPTOR_HANDLE ind_srv_gpu;
-  CD3DX12_CPU_DESCRIPTOR_HANDLE ind_srv_cpu;
-  DXGI_FORMAT index_format;
+  CD3DX12_GPU_DESCRIPTOR_HANDLE ind_srv_gpu = {D3D12_DEFAULT};
+  CD3DX12_CPU_DESCRIPTOR_HANDLE ind_srv_cpu = {D3D12_DEFAULT};
+  DXGI_FORMAT index_format = DXGI_FORMAT_UNKNOWN;
+
+  ComPtr<ID3D12Resource> blas_buffer;
+  ComPtr<ID3D12Resource> scratch_buffer;
 };
 
 class ViewportResources;
@@ -166,7 +169,7 @@ struct ShaderConstBuffers {
   std::unique_ptr<UploadBuffer<cbPerFrame>> per_frame_CB;
   std::shared_ptr<UploadBuffer<cbPerObject>> per_object_CBs;
   // TODO more delicated management
-  UINT next_object_index;
+  UINT next_object_index = UINT_MAX;
 };
 
 struct ShaderData : BaseShaderData {
@@ -186,8 +189,10 @@ struct ModelData : BaseModelData {
   // Bound aabb;
   std::shared_ptr<GeometryData> geometry;
   std::shared_ptr<MaterialData> material;
-  UINT const_buffer_index; // in shader cb buffer
-  UINT cbv_index;          // in device shared heap
+  UINT const_buffer_index = UINT_MAX; // in shader cb buffer
+  UINT cbv_index = UINT_MAX;          // in device shared heap
+
+  UINT tlas_instance_id = UINT_MAX;
 
   void update_transform(Model& model) {
     // NOTE: check how ViewportData store the transforms

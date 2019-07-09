@@ -224,7 +224,8 @@ void DeviceResources::get_pso(
   D3D12_DEPTH_STENCIL_DESC depth_stencil
     = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // TODO check this
   REI_ASSERT(is_right_handed);
-  depth_stencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
+  depth_stencil.DepthFunc
+    = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topo
     = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // TODO maybe check this
   UINT rt_num = 1;                            // TODO maybe check this
@@ -267,18 +268,26 @@ void DeviceResources::get_pso(
   REI_ASSERT(inserted.second);
 }
 
-// common routine for debug
-void DeviceResources::create_mesh_buffer_common(
-  const vector<VertexElement>& vertices, const vector<std::uint16_t>& indices, MeshData& mesh_res) {
-  if (REI_ERRORIF(vertices.size() == 0) || REI_ERRORIF(indices.size() == 0)) { return; }
+void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
+  // Collect the source data
+  // TODO pool this vectors
+  vector<VertexElement> vertices;
+  vector<std::uint16_t> indices;
+  for (const auto& v : mesh.get_vertices())
+    vertices.emplace_back(v.coord, v.color, v.normal);
+  for (const auto& t : mesh.get_triangles()) {
+    indices.push_back(t.a);
+    indices.push_back(t.b);
+    indices.push_back(t.c);
+  }
 
   ID3D12Device* device = this->device();
   ID3D12GraphicsCommandList* cmd_list = this->prepare_command_list();
 
   const void* p_vertices = vertices.data();
-  UINT64 vert_bytesize = vertices.size() * sizeof(vertices[0]);
+  const UINT64 vert_bytesize = vertices.size() * sizeof(vertices[0]);
   const void* p_indices = indices.data();
-  UINT64 ind_bytesize = indices.size() * sizeof(indices[0]);
+  const UINT64 ind_bytesize = indices.size() * sizeof(indices[0]);
 
   // Create vertices buffer and upload data
   ComPtr<ID3D12Resource> vert_buffer = create_default_buffer(device, vert_bytesize);
@@ -301,6 +310,16 @@ void DeviceResources::create_mesh_buffer_common(
   ibv.BufferLocation = ind_buffer->GetGPUVirtualAddress();
   ibv.Format = c_index_format;
   ibv.SizeInBytes = ind_bytesize;
+
+  // populate the result
+  mesh_res.vert_buffer = vert_buffer;
+  mesh_res.vert_upload_buffer = vert_upload_buffer;
+  mesh_res.vbv = vbv;
+  mesh_res.vertex_num = vertices.size();
+  mesh_res.ind_buffer = ind_buffer;
+  mesh_res.ind_upload_buffer = ind_upload_buffer;
+  mesh_res.ibv = ibv;
+  mesh_res.index_num = indices.size();
 
   if (is_dxr_enabled) {
     // Using srv to allow hit-group shader acessing the geometry attributes
@@ -339,23 +358,72 @@ void DeviceResources::create_mesh_buffer_common(
       device->CreateShaderResourceView(ind_buffer.Get(), &desc, index_srv_cpu);
     }
 
+    // Build BLAS for this mesh
+    ComPtr<ID3D12Resource> blas_buffer;
+    ComPtr<ID3D12Resource> scratch_buffer; // TODO release this a proper timming, or pool this
+    {
+      ID3D12Device5* dxr_device = this->dxr_device();
+      ID3D12GraphicsCommandList4* dxr_cmd_list = this->prepare_command_list_dxr();
+
+      const bool is_opaque = true;
+
+      D3D12_RAYTRACING_GEOMETRY_DESC geo_desc {};
+      geo_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+      geo_desc.Triangles.Transform3x4 = NULL; // not used TODO check this
+      geo_desc.Triangles.IndexFormat = c_index_format;
+      geo_desc.Triangles.VertexFormat = c_accel_struct_vertex_pos_format;
+      geo_desc.Triangles.IndexCount = indices.size();
+      geo_desc.Triangles.VertexCount = vertices.size();
+      geo_desc.Triangles.IndexBuffer = ind_buffer->GetGPUVirtualAddress();
+      geo_desc.Triangles.VertexBuffer.StartAddress = vert_buffer->GetGPUVirtualAddress();
+      geo_desc.Triangles.VertexBuffer.StrideInBytes = vbv.StrideInBytes;
+      if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+      const UINT c_mesh_count = 1;
+
+      D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bl_prebuild = {};
+      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevel_input = {};
+      bottomlevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+      bottomlevel_input.Flags
+        = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
+      bottomlevel_input.NumDescs = c_mesh_count;
+      bottomlevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+      bottomlevel_input.pGeometryDescs = &geo_desc;
+      dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevel_input, &bl_prebuild);
+      REI_ASSERT(bl_prebuild.ResultDataMaxSizeInBytes > 0);
+
+      // Create scratch space
+      UINT64 scratch_size = bl_prebuild.ScratchDataSizeInBytes;
+      scratch_buffer = create_uav_buffer(dxr_device, scratch_size);
+
+      // Allocate BLAS buffer
+      blas_buffer = create_accel_struct_buffer(dxr_device, bl_prebuild.ResultDataMaxSizeInBytes);
+
+      // BLAS desc
+      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blas_desc {};
+      blas_desc.DestAccelerationStructureData = blas_buffer->GetGPUVirtualAddress();
+      blas_desc.Inputs = bottomlevel_input;
+      blas_desc.SourceAccelerationStructureData = NULL; // used when updating
+      blas_desc.ScratchAccelerationStructureData = scratch_buffer->GetGPUVirtualAddress();
+
+      // Build
+      // TODO investigate the postbuild info
+      dxr_cmd_list->BuildRaytracingAccelerationStructure(&blas_desc, 0, nullptr);
+      dxr_cmd_list->ResourceBarrier(
+        1, &CD3DX12_RESOURCE_BARRIER::UAV(blas_buffer.Get())); // sync before use
+    }
+
+    // populate the result
     mesh_res.vert_srv_cpu = vertex_srv_cpu;
     mesh_res.vert_srv_gpu = vertex_srv_gpu;
-    mesh_res.vertex_pos_format = c_accel_struct_vertex_format;
+    mesh_res.vertex_pos_format = c_accel_struct_vertex_pos_format;
     mesh_res.ind_srv_cpu = index_srv_cpu;
     mesh_res.ind_srv_gpu = index_srv_gpu;
     mesh_res.index_format = c_index_format;
-  }
 
-  // populate the result
-  mesh_res.vert_buffer = vert_buffer;
-  mesh_res.vert_upload_buffer = vert_upload_buffer;
-  mesh_res.vbv = vbv;
-  mesh_res.vertex_num = vertices.size();
-  mesh_res.ind_buffer = ind_buffer;
-  mesh_res.ind_upload_buffer = ind_upload_buffer;
-  mesh_res.ibv = ibv;
-  mesh_res.index_num = indices.size();
+    mesh_res.blas_buffer = blas_buffer;
+    mesh_res.scratch_buffer = scratch_buffer;
+  }
 }
 
 void DeviceResources::create_model_buffer(const Model& model, ModelData& model_data) {
@@ -363,22 +431,6 @@ void DeviceResources::create_model_buffer(const Model& model, ModelData& model_d
   // TODO not needed, we are using root parameter
 }
 
-void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
-  // Collect the source data
-  // TODO pool this vectors
-  vector<VertexElement> vertices;
-  vector<std::uint16_t> indices;
-  Vec3 default_normal {1.0, 1.0, 1.0};
-  for (const auto& v : mesh.get_vertices())
-    vertices.emplace_back(v.coord, v.color, v.normal);
-  for (const auto& t : mesh.get_triangles()) {
-    indices.push_back(t.a);
-    indices.push_back(t.b);
-    indices.push_back(t.c);
-  }
-
-  create_mesh_buffer_common(vertices, indices, mesh_res);
-}
 
 ID3D12GraphicsCommandList* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
   if (!is_using_cmd_list) {

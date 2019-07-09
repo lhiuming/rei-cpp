@@ -47,6 +47,9 @@ ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* e
   ComPtr<IDxcLibrary> lib;
   hr = DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&lib));
   REI_ASSERT(SUCCEEDED(hr));
+  ComPtr<IDxcIncludeHandler> includer;
+  hr = lib->CreateIncludeHandler(&includer);
+  REI_ASSERT(SUCCEEDED(hr));
 
   ComPtr<IDxcBlobEncoding> source;
   hr = lib->CreateBlobFromFile(shader_path, nullptr, &source);
@@ -60,7 +63,7 @@ ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* e
   ComPtr<IDxcBlob> debug;
   wchar_t* debug_name;
   hr = compiler->CompileWithDebug(source.Get(), shader_path, entrypoint,
-    c_raytracing_shader_target_w, nullptr, 0, nullptr, 0, nullptr, &result, &debug_name, &debug);
+    c_raytracing_shader_target_w, nullptr, 0, nullptr, 0, includer.Get(), &result, &debug_name, &debug);
   REI_ASSERT(SUCCEEDED(hr));
 
   ComPtr<IDxcBlob> blob;
@@ -81,7 +84,7 @@ ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* e
 ComPtr<ID3D12Resource> create_upload_buffer(
   ID3D12Device* device, size_t bytesize, const void* data) {
   REI_ASSERT(device);
-  REI_ASSERT(bytesize > 0);
+  if (REI_WARNINGIF(bytesize == 0)) bytesize = 1;
 
   D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
   D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bytesize);

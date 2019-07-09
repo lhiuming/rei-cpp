@@ -18,6 +18,7 @@ public:
     d3d::Renderer::Options opt = {};
     opt.enable_realtime_raytracing = true;
     opt.init_render_mode = d3d::RenderMode::RealtimeRaytracing;
+    //opt.draw_debug_model = true;
     auto ret = make_unique<d3d::Renderer>(get_hinstance(), opt);
     return ret;
   }
@@ -29,6 +30,13 @@ private:
 
 void RayTracingApp::on_start() {
   Base::on_start();
+
+  auto cube = std::make_shared<Mesh>(Mesh::procudure_cube());
+  auto plane = std::make_shared<Mesh>(Mesh::procudure_cube({4, 0.1, 4}));
+  auto sphere = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3));
+  scene().add_model(Mat4::translate({0, -0.1, 0}), plane, L"plane");
+  scene().add_model(Mat4::translate({1.4, 1.1, 0}), cube, L"cube");
+  scene().add_model(Mat4::translate({-1.2, 1.1, 0}), sphere, L"sphere");
 }
 
 void RayTracingApp::on_update() {

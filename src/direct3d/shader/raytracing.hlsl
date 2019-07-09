@@ -1,3 +1,7 @@
+#include "halton.hlsl"
+
+#define PI 3.141592653589793238462643383279502884197169399375105820974f
+
 struct PerFrameConstantBuffer {
   // NOTE: see PerFrameConstantBuffer in cpp code
   float4x4 proj_to_world;
@@ -20,14 +24,20 @@ RWTexture2D<float4> render_target : register(u0);
 RaytracingAccelerationStructure scene : register(t0);
 // Per-frame CB
 ConstantBuffer<PerFrameConstantBuffer> g_perfram_cb : register(b0);
-// Per-scene meshes
+
+// Local: Hit Group //
+
+//  mesh data
 ByteAddressBuffer g_indicies : register(t1);
 StructuredBuffer<Vertex> g_vertices : register(t2);
+
+// Tracing data //
 
 typedef BuiltInTriangleIntersectionAttributes HitAttributes;
 
 struct RayPayload {
   float4 color;
+  int depth;
 };
 
 // REMARK: copy from dx-sample tutorial
@@ -72,21 +82,35 @@ uint3 Load3x16BitIndices(uint offsetBytes) {
   ray.TMin = 0.001;
   ray.TMax = 10000.0;
 
-  // debug
-  // render_target[DispatchRaysIndex().xy] = float4(normalize(ray.Origin), 1.0);
-  // return;
-
-  RayPayload payload = {{0, 0, 0, 0}};
-  TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, ray, payload);
+  RayPayload payload = {{0, 0, 0, 0}, 0};
+  TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
 
   render_target[DispatchRaysIndex().xy] = payload.color;
 }
 
+// TODO add tangent to vertex data
+// TODO importance sampling
+float3 sample_lambertian_brdf(float3 normal, float rnd0, float rnd1, out float probability) {
+  // compute local random direction
+  float theta = rnd1 * (PI * 2.0f);
+  float phi = rnd0 * (PI * 0.5f);
+  float sin_phi = sin(phi);
+  float3 dir = {sin_phi * cos(theta), cos(phi), sin_phi * sin(theta)};
+  // consine weighted
+  probability = dir.y;
+  // rotate to world space
+  float3 tangent = {0, 1, 0};
+  if (abs(normal.y) > 0.995f) tangent = float3(normal.z, 0, -normal.x);
+  float3 bitangent = cross(tangent, normal);
+  tangent = cross(normal, bitangent);
+  return dir.x * tangent + dir.y * normal + dir.z * bitangent;
+}
+
   [shader("closesthit")] void closest_hit_shader(inout RayPayload payload, in HitAttributes attr) {
   // hardcoded
-  float3 light_pos = {2, 2, 1.5};
-  float3 light_color = {0.7, 0.7, 0.7};
-  float3 albedo = {0.9, 0.9, 0.9};
+  float3 light_dir = {2, 2, 1.5};
+  float3 light_color = {0.6, 0.6, 0.6};
+  float3 albedo = {0.7, 0.7, 0.7};
 
   // Get hitpoint normal from mesh data
   uint indexSizeInBytes = 2;
@@ -107,31 +131,45 @@ uint3 Load3x16BitIndices(uint offsetBytes) {
   // Get hitpoint world pos
   float3 world_pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
 
-  // diffusive lighting
-  float3 l = normalize(light_pos - world_pos);
+  // diffusive direct lighting
+  float3 l = normalize(light_dir);
   float n_dot_l = max(0.0, dot(n, l));
-  float3 lighting = n_dot_l * light_color;
-  float3 color = lighting * albedo;
+  float3 direct_light = n_dot_l * light_color;
 
-  const float RECURSIVE_TH = 50;
-  float ambient_fade = (RECURSIVE_TH - RayTCurrent()) / RECURSIVE_TH;
+  // collect bounced irradiance
+  float3 bounced = {0, 0, 0};
+  if (payload.depth < 2) {
+    HaltonState halton;
+    uint3 dispatch_index = DispatchRaysIndex();
+    halton_init(halton, dispatch_index.xyz);
 
-  if (ambient_fade > 0) {
-    RayDesc ray;
-    ray.Origin = world_pos;
-    ray.Direction = n;
-    ray.TMin = 0.001;
-    ray.TMax = 10000.0 - RayTCurrent();
-    TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, ray, payload);
+    float weight_sum = 0;
+    const uint c_sample = max(MAX_HALTON_SAMPLE / 2, 4);
+    for (int i = 0; i < c_sample; i++) {
+
+      float rnd0 = frac(halton_next(halton));
+      float rnd1 = frac(halton_next(halton));
+      float weight;
+      float3 dir = sample_lambertian_brdf(n, rnd0, rnd1, weight);
+
+      RayDesc ray;
+      ray.Origin = world_pos;
+      ray.Direction = dir;
+      ray.TMin = 0.001;
+      ray.TMax = 10000.0;
+      RayPayload bounced_payload = {{0, 0, 0, 0}, payload.depth + 1};
+      TraceRay(scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, bounced_payload);
+
+      bounced += weight * bounced_payload.color.xyz;
+      weight_sum += weight;
+    }
+    bounced /= weight_sum;
   }
 
-  float ambient_intensity = 0.3f * ambient_fade;
-
-  payload.color = ambient_intensity * payload.color  + float4(color, 1.0);
+  payload.color.xyz = (direct_light + bounced) * albedo;
 }
 
-[shader("miss")] 
-void miss_shader(inout RayPayload payload) {
+[shader("miss")] void miss_shader(inout RayPayload payload) {
   float3 ayanami_blue = {129.0 / 255, 187.0 / 255, 235.0 / 255};
   float3 asuka_red = {156.0 / 255, 0, 0};
   float3 origin = WorldRayDirection();
