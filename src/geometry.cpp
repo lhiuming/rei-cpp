@@ -99,7 +99,6 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
 
   static const double sqrt_5 = std::sqrt(5);
   static const double g = (sqrt_5 + 1) / 2; // golden ratio
-  static const double regular_scale = 1 / std::sqrt(g * g + 1);
 
   constexpr int regular_triangle_num = 20;
   constexpr int regular_vertex_num = 12;
@@ -268,7 +267,6 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
   };
 
   const int subdiv_size = pow_i(2, subdivision);
-  const double scale = regular_scale * radius;
 
   // NOTE: allocate index creating the vertex entry if not already
   auto find_and_create = [&](const BarycentricID& id) -> Size {
@@ -277,7 +275,7 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
     if (is_new) {
       // REMAK: vertex creation
       Vec3 local_pos = id.get_pos();
-      vertices[index] = {local_pos * scale + origin, local_pos.normalized()};
+      vertices[index] = {local_pos * radius + origin, local_pos.normalized()};
     }
     return index;
   };
