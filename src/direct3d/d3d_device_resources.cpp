@@ -426,12 +426,6 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   }
 }
 
-void DeviceResources::create_model_buffer(const Model& model, ModelData& model_data) {
-  // Allocate constant buffer view descriptor for this model
-  // TODO not needed, we are using root parameter
-}
-
-
 ID3D12GraphicsCommandList* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
   if (!is_using_cmd_list) {
     HRESULT hr = m_command_list->Reset(m_command_alloc.Get(), nullptr);

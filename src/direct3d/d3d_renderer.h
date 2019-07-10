@@ -69,21 +69,6 @@ public:
   CullingResult cull(ViewportHandle viewport, const Scene& scene) override;
   void render(ViewportHandle viewport, CullingResult culling_result) override;
 
-  // temporarily for raytracing kick-up
-  ComPtr<ID3D12Resource> scratch_buffer;
-  ComPtr<ID3D12Resource> tlas_buffer;
-
-  UINT next_tlas_instance_id = 0;
-  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
-
-  std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
-
-  ComPtr<ID3D12Resource> raygen_shader_table;
-  ComPtr<ID3D12Resource> miss_shader_table;
-
-  void* m_hitgroup_shader_id;
-  std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
-
 protected:
   HINSTANCE hinstance;
   RenderMode mode;
@@ -102,6 +87,23 @@ protected:
   std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
+
+  // Ray Tracing Resources //
+
+  ComPtr<ID3D12Resource> scratch_buffer;
+  ComPtr<ID3D12Resource> tlas_buffer;
+
+  UINT next_tlas_instance_id = 0;
+  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
+
+  std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
+
+  ComPtr<ID3D12Resource> raygen_shader_table;
+  ComPtr<ID3D12Resource> miss_shader_table;
+
+  void* m_hitgroup_shader_id;
+  std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
+
 
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);

@@ -97,9 +97,6 @@ public:
     ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
-  void create_debug_mesh_buffer(MeshData& mesh_data);
-
-  void create_model_buffer(const Model& model, ModelData& model_data);
 
   ID3D12GraphicsCommandList* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
   ID3D12GraphicsCommandList4* prepare_command_list_dxr(ID3D12PipelineState* init_pso = nullptr) {
