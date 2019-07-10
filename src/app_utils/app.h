@@ -5,8 +5,7 @@
 
 #include "win_app.h"
 
-#if RELEASE || (DEBUG && USE_MSVC)
-// Disable the console window if we are debugging using Visual Studio
+#if RELEASE
 #pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
 #endif
 

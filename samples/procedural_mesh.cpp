@@ -1,9 +1,3 @@
-// Test color and z-buffer
-
-#ifdef USE_MSVC
-#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
-#endif
-
 #include <memory>
 
 #include <app_utils/app.h>
