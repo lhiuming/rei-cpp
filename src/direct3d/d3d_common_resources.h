@@ -149,7 +149,11 @@ struct ViewportData : BaseViewportData {
   std::array<FLOAT, 4> clear_color;
   D3D12_VIEWPORT d3d_viewport;
   D3D12_RECT scissor;
+
   std::weak_ptr<ViewportResources> viewport_resources;
+
+  D3D12_CPU_DESCRIPTOR_HANDLE depth_buffer_srv_cpu;
+  D3D12_GPU_DESCRIPTOR_HANDLE depth_buffer_srv_gpu;
 
   void update_camera_transform(const Camera& cam) {
     REI_ASSERT(is_right_handed);
@@ -159,10 +163,25 @@ struct ViewportData : BaseViewportData {
   }
 };
 
+struct ShaderMetaInfo {
+  CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+  CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+  bool is_depth_stencil_null = false;
+  CD3DX12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+  CD3DX12_ROOT_SIGNATURE_DESC root_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
+  D3D12_INPUT_LAYOUT_DESC input_layout = {nullptr, 0};
+
+  ShaderMetaInfo() {
+    REI_ASSERT(is_right_handed);
+    raster_state.FrontCounterClockwise = true;
+    depth_stencil.DepthFunc
+      = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
+  }
+};
+
 struct ShaderCompileResult {
   ComPtr<ID3DBlob> vs_bytecode;
   ComPtr<ID3DBlob> ps_bytecode;
-  std::vector<D3D12_INPUT_ELEMENT_DESC> vertex_input_descs;
 };
 
 struct ShaderConstBuffers {
@@ -174,6 +193,7 @@ struct ShaderConstBuffers {
 
 struct ShaderData : BaseShaderData {
   using BaseShaderData::BaseShaderData;
+  std::unique_ptr<ShaderMetaInfo> meta;
   ShaderCompileResult compiled_data;
   ShaderConstBuffers const_buffers;
   ComPtr<ID3D12RootSignature> root_signature;

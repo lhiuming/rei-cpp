@@ -71,8 +71,8 @@ public:
   ID3D12DescriptorHeap* descriptor_heap() const { return m_descriotpr_heap.Get(); }
 
   // Naive descriptor allocator
-  UINT alloc_descriptor(CD3DX12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
-    CD3DX12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
+  UINT alloc_descriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
     ID3D12DescriptorHeap* heap = m_descriotpr_heap.Get();
     REI_ASSERT(heap);
     UINT alloc_index = next_descriptor_index++;
@@ -90,7 +90,7 @@ public:
 
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
   void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
-  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign);
+  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const ShaderMetaInfo& meta);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec,

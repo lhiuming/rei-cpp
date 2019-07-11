@@ -150,7 +150,7 @@ public:
 
   UploadBuffer(ID3D12Device& device, UINT element_num, bool is_const_buffer)
       : UploadBuffer(
-          device, element_num, 0, is_const_buffer ? 256 : 0) {}
+          device, element_num, is_const_buffer ? 256 : 0, 0) {}
 
   ~UploadBuffer() {
     UINT subres = 0;

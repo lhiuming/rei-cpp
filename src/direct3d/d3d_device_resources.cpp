@@ -124,29 +124,8 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
   ComPtr<ID3DBlob> vs_bytecode = compile("VS", "vs_5_0");
   ComPtr<ID3DBlob> ps_bytecode = compile("PS", "ps_5_0");
 
-  // Get input layout
-  // TODO shader reflection
-  std::vector<D3D12_INPUT_ELEMENT_DESC> vertex_ele_descs
-    = {{
-         "POSITION", 0,                  // a Name and an Index to map elements in the shader
-         DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the
-                                         // element
-         0, // input slot; kind of a flexible and optional configuration
-         0, // byte offset
-         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing
-         0                                           // ADVANCED; also for instancing
-       },
-      {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-        sizeof(VertexElement::pos), // skip the first 3 coordinate data
-        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-      {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
-        sizeof(VertexElement::pos)
-          + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
-        D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 
-  result = {vs_bytecode, ps_bytecode, vertex_ele_descs};
-
-  // TODO add refelction for input layout and const buffers
+  result = {vs_bytecode, ps_bytecode};
 
   return;
 }
@@ -160,29 +139,12 @@ void DeviceResources::create_const_buffers(
   const_buffers.next_object_index = 0;
 }
 
-void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign) {
+void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const ShaderMetaInfo& meta) {
   {
     // TODO return the cached root signature if property
   }
 
-  /*
-   * Parameters should be ordered by frequency of update, from most-often updated to least.
-   */
-
-  // TODO reflect the shader to get parameters info
-  CD3DX12_ROOT_PARAMETER root_par_slots[2];
-  root_par_slots[0].InitAsConstantBufferView(0); // per obejct resources
-  root_par_slots[1].InitAsConstantBufferView(1); // per frame resources
-
-  UINT par_num = ARRAYSIZE(root_par_slots);
-  D3D12_ROOT_PARAMETER* pars = root_par_slots;
-  UINT s_sampler_num = 0; // TODO check this later
-  D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
-  D3D12_ROOT_SIGNATURE_FLAGS sig_flags
-    = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
-  CD3DX12_ROOT_SIGNATURE_DESC root_desc(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
-
-  create_root_signature(root_desc, root_sign);
+  create_root_signature(meta.root_desc, root_sign);
 }
 
 void DeviceResources::create_root_signature(
@@ -192,7 +154,16 @@ void DeviceResources::create_root_signature(
   ComPtr<ID3DBlob> error_blob;
   hr = D3D12SerializeRootSignature(
     &root_desc, D3D_ROOT_SIGNATURE_VERSION_1, &root_sign_blob, &error_blob);
-  if (!SUCCEEDED(hr)) { error("TODO log root signature error here"); }
+  if (!SUCCEEDED(hr)) {
+    if (error_blob != nullptr) {
+      const char* msg = (char*)error_blob->GetBufferPointer();
+      REI_ERROR(msg);
+    } else {
+      REI_ERROR("Root Signature creation fail with not error message");
+    }
+    root_sign = nullptr;
+    return;
+  }
   UINT node_mask = 0; // single GPU
   hr = m_device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
     root_sign_blob->GetBufferSize(), IID_PPV_ARGS(&root_sign));
@@ -205,7 +176,7 @@ void DeviceResources::get_pso(
   const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
-  vector<D3D12_INPUT_ELEMENT_DESC> vertex_input_descs = compiled.vertex_input_descs;
+  const ShaderMetaInfo& meta = *shader.meta;
   ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
 
   // Try to retried from cache
@@ -217,17 +188,6 @@ void DeviceResources::get_pso(
   }
 
   // some default value
-  D3D12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);            // TODO check this
-  D3D12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO check this
-  REI_ASSERT(is_right_handed);
-  raster_state.FrontCounterClockwise = true; // d3d default is false
-  D3D12_DEPTH_STENCIL_DESC depth_stencil
-    = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT); // TODO check this
-  REI_ASSERT(is_right_handed);
-  depth_stencil.DepthFunc
-    = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
-  D3D12_PRIMITIVE_TOPOLOGY_TYPE primitive_topo
-    = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE; // TODO maybe check this
   UINT rt_num = 1;                            // TODO maybe check this
 
   // ruotine for creating PSO
@@ -240,16 +200,15 @@ void DeviceResources::get_pso(
     desc.HS = {};
     desc.GS = {};
     desc.StreamOutput = {}; // no used
-    desc.BlendState = blend_state;
+    desc.BlendState = meta.blend_state;
     desc.SampleMask = UINT_MAX; // 0xFFFFFFFF, sample all points if MSAA enabled
-    desc.RasterizerState = raster_state;
-    desc.DepthStencilState = depth_stencil;
-    desc.InputLayout.pInputElementDescs = vertex_input_descs.data();
-    desc.InputLayout.NumElements = vertex_input_descs.size();
-    desc.PrimitiveTopologyType = primitive_topo;
+    desc.RasterizerState = meta.raster_state;
+    desc.DepthStencilState = meta.depth_stencil;
+    desc.InputLayout = meta.input_layout;
+    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = rt_num; // used in the array below
     desc.RTVFormats[0] = target_spec.rt_format;
-    desc.DSVFormat = target_spec.ds_format;
+    desc.DSVFormat = meta.is_depth_stencil_null ? DXGI_FORMAT_UNKNOWN : target_spec.ds_format;
     desc.SampleDesc = target_spec.sample_desc;
     desc.NodeMask = 0; // single GPU
     desc.CachedPSO.pCachedBlob

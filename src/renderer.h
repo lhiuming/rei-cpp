@@ -48,7 +48,6 @@ public:
   virtual void update_viewport_size(ViewportHandle viewport, int width, int height) = 0;
   virtual void update_viewport_transform(ViewportHandle viewport, const Camera& camera) = 0;
 
-  virtual ShaderHandle create_shader(std::wstring shader_path) = 0;
   virtual GeometryHandle create_geometry(const Geometry& geo) = 0;
   virtual ModelHandle create_model(const Model& model) = 0;
   virtual SceneHandle build_enviroment(const Scene& scene) = 0;

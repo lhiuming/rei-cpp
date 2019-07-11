@@ -2,6 +2,7 @@
 // Source of d3d_renderer.h
 #include "d3d_renderer.h"
 
+#include <array>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -19,6 +20,7 @@
 #include "d3d_utils.h"
 #include "d3d_viewport_resources.h"
 
+using std::array;
 using std::make_shared;
 using std::make_unique;
 using std::shared_ptr;
@@ -30,6 +32,87 @@ using std::weak_ptr;
 namespace rei {
 
 namespace d3d {
+
+static const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
+  = {{
+       "POSITION", 0,                  // a Name and an Index to map elements in the shader
+       DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the
+                                       // element
+       0,                              // input slot; kind of a flexible and optional configuration
+       0,                              // byte offset
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing
+       0                                           // ADVANCED; also for instancing
+     },
+    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+      sizeof(VertexElement::pos), // skip the first 3 coordinate data
+      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
+      sizeof(VertexElement::pos)
+        + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
+      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+
+struct ForwardBaseMeta : ShaderMetaInfo {
+  CD3DX12_ROOT_PARAMETER root_par_slots[2];
+  ForwardBaseMeta() {
+    // Input layout
+    this->input_layout.NumElements = 3;
+    this->input_layout.pInputElementDescs = c_input_layout;
+
+    // Root signature
+    root_par_slots[0].InitAsConstantBufferView(0); // per obejct resources
+    root_par_slots[1].InitAsConstantBufferView(1); // per frame resources
+
+    UINT par_num = ARRAYSIZE(root_par_slots);
+    D3D12_ROOT_PARAMETER* pars = root_par_slots;
+    UINT s_sampler_num = 0; // TODO check this later
+    D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
+    D3D12_ROOT_SIGNATURE_FLAGS sig_flags
+      = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
+    this->root_desc
+      = CD3DX12_ROOT_SIGNATURE_DESC(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
+  }
+};
+
+struct DeferredBaseMeta : ShaderMetaInfo {
+  CD3DX12_ROOT_PARAMETER root_par_slots[2];
+  DeferredBaseMeta() {
+    // Input layout
+    this->input_layout.NumElements = 3;
+    this->input_layout.pInputElementDescs = c_input_layout;
+
+    // Root signature
+    root_par_slots[0].InitAsConstantBufferView(0); // per obejct resources
+    root_par_slots[1].InitAsConstantBufferView(1); // per frame resources
+
+    UINT par_num = ARRAYSIZE(root_par_slots);
+    D3D12_ROOT_PARAMETER* pars = root_par_slots;
+    UINT s_sampler_num = 0; // TODO check this later
+    D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
+    D3D12_ROOT_SIGNATURE_FLAGS sig_flags
+      = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
+    this->root_desc
+      = CD3DX12_ROOT_SIGNATURE_DESC(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
+  }
+};
+
+struct DeferredShadingMeta : ShaderMetaInfo {
+  enum Slots {
+    GBufferTable = 0,
+    Count,
+  };
+  array<CD3DX12_ROOT_PARAMETER, Slots::Count> root_params;
+  CD3DX12_DESCRIPTOR_RANGE gbuffers = {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0};
+  CD3DX12_STATIC_SAMPLER_DESC depth_sampler = {0};
+  DeferredShadingMeta() {
+    // G-Buffer
+    root_params[Slots::GBufferTable].InitAsDescriptorTable(1, &gbuffers);
+    D3D12_ROOT_SIGNATURE_FLAGS flag = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+    root_desc.Init(root_params.size(), root_params.data(), 1, &depth_sampler, flag);
+
+    // Dont use DS buffer
+    is_depth_stencil_null = true;
+  }
+};
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
@@ -45,6 +128,15 @@ Renderer::Renderer(HINSTANCE hinstance, Options opt)
   DeviceResources::Options dev_opt;
   dev_opt.is_dxr_enabled = is_dxr_enabled;
   device_resources = std::make_shared<DeviceResources>(hinstance, dev_opt);
+
+  // Create deffered shaders
+  {
+    deferred_base_pass
+      = create_shader(L"CoreData/shader/deferred_base.hlsl", make_unique<DeferredBaseMeta>());
+    deferred_shading_pass
+      = create_shader(L"CoreData/shader/deferred_shading.hlsl", make_unique<DeferredShadingMeta>());
+  }
+
   create_default_assets();
 }
 
@@ -55,35 +147,53 @@ Renderer::~Renderer() {
 ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, int height) {
   REI_ASSERT(window_id.platform == SystemWindowID::Win);
 
-  HWND hwnd = window_id.value.hwnd;
-
-  /*
-   * NOTE: DirectX viewport starts from top-left to bottom-right.
-   */
-
-  D3D12_VIEWPORT d3d_vp {};
-  d3d_vp.TopLeftX = 0.0f;
-  d3d_vp.TopLeftY = 0.0f;
-  d3d_vp.Width = width;
-  d3d_vp.Height = height;
-  d3d_vp.MinDepth = D3D12_MIN_DEPTH;
-  d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
-
-  D3D12_RECT scissor {};
-  scissor.left = 0;
-  scissor.top = 0;
-  scissor.right = width;
-  scissor.bottom = height;
-
-  auto vp_res = std::make_shared<ViewportResources>(device_resources, hwnd, width, height);
-
   auto vp = std::make_shared<ViewportData>(this);
   vp->clear_color = {0.f, 0.f, 0.f, 0.5f};
-  vp->d3d_viewport = d3d_vp;
-  vp->viewport_resources = vp_res;
-  vp->scissor = scissor;
 
-  viewport_resources_lib.push_back(vp_res);
+  // NOTE: DirectX viewport starts from top-left to bottom-right.
+  {
+    D3D12_VIEWPORT d3d_vp {};
+    d3d_vp.TopLeftX = 0.0f;
+    d3d_vp.TopLeftY = 0.0f;
+    d3d_vp.Width = width;
+    d3d_vp.Height = height;
+    d3d_vp.MinDepth = D3D12_MIN_DEPTH;
+    d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
+    vp->d3d_viewport = d3d_vp;
+  }
+
+  {
+    D3D12_RECT scissor {};
+    scissor.left = 0;
+    scissor.top = 0;
+    scissor.right = width;
+    scissor.bottom = height;
+    vp->scissor = scissor;
+  }
+
+  {
+    HWND hwnd = window_id.value.hwnd;
+    auto vp_res = std::make_shared<ViewportResources>(device_resources, hwnd, width, height);
+    vp->viewport_resources = vp_res;
+    viewport_resources_lib.push_back(vp_res);
+
+    const auto& device = device_resources->device();
+    device_resources->alloc_descriptor(&vp->depth_buffer_srv_cpu, &vp->depth_buffer_srv_gpu);
+    auto ds_buffer = vp_res->get_ds_buffer();
+    auto ds_desc = ds_buffer->GetDesc();
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+    REI_ASSERT(ds_desc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT);
+    srv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    REI_ASSERT(ds_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D);
+    srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; 
+    srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv.Texture2D.MipLevels = ds_desc.MipLevels;
+    srv.Texture2D.MostDetailedMip = 0;
+    srv.Texture2D.PlaneSlice = 0;
+    srv.Texture2D.ResourceMinLODClamp = 0.f;
+    device->CreateShaderResourceView(ds_buffer, &srv, vp->depth_buffer_srv_cpu);
+  }
+
   return vp;
 }
 
@@ -108,13 +218,14 @@ void Renderer::update_viewport_transform(ViewportHandle h_viewport, const Camera
   viewport->update_camera_transform(camera);
 }
 
-ShaderHandle Renderer::create_shader(std::wstring shader_path) {
+ShaderHandle Renderer::create_shader(std::wstring shader_path, unique_ptr<ShaderMetaInfo>&& meta) {
   auto shader = make_shared<ShaderData>(this);
 
   // compile and retrive root signature
   device_resources->compile_shader(shader_path, shader->compiled_data);
-  device_resources->get_root_signature(shader->root_signature);
+  device_resources->get_root_signature(shader->root_signature, *meta);
   device_resources->create_const_buffers(*shader, shader->const_buffers);
+  shader->meta = std::move(meta);
 
   return ShaderHandle(shader);
 }
@@ -175,9 +286,7 @@ SceneHandle Renderer::build_enviroment(const Scene& scene) {
       GeometryData& g_data = *to_geometry(m->get_geometry()->get_graphic_handle());
       models.push_back(m_data);
     }
-    if (draw_debug_model) {
-      models.push_back(*debug_model);
-    }
+    if (draw_debug_model) { models.push_back(*debug_model); }
     // FIXME may be slow and wasteful
     build_dxr_acceleration_structure(models.data(), models.size());
 
@@ -263,6 +372,7 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
 
   // Prepare command list
   ID3D12GraphicsCommandList* cmd_list = dev_res.prepare_command_list();
+  cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
 
   // Prepare render target
   D3D12_RESOURCE_BARRIER pre_rt
@@ -305,17 +415,37 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
     cb->update(frame_cb);
   }
 
-  // Draw opaque models
+  // Geomtry Pass
   // TODO sort the models into different level of batches, and draw by these batches
-  ModelDrawTask r_task = {};
-  r_task.view_proj = &viewport.view_proj;
-  r_task.target_spec = &target_spec;
-  for (ModelData& model : culling.models) {
-    if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr))
-      continue;
-    r_task.model_num = 1;
-    r_task.models = &model;
-    draw_meshes(*cmd_list, r_task);
+  {
+    ModelDrawTask r_task = {};
+    r_task.view_proj = &viewport.view_proj;
+    r_task.target_spec = &target_spec;
+    for (ModelData& model : culling.models) {
+      if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr))
+        continue;
+      r_task.model_num = 1;
+      r_task.models = &model;
+      draw_meshes(*cmd_list, r_task, to_shader(deferred_base_pass).get());
+    }
+  }
+
+  // Copy depth to render target for test
+  {
+    auto& shader = to_shader(deferred_shading_pass);
+
+    cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, NULL);
+
+    cmd_list->SetGraphicsRootSignature(shader->root_signature.Get());
+    ComPtr<ID3D12PipelineState> pso;
+    device_resources->get_pso(*shader, target_spec, pso);
+    cmd_list->SetPipelineState(pso.Get());
+
+    cmd_list->SetGraphicsRootDescriptorTable(DeferredShadingMeta::GBufferTable, viewport.depth_buffer_srv_gpu);
+
+    cmd_list->IASetVertexBuffers(0, 0, NULL);
+    cmd_list->IASetIndexBuffer(NULL);
+    cmd_list->DrawInstanced(6, 1, 0, 0);
   }
 
   // Finish writing render target
@@ -467,7 +597,8 @@ void Renderer::create_default_assets() {
   cube->set_graphic_handle(default_geometry);
 
   // default material & shader
-  default_shader = to_shader(create_shader(L"CoreData/shader/shader.hlsl"));
+  default_shader
+    = to_shader(create_shader(L"CoreData/shader/shader.hlsl", make_unique<DeferredBaseMeta>()));
   default_material = make_shared<MaterialData>(this);
   default_material->shader = default_shader;
   mat->set_graphic_handle(default_material);
@@ -477,7 +608,8 @@ void Renderer::create_default_assets() {
   debug_model = to_model(create_model(central_cube));
 }
 
-void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task) {
+void Renderer::draw_meshes(
+  ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task, ShaderData* shader_override) {
   // short cuts
   const Mat4& view_proj_mat = *(task.view_proj);
   const RenderTargetSpec& target_spec = *(task.target_spec);
@@ -492,7 +624,7 @@ void Renderer::draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& t
     const ModelData& model = models[i];
     const MeshData& mesh = *(static_cast<MeshData*>(model.geometry.get()));
     const MaterialData& material = *(model.material);
-    const ShaderData& shader = *(material.shader);
+    const ShaderData& shader = shader_override != nullptr ? *shader_override : *(material.shader);
     const ShaderConstBuffers& const_buffers = shader.const_buffers;
 
     // Check root signature
@@ -570,7 +702,8 @@ void Renderer::build_raytracing_pso() {
   const std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
   const UINT payload_max_size = sizeof(float) * 4 + sizeof(int) * 1;
   const UINT attr_max_size = sizeof(float) * 2;
-  const UINT max_raytracing_recursion_depth = min(D3D12_RAYTRACING_MAX_DECLARABLE_TRACE_RECURSION_DEPTH, 8);
+  const UINT max_raytracing_recursion_depth
+    = min(D3D12_RAYTRACING_MAX_DECLARABLE_TRACE_RECURSION_DEPTH, 8);
 
   // short cut
   auto device = device_resources->dxr_device();
@@ -677,7 +810,8 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
       fill_tlas_instance_transform(desc.Transform, model.transform, model_trans_target);
       desc.InstanceID = model.tlas_instance_id;
       desc.InstanceMask = 1;
-      desc.InstanceContributionToHitGroupIndex = model.tlas_instance_id * 1; // only one entry per instance
+      desc.InstanceContributionToHitGroupIndex
+        = model.tlas_instance_id * 1; // only one entry per instance
       desc.Flags = is_opaque ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE
                              : D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
       desc.AccelerationStructure = mesh->blas_buffer->GetGPUVirtualAddress();

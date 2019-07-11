@@ -60,7 +60,8 @@ public:
   void update_viewport_size(ViewportHandle viewport, int width, int height) override;
   void update_viewport_transform(ViewportHandle viewport, const Camera& camera) override;
 
-  ShaderHandle create_shader(std::wstring shader_path) override;
+  ShaderHandle create_shader(std::wstring shader_path, std::unique_ptr<ShaderMetaInfo>&& meta);
+
   GeometryHandle create_geometry(const Geometry& geometry) override;
   ModelHandle create_model(const Model& model) override;
   SceneHandle build_enviroment(const Scene& scene) override;
@@ -87,6 +88,11 @@ protected:
   std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
+
+  // Deferred resources
+
+  ShaderHandle deferred_base_pass;
+  ShaderHandle deferred_shading_pass;
 
   // Ray Tracing Resources //
 
@@ -115,7 +121,7 @@ protected:
     const RenderTargetSpec* target_spec;
   };
 
-  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task);
+  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task, ShaderData* shader_override = nullptr);
 
   void build_raytracing_rootsignatures();
   void build_raytracing_pso();
