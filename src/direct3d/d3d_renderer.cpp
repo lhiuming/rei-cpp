@@ -10,6 +10,7 @@
 
 #include <d3d12.h>
 #include <d3dx12.h>
+#include <windows.h>
 
 #include "../debug.h"
 #include "../string_utils.h"
@@ -28,6 +29,7 @@ using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
 using std::weak_ptr;
+using std::wstring;
 
 namespace rei {
 
@@ -51,7 +53,7 @@ static const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
         + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 
-struct ForwardBaseMeta : ShaderMetaInfo {
+struct ForwardBaseMeta : RasterizationShaderMetaInfo {
   CD3DX12_ROOT_PARAMETER root_par_slots[2];
   ForwardBaseMeta() {
     // Input layout
@@ -73,7 +75,7 @@ struct ForwardBaseMeta : ShaderMetaInfo {
   }
 };
 
-struct DeferredBaseMeta : ShaderMetaInfo {
+struct DeferredBaseMeta : RasterizationShaderMetaInfo {
   CD3DX12_ROOT_PARAMETER root_par_slots[2];
   DeferredBaseMeta() {
     // Input layout
@@ -95,7 +97,7 @@ struct DeferredBaseMeta : ShaderMetaInfo {
   }
 };
 
-struct DeferredShadingMeta : ShaderMetaInfo {
+struct DeferredShadingMeta : RasterizationShaderMetaInfo {
   enum Slots {
     GBufferTable = 0,
     Count,
@@ -144,9 +146,37 @@ Renderer::~Renderer() {
   log("D3DRenderer is destructed.");
 }
 
-ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, int height) {
+SwapchainHandle Renderer::create_swapchain(
+  SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count) {
   REI_ASSERT(window_id.platform == SystemWindowID::Win);
+  HWND hwnd = window_id.value.hwnd;
 
+  REI_ASSERT(rendertarget_count <= 4);
+  v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers;
+  for (size_t i = 0; i < rendertarget_count; i++) {
+    rt_buffers[i] = make_shared<DefaultBufferData>(this);
+  }
+  std::shared_ptr<DefaultBufferData> ds_buffer = make_shared<DefaultBufferData>(this);
+  auto vp_res = std::make_shared<ViewportResources>(device_resources, hwnd, width, height, rt_buffers, ds_buffer);
+  viewport_resources_lib.push_back(vp_res);
+
+  auto swapchain = make_shared<SwapchainData>(this);
+  swapchain->res = vp_res;
+  return SwapchainHandle(swapchain);
+}
+
+BufferHandle Renderer::fetch_swapchain_depth_stencil_buffer(SwapchainHandle handle) {
+  auto swapchain = to_swapchain(handle);
+  return BufferHandle(swapchain->res->m_ds_buffer);
+}
+
+BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle handle) {
+  auto swapchain = to_swapchain(handle);
+  UINT curr_rt_index = swapchain->res->get_current_rt_index();
+  return BufferHandle(swapchain->res->m_rt_buffers[curr_rt_index]);
+}
+
+ScreenTransformHandle Renderer::create_viewport(int width, int height) {
   auto vp = std::make_shared<ViewportData>(this);
   vp->clear_color = {0.f, 0.f, 0.f, 0.5f};
 
@@ -171,55 +201,95 @@ ViewportHandle Renderer::create_viewport(SystemWindowID window_id, int width, in
     vp->scissor = scissor;
   }
 
-  {
-    HWND hwnd = window_id.value.hwnd;
-    auto vp_res = std::make_shared<ViewportResources>(device_resources, hwnd, width, height);
-    vp->viewport_resources = vp_res;
-    viewport_resources_lib.push_back(vp_res);
-
-    const auto& device = device_resources->device();
-    device_resources->alloc_descriptor(&vp->depth_buffer_srv_cpu, &vp->depth_buffer_srv_gpu);
-    auto ds_buffer = vp_res->get_ds_buffer();
-    auto ds_desc = ds_buffer->GetDesc();
-    D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
-    REI_ASSERT(ds_desc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT);
-    srv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
-    REI_ASSERT(ds_desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D);
-    srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D; 
-    srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srv.Texture2D.MipLevels = ds_desc.MipLevels;
-    srv.Texture2D.MostDetailedMip = 0;
-    srv.Texture2D.PlaneSlice = 0;
-    srv.Texture2D.ResourceMinLODClamp = 0.f;
-    device->CreateShaderResourceView(ds_buffer, &srv, vp->depth_buffer_srv_cpu);
-  }
-
   return vp;
 }
 
-void Renderer::set_viewport_clear_value(ViewportHandle viewport_handle, Color c) {
+void Renderer::set_viewport_clear_value(ScreenTransformHandle viewport_handle, Color c) {
   auto viewport = to_viewport(viewport_handle);
   viewport->clear_color = {c.r, c.g, c.b, c.a};
 }
 
-void Renderer::update_viewport_vsync(ViewportHandle viewport_handle, bool enabled_vsync) {
+void Renderer::update_viewport_vsync(ScreenTransformHandle viewport_handle, bool enabled_vsync) {
   auto viewport = to_viewport(viewport_handle);
   REI_ASSERT(viewport);
   viewport->enable_vsync = enabled_vsync;
 }
 
-void Renderer::update_viewport_size(ViewportHandle viewport, int width, int height) {
+void Renderer::update_viewport_size(ScreenTransformHandle viewport, int width, int height) {
   error("Method is not implemented");
 }
 
-void Renderer::update_viewport_transform(ViewportHandle h_viewport, const Camera& camera) {
+void Renderer::update_viewport_transform(ScreenTransformHandle h_viewport, const Camera& camera) {
   shared_ptr<ViewportData> viewport = to_viewport(h_viewport);
   REI_ASSERT(viewport);
   viewport->update_camera_transform(camera);
 }
 
-ShaderHandle Renderer::create_shader(std::wstring shader_path, unique_ptr<ShaderMetaInfo>&& meta) {
-  auto shader = make_shared<ShaderData>(this);
+BufferHandle Renderer::create_unordered_access_buffer_2d(
+  size_t width, size_t height, ResourceFormat format) {
+  auto device = device_resources->device();
+  DXGI_FORMAT buffer_format = to_dxgi_format(format);
+
+  DefaultBufferFormat meta;
+  meta.dimension = ResourceDimension::Texture2D;
+  meta.format = format;
+
+  HRESULT hr;
+
+  // Create buffer
+  ComPtr<ID3D12Resource> buffer;
+  {
+    D3D12_RESOURCE_DESC uav_buffer_desc
+      = CD3DX12_RESOURCE_DESC::Tex2D(buffer_format, width, height);
+    uav_buffer_desc.MipLevels = 1;
+    uav_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
+    D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    hr = device->CreateCommittedResource(
+      &heap_prop, heap_flags, &uav_buffer_desc, init_state, nullptr, IID_PPV_ARGS(&buffer));
+    REI_ASSERT(SUCCEEDED(hr));
+  }
+
+  // Create view with the descriptor
+  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+  {
+    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+    uav_desc.Texture2D = {}; // defualt
+  }
+
+  auto buffer_data = make_shared<DefaultBufferData>(this);
+  buffer_data->state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  buffer_data->buffer = buffer;
+  buffer_data->meta = meta;
+  return BufferHandle(buffer_data);
+}
+
+BufferHandle Renderer::create_const_buffer(const ConstBufferLayout& layout, size_t num) {
+  auto device = device_resources->device();
+
+  auto buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, 1);
+
+  auto buffer_data = make_shared<ConstBufferData>(this);
+  buffer_data->state = buffer->init_state();
+  buffer_data->buffer = std::move(buffer);
+  buffer_data->layout = layout;
+  return BufferHandle(buffer_data);
+}
+
+void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value) {
+  auto converted = rei_to_D3D(value);
+  set_const_buffer(buffer, index, member, &converted, sizeof(converted));
+}
+
+void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value) {
+  auto converted = rei_to_D3D(value);
+  set_const_buffer(buffer, index, member, &converted, sizeof(converted));
+}
+
+ShaderHandle Renderer::create_shader(
+  const std::wstring& shader_path, unique_ptr<RasterizationShaderMetaInfo>&& meta) {
+  auto shader = make_shared<RasterizationShaderData>(this);
 
   // compile and retrive root signature
   device_resources->compile_shader(shader_path, shader->compiled_data);
@@ -228,6 +298,112 @@ ShaderHandle Renderer::create_shader(std::wstring shader_path, unique_ptr<Shader
   shader->meta = std::move(meta);
 
   return ShaderHandle(shader);
+}
+
+ShaderHandle Renderer::create_raytracing_shader(
+  const std::wstring& shader_path, std::unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
+  auto shader = make_shared<RaytracingShaderData>(this);
+
+  shader->meta = {*meta};
+  d3d::RayTracingShaderMetaInfo& d3d_meta = shader->meta;
+  device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
+  device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
+  device().get_root_signature(d3d_meta.hitgroup.desc, shader->hitgroup.root_signature);
+  device().get_root_signature(d3d_meta.miss.desc, shader->miss.root_signature);
+
+  build_raytracing_pso(shader_path, d3d_meta, shader->pso);
+
+  // Collect shader IDs
+  {
+    // prepare
+    UINT64 shader_id_bytesize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+    ComPtr<ID3D12StateObjectProperties> state_object_prop;
+    HRESULT hr = shader->pso.As(&state_object_prop);
+    REI_ASSERT(SUCCEEDED(hr));
+
+    auto get_shader_id = [&](const std::wstring& name, void*& id) {
+      id = state_object_prop->GetShaderIdentifier(name.c_str());
+    };
+
+    get_shader_id(d3d_meta.hitgroup_name, shader->hitgroup.shader_id);
+    get_shader_id(d3d_meta.raygen_name, shader->raygen.shader_id);
+    get_shader_id(d3d_meta.miss_name, shader->miss.shader_id);
+  }
+
+  return ShaderHandle(shader);
+}
+
+ShaderArgumentHandle Renderer::create_shader_argument(
+  ShaderHandle shader_h, ShaderArgumentValue arg_value) {
+  // TODO carry validation using shader information
+  // auto shader = to_shader<ShaderData>(shader_h);
+
+  size_t buf_count = arg_value.total_buffer_count();
+  CD3DX12_GPU_DESCRIPTOR_HANDLE base_gpu_descriptor;
+  CD3DX12_CPU_DESCRIPTOR_HANDLE base_cpu_descriptor;
+  UINT head_index = device_resources->alloc_descriptor(
+    UINT(buf_count), &base_cpu_descriptor, &base_gpu_descriptor);
+
+  auto device = device_resources->device();
+  UINT descriptor_size = device_resources->descriptor_size();
+  CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_descriptor = base_cpu_descriptor;
+
+  for (auto& h : arg_value.const_buffers) {
+    auto b = to_buffer<ConstBufferData>(h);
+    D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
+    desc.BufferLocation = b->buffer->buffer_address();
+    desc.SizeInBytes = b->buffer->effective_bytewidth();
+    device->CreateConstantBufferView(&desc, cpu_descriptor);
+    cpu_descriptor.Offset(1, descriptor_size);
+  }
+  for (auto& h : arg_value.shader_resources) {
+    auto b = to_buffer<DefaultBufferData>(h);
+    auto meta = b->meta;
+    D3D12_SHADER_RESOURCE_VIEW_DESC desc;
+    desc.Format = to_dxgi_format(meta.format);
+    desc.ViewDimension = to_srv_dimension(meta.dimension);
+    desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    // FIXME handle other cases and options
+    switch (desc.ViewDimension) {
+      case D3D12_SRV_DIMENSION_TEXTURE2D:
+        desc.Texture2D.MostDetailedMip = 0;
+        desc.Texture2D.MipLevels = 1;
+        desc.Texture2D.PlaneSlice = 0;
+        desc.Texture2D.ResourceMinLODClamp = 0;
+        break;
+      default:
+        REI_ASSERT("Unhandled case detected");
+        break;
+    }
+    device->CreateShaderResourceView(b->buffer.Get(), &desc, cpu_descriptor);
+    cpu_descriptor.Offset(1, descriptor_size);
+  }
+  for (auto& h : arg_value.unordered_accesses) {
+    auto b = to_buffer<DefaultBufferData>(h);
+    auto meta = b->meta;
+    D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
+    desc.Format = to_dxgi_format(meta.format);
+    desc.ViewDimension = to_usv_dimension(meta.dimension);
+    switch (desc.ViewDimension) {
+      case D3D12_UAV_DIMENSION_TEXTURE2D:
+        desc.Texture2D.MipSlice = 0;
+        desc.Texture2D.PlaneSlice = 0;
+      default:
+        REI_ASSERT("Unhandled case detected");
+        break;
+    }
+    device->CreateUnorderedAccessView(b->buffer.Get(), nullptr, &desc, cpu_descriptor);
+    cpu_descriptor.Offset(1, descriptor_size);
+  }
+
+  auto arg_data = make_shared<ShaderArgumentData>(this);
+  arg_data->base_descriptor_cpu = base_cpu_descriptor;
+  arg_data->base_descriptor_gpu = base_gpu_descriptor;
+  // arg_data->cbvs
+  arg_data->alloc_index = head_index;
+  arg_data->alloc_num = buf_count;
+
+  return ShaderArgumentHandle();
 }
 
 GeometryHandle Renderer::create_geometry(const Geometry& geometry) {
@@ -254,12 +430,14 @@ ModelHandle Renderer::create_model(const Model& model) {
   }
 
   // allocate const buffer
-  auto shader = to_shader(model_data->material->shader);
+  /*
+  auto shader = to_shader<RasterizationShaderData>(model_data->material->shader);
   REI_ASSERT(shader);
   ShaderConstBuffers& shader_cbs = shader->const_buffers;
   UINT cb_index = shader->const_buffers.next_object_index++;
   REI_ASSERT(cb_index < shader_cbs.per_object_CBs->size());
   model_data->const_buffer_index = cb_index;
+  */
 
   // assign a tlas instance id
   model_data->tlas_instance_id = generate_tlas_instance_id();
@@ -269,37 +447,166 @@ ModelHandle Renderer::create_model(const Model& model) {
   return ModelHandle(model_data);
 }
 
-SceneHandle Renderer::build_enviroment(const Scene& scene) {
-  auto scene_data = make_shared<SceneData>(this);
+BufferHandle Renderer::create_raytracing_accel_struct(const Scene& scene) {
+  // collect geometries and models for AS building
+  const auto& scene_models = scene.get_models();
+  vector<ModelData> models {};
+  models.reserve(scene_models.size());
+  for (auto& m : scene_models) {
+    ModelData& m_data = *to_model(m->get_rendering_handle());
+    GeometryData& g_data = *to_geometry(m->get_geometry()->get_graphic_handle());
+    models.push_back(m_data);
+  }
+  if (draw_debug_model) { models.push_back(*debug_model); }
 
-  if (is_dxr_enabled) {
-    build_raytracing_rootsignatures();
+  ComPtr<ID3D12Resource> tlas, scratch;
+  build_dxr_acceleration_structure(models.data(), models.size(), scratch, tlas);
 
-    build_raytracing_pso();
+  DefaultBufferFormat meta;
+  meta.dimension = ResourceDimension::AccelerationStructure;
+  meta.format = ResourceFormat::AcclerationStructure;
 
-    // collect geometries and models for AS building
-    const auto& scene_models = scene.get_models();
-    vector<ModelData> models {};
-    models.reserve(scene_models.size());
-    for (auto& m : scene_models) {
-      ModelData& m_data = *to_model(m->get_rendering_handle());
-      GeometryData& g_data = *to_geometry(m->get_geometry()->get_graphic_handle());
-      models.push_back(m_data);
-    }
-    if (draw_debug_model) { models.push_back(*debug_model); }
-    // FIXME may be slow and wasteful
-    build_dxr_acceleration_structure(models.data(), models.size());
+  // NOTE scratch buffer is discared
+  auto data = make_shared<DefaultBufferData>(this);
+  data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  data->buffer = tlas;
+  data->meta = meta;
+  return BufferHandle(data);
+}
 
-    // Create global const buffer here for convinience
-    {
-      auto device = device_resources->device();
-      m_perframe_cb = make_unique<UploadBuffer<dxr::PerFrameConstantBuffer>>(*device, 1, true);
-    }
+BufferHandle Renderer::create_shder_table(const Scene& scene, ShaderHandle raytracing_shader) {
+  auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
+  auto& meta = shader->meta;
 
-    build_shader_table();
+  auto tables = make_shared<RaytracingShaderTableData>(this);
+
+  size_t model_count = scene.get_models().size();
+
+  auto device = device_resources->dxr_device();
+  auto build
+    = [&](size_t max_root_arguments_width, size_t entry_num, shared_ptr<ShaderTable>& shader_table) {
+        shader_table = make_shared<ShaderTable>(*device, max_root_arguments_width, entry_num);
+      };
+
+  build(get_root_arguments_size(meta.raygen.desc), 1, tables->raygen);
+  build(get_root_arguments_size(meta.hitgroup.desc), model_count, tables->hitgroup);
+  build(get_root_arguments_size(meta.miss.desc), model_count, tables->miss);
+  tables->shader = shader;
+
+  return BufferHandle(tables);
+}
+
+void Renderer::update_hitgroup_shader_record(BufferHandle shader_table_h, ModelHandle model_h) {
+  auto tables = to_buffer<RaytracingShaderTableData>(shader_table_h);
+  auto shader = tables->shader;
+  auto model = to_model(model_h);
+  auto geometry = std::static_pointer_cast<MeshData>(model->geometry);
+
+  const size_t descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
+  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu, descriptor_size,
+    model->tlas_instance_id, 0);
+}
+
+void Renderer::begin_render() {
+  auto cmd_list = device_resources->prepare_command_list();
+  cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
+}
+
+void Renderer::close_cmd_list() {
+  device_resources->flush_command_list();
+}
+
+void Renderer::end_render() {
+  device_resources->flush_command_queue_for_frame();
+}
+
+void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments arguments,
+  BufferHandle shader_table_h, size_t width, size_t height, size_t depth) {
+  auto shader = to_shader<RaytracingShaderData>(raytrace_shader_h);
+  auto shader_table = to_buffer<RaytracingShaderTableData>(shader_table_h);
+
+  auto cmd_list = device_resources->prepare_command_list_dxr();
+
+  // Change render state
+  {
+    cmd_list->SetComputeRootSignature(shader->root_signature.Get());
+    cmd_list->SetPipelineState1(shader->pso.Get());
   }
 
-  return SceneHandle(scene_data);
+  // Bing global resource
+  {
+    for (UINT i = 0; i < arguments.size(); i++) {
+      const auto shader_arg = to_argument(arguments[i]);
+      if (shader_arg) {
+        cmd_list->SetComputeRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
+      }
+    }
+  }
+
+  // Dispatch
+  {
+    auto raygen = shader_table->raygen;
+    auto hitgroup = shader_table->hitgroup;
+    auto miss = shader_table->miss;
+
+    D3D12_DISPATCH_RAYS_DESC desc = {};
+    desc.RayGenerationShaderRecord.StartAddress = raygen->buffer_address();
+    desc.RayGenerationShaderRecord.SizeInBytes = raygen->effective_bytewidth();
+    desc.MissShaderTable.StartAddress = miss->buffer_address();
+    desc.MissShaderTable.SizeInBytes = miss->effective_bytewidth();
+    desc.MissShaderTable.StrideInBytes = miss->element_bytewidth();
+    desc.HitGroupTable.StartAddress = hitgroup->buffer_address();
+    desc.HitGroupTable.SizeInBytes = hitgroup->effective_bytewidth();
+    desc.HitGroupTable.StrideInBytes = hitgroup->element_bytewidth();
+    desc.Width = width;
+    desc.Height = height;
+    desc.Depth = depth;
+    cmd_list->DispatchRays(&desc);
+  }
+}
+
+void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_state) {
+  auto device = device_resources->device();
+  auto cmd_list = device_resources->prepare_command_list();
+
+  auto src = to_buffer<DefaultBufferData>(src_h);
+  auto dst = to_buffer<DefaultBufferData>(dst_h);
+
+  ID3D12Resource* src_resource = src->buffer.Get();
+  ID3D12Resource* dst_resource = dst->buffer.Get();
+
+  D3D12_RESOURCE_BARRIER pre_copy[2];
+  pre_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+    src_resource, src->state, D3D12_RESOURCE_STATE_COPY_SOURCE);
+  pre_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+    dst_resource, dst->state, D3D12_RESOURCE_STATE_COPY_DEST);
+  cmd_list->ResourceBarrier(2, pre_copy);
+
+  cmd_list->CopyResource(dst_resource, src_resource);
+
+  if (revert_state) {
+    D3D12_RESOURCE_BARRIER post_copy[2];
+    post_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
+      src_resource, D3D12_RESOURCE_STATE_COPY_SOURCE, src->state);
+    post_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
+      dst_resource, D3D12_RESOURCE_STATE_COPY_DEST, dst->state);
+    cmd_list->ResourceBarrier(2, post_copy);
+  } else {
+    src->state = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    dst->state = D3D12_RESOURCE_STATE_COPY_DEST;
+  }
+}
+
+void Renderer::present(SwapchainHandle handle, bool vsync) {
+  auto swapchain = to_swapchain(handle);
+  auto viewport = swapchain->res;
+ // Present and flip
+  if (vsync) {
+    viewport->swapchain()->Present(1, 0);
+  } else {
+    viewport->swapchain()->Present(0, 0);
+  }
+  viewport->flip_backbuffer();
 }
 
 void Renderer::prepare(Scene& scene) {
@@ -315,7 +622,7 @@ void Renderer::prepare(Scene& scene) {
   upload_resources();
 }
 
-CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene) {
+CullingResult Renderer::cull(ScreenTransformHandle viewport_handle, const Scene& scene) {
   // TODO pool this
   auto culling_data = make_shared<CullingData>(this);
   vector<ModelData>& culled_models = culling_data->models;
@@ -337,7 +644,7 @@ CullingResult Renderer::cull(ViewportHandle viewport_handle, const Scene& scene)
   return CullingResult(culling_data);
 }
 
-void Renderer::render(const ViewportHandle viewport_handle, CullingResult culling_handle) {
+void Renderer::render(const ScreenTransformHandle viewport_handle, CullingResult culling_handle) {
   shared_ptr<ViewportData> p_viewport = to_viewport(viewport_handle);
   REI_ASSERT(p_viewport);
   shared_ptr<CullingData> p_culling = to_culling(culling_handle);
@@ -359,6 +666,7 @@ void Renderer::upload_resources() {
 }
 
 void Renderer::render(ViewportData& viewport, CullingData& culling) {
+  /*
   REI_ASSERT(device_resources.get());
   REI_ASSERT(!viewport.viewport_resources.expired());
 
@@ -441,7 +749,8 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
     device_resources->get_pso(*shader, target_spec, pso);
     cmd_list->SetPipelineState(pso.Get());
 
-    cmd_list->SetGraphicsRootDescriptorTable(DeferredShadingMeta::GBufferTable, viewport.depth_buffer_srv_gpu);
+    cmd_list->SetGraphicsRootDescriptorTable(
+      DeferredShadingMeta::GBufferTable, viewport.depth_buffer_srv_gpu);
 
     cmd_list->IASetVertexBuffers(0, 0, NULL);
     cmd_list->IASetIndexBuffer(NULL);
@@ -467,9 +776,11 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
 
   // Flush and wait
   dev_res.flush_command_queue_for_frame();
+  */
 }
 
 void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
+  /*
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
   auto viewport_resources = viewport.viewport_resources.lock();
@@ -553,6 +864,7 @@ void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
 
   // Wait
   device_resources->flush_command_queue_for_frame();
+  */
 }
 
 void Renderer::create_default_assets() {
@@ -598,7 +910,7 @@ void Renderer::create_default_assets() {
 
   // default material & shader
   default_shader
-    = to_shader(create_shader(L"CoreData/shader/shader.hlsl", make_unique<DeferredBaseMeta>()));
+    = to_shader<RasterizationShaderData>(create_shader(L"CoreData/shader/shader.hlsl", make_unique<DeferredBaseMeta>()));
   default_material = make_shared<MaterialData>(this);
   default_material->shader = default_shader;
   mat->set_graphic_handle(default_material);
@@ -610,6 +922,7 @@ void Renderer::create_default_assets() {
 
 void Renderer::draw_meshes(
   ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task, ShaderData* shader_override) {
+  /*
   // short cuts
   const Mat4& view_proj_mat = *(task.view_proj);
   const RenderTargetSpec& target_spec = *(task.target_spec);
@@ -660,46 +973,12 @@ void Renderer::draw_meshes(
     // Draw
     cmd_list.DrawIndexedInstanced(mesh.index_num, 1, 0, 0, 0);
   } // end for each model
+  */
 }
 
-void Renderer::build_raytracing_rootsignatures() {
-  // Global root signature
-  {
-    constexpr int param_count = static_cast<int>(dxr::GlobalRSLayout::Count);
-    CD3DX12_ROOT_PARAMETER root_params[param_count] = {};
-
-    CD3DX12_DESCRIPTOR_RANGE output_uav(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-    root_params[dxr::GlobalRSLayout::OuputTextureUAV_SingleTable].InitAsDescriptorTable(
-      1, &output_uav); // Texture must be bound through table
-
-    root_params[dxr::GlobalRSLayout::AccelStructSRV].InitAsShaderResourceView(0);
-
-    root_params[dxr::GlobalRSLayout::PerFrameCBV].InitAsConstantBufferView(0);
-
-    CD3DX12_ROOT_SIGNATURE_DESC desc(param_count, root_params);
-    device_resources->create_root_signature(desc, device_resources->global_root_sign);
-  }
-
-  // Local root signature: hitgroup
-  {
-    constexpr int param_count = static_cast<int>(dxr::HitgroupRSLayout::Count);
-    CD3DX12_ROOT_PARAMETER root_params[param_count];
-
-    CD3DX12_DESCRIPTOR_RANGE mesh_srvs(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 1);
-    root_params[dxr::HitgroupRSLayout::MeshBuffer_Table].InitAsDescriptorTable(1, &mesh_srvs);
-
-    root_params[dxr::HitgroupRSLayout::PerObjectCBV].InitAsConstantBufferView(1);
-
-    CD3DX12_ROOT_SIGNATURE_DESC desc(ARRAYSIZE(root_params), root_params);
-    desc.Flags
-      = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE; // special flag for dxr local root signature
-    device_resources->create_root_signature(desc, device_resources->hitgroup_root_sign);
-  }
-}
-
-void Renderer::build_raytracing_pso() {
+void Renderer::build_raytracing_pso(const std::wstring& shader_path,
+  const d3d::RayTracingShaderMetaInfo& meta, ComPtr<ID3D12StateObject>& pso) {
   // hard-coded properties
-  const std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
   const UINT payload_max_size = sizeof(float) * 4 + sizeof(int) * 1;
   const UINT attr_max_size = sizeof(float) * 2;
   const UINT max_raytracing_recursion_depth
@@ -714,7 +993,7 @@ void Renderer::build_raytracing_pso() {
   D3D12_SHADER_BYTECODE bytecode[3];
   { // compile and bind the shaders
     const wchar_t* names[3]
-      = {dxr::c_raygen_shader_name, dxr::c_closest_hit_shader_name, dxr::c_miss_shader_name};
+      = {meta.raygen_name.c_str(), meta.closest_hit_name.c_str(), meta.miss_name.c_str()};
     for (int i = 0; i < 3; i++) {
       auto dxil_lib = raytracing_pipeline_desc.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
       shader_blobs[i]
@@ -728,9 +1007,9 @@ void Renderer::build_raytracing_pso() {
 
   { // setup hit group
     auto hit_group = raytracing_pipeline_desc.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
-    hit_group->SetClosestHitShaderImport(
-      dxr::c_closest_hit_shader_name); // not any-hit or intersection shader
-    hit_group->SetHitGroupExport(dxr::c_hit_group_name);
+    // not any-hit or intersection shader
+    hit_group->SetClosestHitShaderImport(meta.closest_hit_name.c_str());
+    hit_group->SetHitGroupExport(meta.hitgroup_name.c_str());
     hit_group->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
   }
 
@@ -749,7 +1028,7 @@ void Renderer::build_raytracing_pso() {
       = raytracing_pipeline_desc
           .CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
     rootSignatureAssociation->SetSubobjectToAssociate(*local_root);
-    rootSignatureAssociation->AddExport(dxr::c_hit_group_name);
+    rootSignatureAssociation->AddExport(meta.hitgroup_name.c_str());
   }
 
   { // bind global root signature
@@ -770,7 +1049,8 @@ void Renderer::build_raytracing_pso() {
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_count) {
+void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_count,
+  ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer) {
   auto device = device_resources->dxr_device();
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
@@ -838,40 +1118,16 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
   device_resources->flush_command_queue_for_frame();
 }
 
-void Renderer::build_shader_table() {
-  // short-cuts
-  auto device = device_resources->dxr_device();
-
-  HRESULT hr;
-
-  // prepare
-  UINT64 shader_id_bytesize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-  ComPtr<ID3D12StateObjectProperties> state_object_prop;
-  hr = device_resources->dxr_pso.As(&state_object_prop);
-  REI_ASSERT(SUCCEEDED(hr));
-
-  // Raygen shaders
-  {
-    void* raygen_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_raygen_shader_name);
-    raygen_shader_table = create_upload_buffer(device, shader_id_bytesize, raygen_shader_id);
-  }
-
-  // Miss shaders
-  { // no arguments
-    void* miss_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_miss_shader_name);
-    miss_shader_table = create_upload_buffer(device, shader_id_bytesize, miss_shader_id);
-  }
-
-  // Hit group
-  {
-    m_hitgroup_shader_id = state_object_prop->GetShaderIdentifier(dxr::c_hit_group_name);
-    m_hitgroup_shader_table
-      = make_unique<ShaderTable<dxr::HitgroupRootArguments>>(*device, dxr::c_hitgroup_size);
-  }
+void Renderer::set_const_buffer(
+  BufferHandle handle, size_t index, size_t member, const void* value, size_t width) {
+  shared_ptr<ConstBufferData> buffer = to_buffer<ConstBufferData>(handle);
+  unsigned int local_offset = get_offset(buffer->layout, member);
+  buffer->buffer->update(value, width, index, local_offset);
 }
 
 void Renderer::update_shader_table(const ModelData* models, size_t count) {
   // update hitgroup table
+  /*
   {
     // Hit group table are plained array index by instance id
     dxr::HitgroupRootArguments args = {};
@@ -883,6 +1139,7 @@ void Renderer::update_shader_table(const ModelData* models, size_t count) {
       m_hitgroup_shader_table->update(m_hitgroup_shader_id, std::move(args), position);
     }
   }
+  */
 }
 
 } // namespace d3d

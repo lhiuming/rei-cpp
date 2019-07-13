@@ -8,12 +8,12 @@
 #include <windows.h>
 #endif
 
+#include "container_utils.h"
+#include "type_utils.h"
+#include "color.h"
 #include "camera.h"
-#include "common.h"
-#include "model.h"
-#include "scene.h"
-
 #include "graphic_handle.h"
+#include "shader_struct.h"
 
 /*
  * renderer.h
@@ -22,6 +22,10 @@
  */
 
 namespace rei {
+
+class Geometry;
+class Model;
+class Scene;
 
 struct SystemWindowID {
   enum Platform {
@@ -33,44 +37,86 @@ struct SystemWindowID {
   } value;
 };
 
-// Renderer ///////////////////////////////////////////////////////////////////
-// The base class
-////
+// Pramater types
+// NOTE: each represent a range type in descriptor table
+struct ConstBuffer {};
+struct ShaderResource {};
+struct UnorderedAccess {};
+struct Sampler {};
+
+// Represent a descriptor table / descriptor set, in a defined space
+struct ShaderParameter {
+  // TODO make this inplace memory
+  // index as implicit shader register
+  std::vector<ConstBuffer> const_buffers;
+  std::vector<ShaderResource> shader_resources;
+  std::vector<UnorderedAccess> unordered_accesses;
+  std::vector<Sampler> samplers;
+};
+
+// Represent the set of shader resources to be bound by a list of shader arguments
+struct ShaderSignature {
+  // index as implicit register space
+  std::vector<ShaderParameter> param_table;
+  // TODO  support static samplers
+};
+
+struct ShaderArgumentValue {
+  constexpr static size_t c_buf_max = 8;
+  // TODO make this inplace memory
+  v_array<BufferHandle, c_buf_max> const_buffers;
+  v_array<BufferHandle, c_buf_max> shader_resources;
+  v_array<BufferHandle, c_buf_max> unordered_accesses;
+  // std::vector<void*> samplers;
+
+  size_t total_buffer_count() const {
+    return const_buffers.size() + shader_resources.size() + unordered_accesses.size();
+  }
+};
+
+struct RasterizationShaderMetaInfo {
+  ShaderSignature signature;
+};
+
+// Shader info for the entire raytracing pipeline
+struct RaytracingShaderMetaInfo {
+  ShaderSignature global_signature;
+  ShaderSignature raygen_signature;
+  ShaderSignature hitgroup_signature;
+  ShaderSignature miss_signature;
+};
 
 class Renderer : private NoCopy {
 public:
-  Renderer();
-  virtual ~Renderer() {};
+  Renderer() {}
+  virtual ~Renderer() {}
 
-  virtual ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) = 0;
-  virtual void set_viewport_clear_value(ViewportHandle viewport, Color color) = 0;
-  virtual void update_viewport_vsync(ViewportHandle viewport, bool enabled_vsync) = 0;
-  virtual void update_viewport_size(ViewportHandle viewport, int width, int height) = 0;
-  virtual void update_viewport_transform(ViewportHandle viewport, const Camera& camera) = 0;
+  //virtual ScreenTransformHandle create_viewport(SystemWindowID window_id, int width, int height) = 0;
+  virtual void set_viewport_clear_value(ScreenTransformHandle viewport, Color color) = 0;
+  virtual void update_viewport_vsync(ScreenTransformHandle viewport, bool enabled_vsync) = 0;
+  virtual void update_viewport_size(ScreenTransformHandle viewport, int width, int height) = 0;
+  virtual void update_viewport_transform(ScreenTransformHandle viewport, const Camera& camera) = 0;
 
   virtual GeometryHandle create_geometry(const Geometry& geo) = 0;
   virtual ModelHandle create_model(const Model& model) = 0;
-  virtual SceneHandle build_enviroment(const Scene& scene) = 0;
 
   virtual void prepare(Scene& scene) = 0;
-  virtual CullingResult cull(ViewportHandle viewport, const Scene& scene) = 0;
-  virtual void render(ViewportHandle viewport, CullingResult culling_result) = 0;
+  virtual CullingResult cull(ScreenTransformHandle viewport, const Scene& scene) = 0;
+  virtual void render(ScreenTransformHandle viewport, CullingResult culling_result) = 0;
 
 protected:
   // Convert from handle to data
   template <typename Handle, typename Data>
   std::shared_ptr<Data> get_data(Handle handle) {
     if (handle && (handle->owner == this)) {
-      // Pointer to forward-delcared class cannot be static up-cast, so we have to use reinterpret cast
-      //return std::static_pointer_cast<Data>(handle);
+      // Pointer to forward-delcared class cannot be static up-cast, so we have to use reinterpret
+      // cast
+      // return std::static_pointer_cast<Data>(handle);
       return std::reinterpret_pointer_cast<Data>(handle);
     }
     return nullptr;
   }
 };
-
-// A cross-platform renderer factory
-[[deprecated]] std::shared_ptr<Renderer> makeRenderer();
 
 } // namespace rei
 

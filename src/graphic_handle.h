@@ -11,17 +11,50 @@ namespace rei {
 
 class Renderer;
 
+enum class ResourceFormat {
+  Undefined,
+  R32G32B32A32_FLOAT,
+  B8G8R8A8_UNORM,
+  D24_UNORM_S8_UINT,
+  AcclerationStructure,
+  Count
+};
+
+enum class ResourceDimension {
+  Undefined,
+  Raw,
+  StructuredBuffer,
+  Texture1D,
+  Texture1DArray,
+  Texture2D,
+  Texture2DArray,
+  Texture3D,
+  AccelerationStructure,
+};
+
 struct GraphicData {
   GraphicData(Renderer* owner) : owner(owner) {}
   const Renderer const* owner; // as a marker
 };
 
-struct BaseViewportData : GraphicData {
+struct BaseScreenTransformData : GraphicData {
   using GraphicData::GraphicData;
   bool enable_vsync = false;
 };
 
+struct BaseSwapchainData : GraphicData {
+  using GraphicData::GraphicData;
+};
+
+struct BaseBufferData : GraphicData {
+  using GraphicData::GraphicData;
+};
+
 struct BaseShaderData : GraphicData {
+  using GraphicData::GraphicData;
+};
+
+struct BaseShaderArgument : GraphicData {
   using GraphicData::GraphicData;
 };
 
@@ -38,20 +71,19 @@ struct BaseGeometryData : GraphicData {
   using GraphicData::GraphicData;
 };
 
-struct BaseSceneData: GraphicData {
-  using GraphicData::GraphicData;
-};
-
 struct BaseCullingData : GraphicData {
   using GraphicData::GraphicData;
 };
 
-using ViewportHandle = std::shared_ptr<BaseViewportData>;
+using ScreenTransformHandle = std::shared_ptr<BaseScreenTransformData>;
+using SwapchainHandle = std::shared_ptr<BaseSwapchainData>;
+using BufferHandle = std::shared_ptr<BaseBufferData>;
+using ShaderArgumentHandle = std::shared_ptr<BaseShaderArgument>;
+
 using ShaderHandle = std::shared_ptr<BaseShaderData>;
 using GeometryHandle = std::shared_ptr<BaseGeometryData>;
 using MaterialHandle = std::shared_ptr<BaseMaterialData>;
 using ModelHandle = std::shared_ptr<BaseModelData>;
-using SceneHandle = std::shared_ptr<BaseSceneData>;
 using CullingResult = std::shared_ptr<BaseCullingData>;
 
 } // namespace rei

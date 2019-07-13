@@ -30,7 +30,7 @@ public:
   virtual ~Viewer() {};
 
   virtual void init_viewport(Renderer& renderer) = 0;
-  ViewportHandle get_viewport() const { return viewport; }
+  ScreenTransformHandle get_viewport() const { return viewport; }
 
   virtual void update_title(const std::wstring& title) = 0;
   void set_input_bus(std::weak_ptr<InputBus> input_bus) { this->input_bus = input_bus; }
@@ -55,7 +55,7 @@ protected:
 
   std::weak_ptr<InputBus> input_bus;
 
-  ViewportHandle viewport;
+  ScreenTransformHandle viewport;
 };
 
 [[deprecated]]

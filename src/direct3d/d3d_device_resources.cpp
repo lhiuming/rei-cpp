@@ -132,19 +132,25 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
 
 void DeviceResources::create_const_buffers(
   const ShaderData& shader, ShaderConstBuffers& const_buffers) {
+  /*
   const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*m_device.Get(), 1, true);
   UINT64 init_size = 128;
   const_buffers.per_object_CBs
     = make_shared<UploadBuffer<cbPerObject>>(*m_device.Get(), init_size, true);
   const_buffers.next_object_index = 0;
+  */
 }
 
-void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const ShaderMetaInfo& meta) {
-  {
-    // TODO return the cached root signature if property
-  }
+void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaInfo& meta) {
+  get_root_signature(meta.root_desc, root_sign);
+}
 
-  create_root_signature(meta.root_desc, root_sign);
+void DeviceResources::get_root_signature(const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
+  /*
+   * TODO maybe cache the root signatures
+   * NOTE: d3d12 seems already do caching root signature for identical DESC
+   */
+  create_root_signature(root_desc, root_sign);
 }
 
 void DeviceResources::create_root_signature(
@@ -171,12 +177,12 @@ void DeviceResources::create_root_signature(
 }
 
 void DeviceResources::get_pso(
-  const ShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
+  const RasterizationShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
   // inputs
   const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
-  const ShaderMetaInfo& meta = *shader.meta;
+  const RasterizationShaderMetaInfo& meta = *shader.meta;
   ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
 
   // Try to retried from cache
@@ -207,8 +213,8 @@ void DeviceResources::get_pso(
     desc.InputLayout = meta.input_layout;
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = rt_num; // used in the array below
-    desc.RTVFormats[0] = target_spec.rt_format;
-    desc.DSVFormat = meta.is_depth_stencil_null ? DXGI_FORMAT_UNKNOWN : target_spec.ds_format;
+    desc.RTVFormats[0] = target_spec.dxgi_rt_format;
+    desc.DSVFormat = meta.is_depth_stencil_null ? DXGI_FORMAT_UNKNOWN : target_spec.dxgi_ds_format;
     desc.SampleDesc = target_spec.sample_desc;
     desc.NodeMask = 0; // single GPU
     desc.CachedPSO.pCachedBlob

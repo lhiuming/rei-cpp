@@ -67,33 +67,44 @@ public:
   // ID3D12CommandAllocator& command_alloc() const { return *m_command_alloc.Get(); }
   // ID3D12GraphicsCommandList& command_list() const { return *m_draw_command_list.Get(); }
 
-  ID3D12DescriptorHeap*const* descriptor_heap_ptr() const { return m_descriotpr_heap.GetAddressOf(); }
+  ID3D12DescriptorHeap* const* descriptor_heap_ptr() const {
+    return m_descriotpr_heap.GetAddressOf();
+  }
   ID3D12DescriptorHeap* descriptor_heap() const { return m_descriotpr_heap.Get(); }
+  UINT descriptor_size() const { return m_descriptor_size; };
 
   // Naive descriptor allocator
-  UINT alloc_descriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
+  UINT alloc_descriptor(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
     D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
     ID3D12DescriptorHeap* heap = m_descriotpr_heap.Get();
     REI_ASSERT(heap);
-    UINT alloc_index = next_descriptor_index++;
-    REI_ASSERT(alloc_index < max_descriptor_num);
+    REI_ASSERT(next_descriptor_index + count < max_descriptor_num);
     if (cpu_descrioptor) {
       *cpu_descrioptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(
-        heap->GetCPUDescriptorHandleForHeapStart(), (INT)alloc_index, m_descriptor_size);
+        heap->GetCPUDescriptorHandleForHeapStart(), INT(next_descriptor_index), m_descriptor_size);
     }
     if (gpu_descriptor) {
       *gpu_descriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(
-        heap->GetGPUDescriptorHandleForHeapStart(), INT(alloc_index), m_descriptor_size);
+        heap->GetGPUDescriptorHandleForHeapStart(), INT(next_descriptor_index), m_descriptor_size);
     }
-    return alloc_index;
+    UINT head_alloc_index = next_descriptor_index;
+    next_descriptor_index += count;
+    return head_alloc_index;
+  }
+  UINT alloc_descriptor(D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
+    return alloc_descriptor(1, cpu_descrioptor, gpu_descriptor);
   }
 
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
   void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
-  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const ShaderMetaInfo& meta);
+  void get_root_signature(
+    ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaInfo& meta);
+  void get_root_signature(
+    const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-  void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec,
+  void get_pso(const RasterizationShaderData& shader, const RenderTargetSpec& target_spec,
     ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
@@ -142,7 +153,7 @@ private:
 
 } // namespace d3d
 
-} // namespace rei
+} // namespace d3d
 
 #endif
 

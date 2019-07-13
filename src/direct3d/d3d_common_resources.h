@@ -9,10 +9,13 @@
 #include <DirectXMath.h>
 #include <d3d12.h>
 #include <d3dx12.h>
+#include <dxgi1_4.h>
 #include <windows.h>
 #include <wrl.h>
 
 #include "../algebra.h"
+#include "../camera.h"
+#include "../model.h"
 #include "../color.h"
 #include "../common.h"
 #include "../renderer.h"
@@ -30,6 +33,62 @@ constexpr DXGI_FORMAT c_accel_struct_vertex_pos_format = DXGI_FORMAT_R32G32B32_F
 
 // Reminder: using right-hand coordinate throughout the pipeline
 constexpr bool is_right_handed = true;
+
+inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
+  switch (format) {
+    case rei::ResourceFormat::R32G32B32A32_FLOAT:
+      return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    case rei::ResourceFormat::Count:
+    default:
+      REI_ERROR("Unhandled format");
+      return DXGI_FORMAT_UNKNOWN;
+  }
+}
+
+inline static constexpr D3D12_SRV_DIMENSION to_srv_dimension(ResourceDimension dim) {
+  switch (dim) {
+    case rei::ResourceDimension::Raw:
+      return D3D12_SRV_DIMENSION_UNKNOWN;
+    case rei::ResourceDimension::StructuredBuffer:
+      return D3D12_SRV_DIMENSION_BUFFER;
+    case rei::ResourceDimension::Texture1D:
+      return D3D12_SRV_DIMENSION_TEXTURE1D;
+    case rei::ResourceDimension::Texture1DArray:
+      return D3D12_SRV_DIMENSION_TEXTURE1DARRAY;
+    case rei::ResourceDimension::Texture2D:
+      return D3D12_SRV_DIMENSION_TEXTURE2D;
+    case rei::ResourceDimension::Texture2DArray:
+      return D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+    case rei::ResourceDimension::Texture3D:
+      return D3D12_SRV_DIMENSION_TEXTURE3D;
+    default:
+      REI_ERROR("Unhandled case detected");
+      return D3D12_SRV_DIMENSION_UNKNOWN;
+  }
+}
+
+inline static constexpr D3D12_UAV_DIMENSION to_usv_dimension(ResourceDimension dim) {
+  switch (dim) {
+    case rei::ResourceDimension::Raw:
+      return D3D12_UAV_DIMENSION_UNKNOWN;
+    case rei::ResourceDimension::StructuredBuffer:
+      return D3D12_UAV_DIMENSION_BUFFER;
+      break;
+    case rei::ResourceDimension::Texture1D:
+      return D3D12_UAV_DIMENSION_TEXTURE1D;
+    case rei::ResourceDimension::Texture1DArray:
+      return D3D12_UAV_DIMENSION_TEXTURE1DARRAY;
+    case rei::ResourceDimension::Texture2D:
+      return D3D12_UAV_DIMENSION_TEXTURE2D;
+    case rei::ResourceDimension::Texture2DArray:
+      return D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
+    case rei::ResourceDimension::Texture3D:
+      return D3D12_UAV_DIMENSION_TEXTURE3D;
+    default:
+      REI_ERROR("Unhandled case detected");
+      return D3D12_UAV_DIMENSION_UNKNOWN;
+  }
+}
 
 inline static DirectX::XMFLOAT4 rei_to_D3D(const Vec4& v) {
   return DirectX::XMFLOAT4(v.x, v.y, v.z, v.h);
@@ -88,8 +147,10 @@ struct cbPerFrame {
 
 struct RenderTargetSpec {
   DXGI_SAMPLE_DESC sample_desc; // multi-sampling parameters
-  DXGI_FORMAT rt_format;
-  DXGI_FORMAT ds_format;
+  ResourceFormat rt_format;
+  ResourceFormat ds_format;
+  DXGI_FORMAT dxgi_rt_format;
+  DXGI_FORMAT dxgi_ds_format;
   D3D12_DEPTH_STENCIL_VALUE ds_clear;
   RenderTargetSpec();
 
@@ -104,11 +165,35 @@ struct RenderTargetSpec {
     // 5 bits
     std::size_t hash_sample = sample_desc.Count ^ (sample_desc.Quality << 4);
     // 16 bits
-    std::size_t hash_rt_ds_format = rt_format ^ (ds_format << 8);
+    std::size_t hash_rt_ds_format = dxgi_rt_format ^ (dxgi_ds_format << 8);
     // ignored
     std::size_t hash_ds_clear = 0;
     return hash_sample ^ (hash_rt_ds_format << 5);
   }
+};
+
+class ViewportResources;
+struct SwapchainData : BaseSwapchainData {
+  using BaseSwapchainData::BaseSwapchainData;
+  // TODO deelete the viewport-resource class
+  std::shared_ptr<ViewportResources> res;
+};
+
+struct BufferData : BaseBufferData {
+  using BaseBufferData::BaseBufferData;
+  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+};
+
+struct DefaultBufferData : BufferData {
+  using BufferData::BufferData;
+  ComPtr<ID3D12Resource> buffer;
+  DefaultBufferFormat meta;
+};
+
+struct ConstBufferData : BufferData {
+  using BufferData::BufferData;
+  std::unique_ptr<UploadBuffer> buffer;
+  ConstBufferLayout layout;
 };
 
 struct GeometryData : BaseGeometryData {
@@ -141,19 +226,14 @@ struct MeshData : GeometryData {
 
 class ViewportResources;
 
-struct ViewportData : BaseViewportData {
-  using BaseViewportData::BaseViewportData;
+struct ViewportData : BaseScreenTransformData {
+  using BaseScreenTransformData::BaseScreenTransformData;
   Vec3 pos = {};
   Mat4 view = Mat4::I();
   Mat4 view_proj = Mat4::I();
   std::array<FLOAT, 4> clear_color;
   D3D12_VIEWPORT d3d_viewport;
   D3D12_RECT scissor;
-
-  std::weak_ptr<ViewportResources> viewport_resources;
-
-  D3D12_CPU_DESCRIPTOR_HANDLE depth_buffer_srv_cpu;
-  D3D12_GPU_DESCRIPTOR_HANDLE depth_buffer_srv_gpu;
 
   void update_camera_transform(const Camera& cam) {
     REI_ASSERT(is_right_handed);
@@ -163,7 +243,17 @@ struct ViewportData : BaseViewportData {
   }
 };
 
-struct ShaderMetaInfo {
+inline static D3D12_ROOT_PARAMETER convert(ShaderParameter params, UINT space) {}
+
+struct RootSignatureDescMemory {
+  CD3DX12_ROOT_SIGNATURE_DESC desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
+  using ParamContainer = std::vector<CD3DX12_ROOT_PARAMETER>;
+  ParamContainer params;
+  using RangeContainer = std::vector<CD3DX12_DESCRIPTOR_RANGE>;
+  RangeContainer ranges;
+};
+
+struct RasterizationShaderMetaInfo {
   CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   bool is_depth_stencil_null = false;
@@ -171,11 +261,64 @@ struct ShaderMetaInfo {
   CD3DX12_ROOT_SIGNATURE_DESC root_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
   D3D12_INPUT_LAYOUT_DESC input_layout = {nullptr, 0};
 
-  ShaderMetaInfo() {
+  RasterizationShaderMetaInfo() {
     REI_ASSERT(is_right_handed);
     raster_state.FrontCounterClockwise = true;
     depth_stencil.DepthFunc
       = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
+  }
+};
+
+struct RayTracingShaderMetaInfo {
+  RootSignatureDescMemory global;
+  std::wstring hitgroup_name;
+  std::wstring closest_hit_name;
+  //std::wstring any_hit_name;
+  //std::wstring intersection_name;
+  RootSignatureDescMemory hitgroup;
+  std::wstring raygen_name;
+  RootSignatureDescMemory raygen;
+  std::wstring miss_name;
+  RootSignatureDescMemory miss;
+
+  RayTracingShaderMetaInfo() {}
+
+  RayTracingShaderMetaInfo(const rei::RaytracingShaderMetaInfo& meta) {
+    fill_signature(global, meta.global_signature);
+    fill_signature(hitgroup, meta.hitgroup_signature);
+    fill_signature(raygen, meta.raygen_signature);
+    fill_signature(miss, meta.miss_signature);
+  }
+
+  // Convert high-level shader signature to D3D12 Root Signature Desc
+  inline void fill_signature(RootSignatureDescMemory& desc, const ShaderSignature& signature) {
+    auto& param_table = signature.param_table;
+
+    auto& d3d_ranges = desc.ranges;
+    d3d_ranges.resize(param_table.size() * 4); // conservative max size
+    auto& d3d_params = desc.params;
+    d3d_params.resize(param_table.size());
+    for (int space = 0; space < param_table.size(); space++) {
+      auto& params = param_table[space];
+      size_t range_offset = d3d_ranges.size();
+      if (params.const_buffers.size())
+        d3d_ranges.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
+      if (params.shader_resources.size())
+        d3d_ranges.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
+      if (params.unordered_accesses.size())
+        d3d_ranges.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
+      if (params.samplers.size())
+        d3d_ranges.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
+
+      d3d_params[space].InitAsDescriptorTable(
+        d3d_ranges.size() - range_offset, &d3d_ranges[range_offset]);
+    }
+
+    desc.desc.Init(d3d_params.size(), d3d_params.data());
   }
 };
 
@@ -185,18 +328,58 @@ struct ShaderCompileResult {
 };
 
 struct ShaderConstBuffers {
-  std::unique_ptr<UploadBuffer<cbPerFrame>> per_frame_CB;
-  std::shared_ptr<UploadBuffer<cbPerObject>> per_object_CBs;
+  std::unique_ptr<UploadBuffer> per_frame_CB;
+  std::shared_ptr<UploadBuffer> per_object_CBs;
   // TODO more delicated management
   UINT next_object_index = UINT_MAX;
 };
 
 struct ShaderData : BaseShaderData {
   using BaseShaderData::BaseShaderData;
-  std::unique_ptr<ShaderMetaInfo> meta;
-  ShaderCompileResult compiled_data;
-  ShaderConstBuffers const_buffers;
   ComPtr<ID3D12RootSignature> root_signature;
+};
+
+struct ShaderArgumentData : BaseShaderArgument {
+  using BaseShaderArgument::BaseShaderArgument;
+
+  // support up to 4 root cbv
+  v_array<D3D12_GPU_VIRTUAL_ADDRESS, 4> cbvs;
+
+  D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor_gpu = {0};
+  D3D12_CPU_DESCRIPTOR_HANDLE base_descriptor_cpu = {0};
+  UINT alloc_index = -1;
+  UINT alloc_num = -1;
+};
+
+struct RasterizationShaderData : ShaderData {
+  using ShaderData::ShaderData;
+  std::unique_ptr<RasterizationShaderMetaInfo> meta;
+  ShaderCompileResult compiled_data;
+  [[deprecated]]
+  ShaderConstBuffers const_buffers;
+};
+
+struct RaytracingShaderData : ShaderData {
+  using ShaderData::ShaderData;
+  RayTracingShaderMetaInfo meta;
+
+  struct LocalShaderData {
+    ComPtr<ID3D12RootSignature> root_signature;
+    void* shader_id;
+  };
+  LocalShaderData raygen;
+  LocalShaderData hitgroup;
+  LocalShaderData miss;
+
+  ComPtr<ID3D12StateObject> pso;
+};
+
+struct RaytracingShaderTableData : BaseBufferData {
+  using BaseBufferData ::BaseBufferData;
+  std::shared_ptr<RaytracingShaderData> shader;
+  std::shared_ptr<ShaderTable> raygen;
+  std::shared_ptr<ShaderTable> hitgroup;
+  std::shared_ptr<ShaderTable> miss;
 };
 
 struct MaterialData : BaseMaterialData {
@@ -221,15 +404,9 @@ struct ModelData : BaseModelData {
   }
 };
 
-// Data proxy for all obejct in a scene
-struct SceneData : BaseSceneData {
-  using BaseSceneData::BaseSceneData;
-};
-
 struct CullingData : BaseCullingData {
   using BaseCullingData::BaseCullingData;
   std::vector<ModelData> models;
-  std::shared_ptr<SceneData> scene;
 };
 
 } // namespace d3d

@@ -1,0 +1,108 @@
+#ifndef REI_CONTAINER_UTILS_H
+#define REI_CONTAINER_UTILS_H
+
+#include <array>
+#include <initializer_list>
+
+#include "debug.h"
+
+namespace rei {
+
+template <typename T, size_t N>
+class v_array : private std::array<T, N> {
+  using Self = v_array;
+  using Base = std::array<T, N>;
+  using Containter = std::array<T, N>;
+  using C = Containter;
+
+public:
+  using C::const_pointer;
+  using C::const_reference;
+  using C::difference_type;
+  using C::pointer;
+  using C::reference;
+  using C::size_type;
+  using C::value_type;
+  // TODO iterator
+
+  class const_iterator { // iterator for nonmutable array
+    using Self = const_iterator;
+
+  public:
+    // TODO support random access
+    // using iterator_category = random_access_iterator_tag;
+    using iterator_category = std::bidirectional_iterator_tag;
+    using pointer = const T*;
+    using reference = const T&;
+
+    const_iterator(pointer p, size_type i) : ptr(p), idx(i) {}
+
+    reference operator*() const { return *operator->(); }
+    pointer operator->() const { return ptr + idx; }
+
+    Self& operator++() {
+      ++idx;
+      return *this;
+    }
+
+    Self operator++(int) { return Self(ptr, idx++); }
+
+    Self& operator--() {
+      --idx;
+      return *this;
+    }
+
+    Self operator--(int) { return Self(ptr, idx--); }
+
+    bool operator==(const Self& rhs) const {
+      validate(rhs);
+      return idx == rhs.idx;
+    }
+    bool operator!=(const Self& rhs) const { return !(*this == rhs); }
+
+    bool operator<(const Self& rhs) const {
+      validate(rhs);
+      return idx < rhs.idx;
+    }
+    bool operator>(const Self& rhs) const { return *this < rhs; }
+    bool operator<=(const Self& rhs) const { return !(rhs < *this); }
+    bool operator>=(const Self& rhs) const { return !(*this < rhs); }
+
+  private:
+    pointer ptr = nullptr;
+    size_t idx = 0;
+
+    void validate(const Self& rhs) const { REI_ASSERT(ptr == rhs.ptr); }
+  };
+
+  v_array() {}
+
+  v_array(size_t size) : m_size(size) {}
+
+  constexpr v_array(const std::initializer_list<T>& l) : m_size(l.size()) {
+    REI_ASSERT(l.size() <= N);
+    //static_assert(M <= N, "initializer size is greater than v_array max size");
+    std::copy(l.begin(), l.end(), ((Base*)this)->begin());
+  }
+
+  // TODO do we need modifiable iterator?
+  const_iterator cbegin() const { return const_iterator(this->data(), 0); }
+  const_iterator begin() const { return const_iterator(this->data(), 0); }
+  const_iterator cend() const { return const_iterator(this->data(), N); }
+  const_iterator end() const { return const_iterator(this->data(), N); }
+
+  constexpr reference operator[](size_type i) { return ((Base*)this)->operator[](i); }
+  constexpr const_reference operator[](size_type i) const { return const_cast<Self*>(this)->operator[](i); }
+
+  size_type size() const { return m_size; }
+  constexpr size_type max_size() const { return N; }
+
+  using Base::data;
+
+private:
+  size_type m_size = 0;
+};
+
+} // namespace rei
+
+#endif

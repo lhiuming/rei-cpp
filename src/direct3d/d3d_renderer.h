@@ -54,21 +54,55 @@ public:
   Renderer(HINSTANCE hinstance, Options options = {});
   ~Renderer() override;
 
-  ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) override;
-  void set_viewport_clear_value(ViewportHandle viewport, Color color) override;
-  void update_viewport_vsync(ViewportHandle viewport, bool enabled_vsync) override;
-  void update_viewport_size(ViewportHandle viewport, int width, int height) override;
-  void update_viewport_transform(ViewportHandle viewport, const Camera& camera) override;
+  SwapchainHandle create_swapchain(SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
+  BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
+  BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
-  ShaderHandle create_shader(std::wstring shader_path, std::unique_ptr<ShaderMetaInfo>&& meta);
+  ScreenTransformHandle create_viewport(int width, int height);
+  void set_viewport_clear_value(ScreenTransformHandle viewport, Color color) override;
+  void update_viewport_vsync(ScreenTransformHandle viewport, bool enabled_vsync) override;
+  void update_viewport_size(ScreenTransformHandle viewport, int width, int height) override;
+  void update_viewport_transform(ScreenTransformHandle viewport, const Camera& camera) override;
+
+  BufferHandle create_unordered_access_buffer_2d(
+    size_t width, size_t height, ResourceFormat format);
+  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num);
+
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
+
+  ShaderHandle create_shader(
+    const std::wstring& shader_path, std::unique_ptr<RasterizationShaderMetaInfo>&& meta);
+  ShaderHandle create_raytracing_shader(
+    const std::wstring& shader_path, std::unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta);
+
+  ShaderArgumentHandle create_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value);
+  void update_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
 
   GeometryHandle create_geometry(const Geometry& geometry) override;
   ModelHandle create_model(const Model& model) override;
-  SceneHandle build_enviroment(const Scene& scene) override;
+
+  BufferHandle create_raytracing_accel_struct(const Scene& scene);
+  BufferHandle create_shder_table(const Scene& scene, ShaderHandle raytracing_shader);
+
+  //void update_raygen_shader_record();
+  void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
+
+  void begin_render();
+  void close_cmd_list();
+  void end_render();
+
+  using ShaderArguments = v_array<ShaderArgumentHandle, 8>;
+  void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table, size_t width, size_t height, size_t depth = 1);
+  void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
+
+  void present(SwapchainHandle handle, bool vsync);
+
+  DeviceResources& device() const { return *device_resources; }
 
   void prepare(Scene& scene) override;
-  CullingResult cull(ViewportHandle viewport, const Scene& scene) override;
-  void render(ViewportHandle viewport, CullingResult culling_result) override;
+  CullingResult cull(ScreenTransformHandle viewport, const Scene& scene) override;
+  void render(ScreenTransformHandle viewport, CullingResult culling_result) override;
 
 protected:
   HINSTANCE hinstance;
@@ -79,7 +113,9 @@ protected:
   // some const config
   constexpr static VectorTarget model_trans_target = VectorTarget::Column;
 
-  std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
+  // TODO make unique
+  std::shared_ptr<DeviceResources> device_resources;
+  // TODO deprecate this
   std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
 
   std::shared_ptr<MeshData> default_geometry;
@@ -95,21 +131,16 @@ protected:
   ShaderHandle deferred_shading_pass;
 
   // Ray Tracing Resources //
-
-  ComPtr<ID3D12Resource> scratch_buffer;
-  ComPtr<ID3D12Resource> tlas_buffer;
-
   UINT next_tlas_instance_id = 0;
   UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
 
-  std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
+  // std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
 
   ComPtr<ID3D12Resource> raygen_shader_table;
   ComPtr<ID3D12Resource> miss_shader_table;
 
-  void* m_hitgroup_shader_id;
-  std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
-
+  // void* m_hitgroup_shader_id;
+  // std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
 
   void upload_resources();
   void render(ViewportData& viewport, CullingData& culling);
@@ -121,28 +152,52 @@ protected:
     const RenderTargetSpec* target_spec;
   };
 
-  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task, ShaderData* shader_override = nullptr);
+  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task,
+    ShaderData* shader_override = nullptr);
 
-  void build_raytracing_rootsignatures();
-  void build_raytracing_pso();
-  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count);
-  void build_shader_table();
+  void build_raytracing_pso(const std::wstring& shader_path,
+    const d3d::RayTracingShaderMetaInfo& meta, ComPtr<ID3D12StateObject>& pso);
+  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count,
+    ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
+
+  void set_const_buffer(
+    BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
+
   void update_shader_table(const ModelData* models, std::size_t count);
+
   void raytracing(ViewportData& viewport, CullingData& culling);
 
   // Debug support
   void create_default_assets();
 
-  std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) {
-    return get_data<ViewportHandle, ViewportData>(h);
+  // Handle conversion
+
+  std::shared_ptr<ViewportData> to_viewport(ScreenTransformHandle h) {
+    return get_data<ScreenTransformHandle, ViewportData>(h);
   }
+
+  std::shared_ptr<SwapchainData> to_swapchain(SwapchainHandle h) {
+    return get_data<SwapchainHandle, SwapchainData>(h);
+  }
+
   std::shared_ptr<CullingData> to_culling(CullingResult h) {
     return get_data<CullingResult, CullingData>(h);
   }
   std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
-  std::shared_ptr<ShaderData> to_shader(ShaderHandle h) {
-    return get_data<ShaderHandle, ShaderData>(h);
+  template <typename BufferType>
+  std::shared_ptr<BufferType> to_buffer(BufferHandle h) {
+    return get_data<BufferHandle, BufferType>(h);
   }
+
+  template <typename T>
+  std::shared_ptr<T> to_shader(ShaderHandle h) {
+    return get_data<ShaderHandle, T>(h);
+  }
+
+  std::shared_ptr<ShaderArgumentData> to_argument(ShaderArgumentHandle h) {
+    return get_data<ShaderArgumentHandle, ShaderArgumentData>(h);
+  }
+
   template <typename DataType>
   std::shared_ptr<DataType> to_geometry(GeometryHandle h) {
     return get_data<GeometryHandle, DataType>(h);

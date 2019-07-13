@@ -46,10 +46,12 @@ public:
   virtual ModelsConstRef get_models() const { return models; }
   virtual ModelsRef get_models() { return models; }
 
+  /*
   void set_graphic_handle(const SceneHandle& handle) { m_graphic_handle = handle; }
   void set_graphic_handle(SceneHandle&& handle) { m_graphic_handle = handle; }
   const SceneHandle& get_graphic_handle() const { return m_graphic_handle; }
   const SceneHandle& graphic_handle() const { return m_graphic_handle; }
+  */
 
   // Debug info
   virtual std::wstring summary() const { return L"Base Scene"; }
@@ -62,7 +64,7 @@ protected:
   Name name = L"Scene-Un-Named";
   ModelContainer models;
 
-  SceneHandle m_graphic_handle;
+  //SceneHandle m_graphic_handle;
 };
 
 } // namespace REI

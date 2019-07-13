@@ -69,7 +69,7 @@ void WinApp::initialize_scene() {
     m->set_rendering_handle(h_model);
   }
 
-  m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
+  //m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
 }
 
 void WinApp::start() {
@@ -172,7 +172,7 @@ void WinApp::render() {
 
 void WinApp::on_render() {
   m_renderer->prepare(*m_scene);
-  ViewportHandle viewport = m_viewer->get_viewport();
+  ScreenTransformHandle viewport = m_viewer->get_viewport();
   m_renderer->update_viewport_transform(viewport, *m_camera);
   auto culling_result = m_renderer->cull(viewport, *m_scene);
   m_renderer->render(viewport, culling_result);

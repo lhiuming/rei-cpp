@@ -32,7 +32,7 @@ public:
   ~WinViewer();
 
   void init_viewport(Renderer& renderer) override {
-    REI_UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
+    //REI_UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
   }
 
   bool is_destroyed() const override { return m_is_destroyed; }
