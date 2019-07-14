@@ -1,7 +1,7 @@
 #ifndef REI_SHADER_STRUCT_H
 #define REI_SHADER_STRUCT_H
 
-#include <vector>;
+#include <vector>
 
 namespace rei {
 

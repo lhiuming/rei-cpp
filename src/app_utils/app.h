@@ -1,6 +1,11 @@
 #ifndef rei_APP_H
 #define rei_APP_H
 
+#include <unordered_map>
+
+#include "../renderer.h"
+#include "../render_pipeline.h"
+
 #if WIN32
 
 #include "win_app.h"
@@ -10,8 +15,8 @@
 #endif
 
 namespace rei {
-  using App = WinApp;
-}
+using App = WinApp;
+} // namespace rei
 
 #endif
 

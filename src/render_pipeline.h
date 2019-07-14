@@ -4,7 +4,7 @@
 #include <memory>
 
 #include "graphic_handle.h"
-#include "renderer.h";
+#include "renderer.h"
 
 namespace rei {
 
@@ -14,17 +14,18 @@ struct ViewportConfig {
 };
 
 struct SceneConfig {
-  const Scene& scene;
+  const Scene* scene;
 };
 
-template<typename ViewportData, typename SceneData>
 class RenderPipeline {
+  using PtrType = std::uintptr_t;
 public:
-  using ViewportHandle = std::weak_ptr<ViewportData>;
+  using ViewportHandle = PtrType;
+  using SceneHandle = PtrType;
+
   virtual ViewportHandle register_viewport(ViewportConfig conf) = 0;
   virtual void remove_viewport(ViewportHandle viewport) = 0;
 
-  using SceneHandle = std::weak_ptr<SceneData>;
   virtual SceneHandle register_scene(SceneConfig conf) = 0;
   virtual void remove_scene(SceneHandle scene) = 0;
   virtual void add_model(SceneHandle scene, ModelHandle model) = 0;
@@ -35,6 +36,5 @@ public:
 };
 
 } // namespace rei
-
 
 #endif

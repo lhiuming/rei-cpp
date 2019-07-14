@@ -8,6 +8,8 @@
 #include "../debug.h"
 #include "../rmath.h"
 
+#include "../render_pipelines/rt_path_tracing.h"
+
 using std::make_shared;
 using std::make_unique;
 using std::shared_ptr;
@@ -24,18 +26,34 @@ WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer)
   m_input_bus = make_unique<InputBus>();
 
   // Default renderer
-  if (m_renderer == nullptr) { m_renderer = make_unique<d3d::Renderer>(hinstance); }
+  if (m_renderer == nullptr) { 
+    d3d::Renderer::Options r_opts = {};
+    r_opts.enable_realtime_raytracing = true;
+    m_renderer = make_shared<d3d::Renderer>(hinstance, r_opts); 
+  }
+  m_pipeline = make_shared<RealtimePathTracingPipeline>(m_renderer);
 
   // Default viewer
   m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
-  m_viewer->init_viewport(*m_renderer);
   m_viewer->set_input_bus(m_input_bus);
-  m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
+  {
+    ViewportConfig conf = {};
+    conf.window_id = m_viewer->get_window_id();
+    conf.width = config.width;
+    conf.height = config.height;
+    m_viewport_h = m_pipeline->register_viewport(conf);
+  }
+  // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
 
   // Create default scene and camera
   m_scene = make_unique<Scene>();
   m_camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
   m_camera->set_aspect(config.width, config.height);
+  {
+    SceneConfig conf {};
+    conf.scene = m_scene.get();
+    m_pipeline->register_scene(conf);
+  }
 }
 
 WinApp::~WinApp() {
@@ -69,7 +87,7 @@ void WinApp::initialize_scene() {
     m->set_rendering_handle(h_model);
   }
 
-  //m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
+  // m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
 }
 
 void WinApp::start() {
@@ -82,7 +100,7 @@ void WinApp::start() {
 
 void WinApp::on_start() {
   // init camera control
-  if (config.default_camera_control_enabled) { 
+  if (config.default_camera_control_enabled) {
     double init_target_dist = m_camera->position().norm();
     camera_target = m_camera->position() + m_camera->forward() * init_target_dist;
   }
@@ -171,11 +189,13 @@ void WinApp::render() {
 }
 
 void WinApp::on_render() {
-  m_renderer->prepare(*m_scene);
-  ScreenTransformHandle viewport = m_viewer->get_viewport();
-  m_renderer->update_viewport_transform(viewport, *m_camera);
-  auto culling_result = m_renderer->cull(viewport, *m_scene);
-  m_renderer->render(viewport, culling_result);
+  m_pipeline->render(m_viewport_h, m_scene_h);
+
+  // m_renderer->prepare(*m_scene);
+  // ScreenTransformHandle viewport = m_viewer->get_viewport();
+  // m_renderer->update_viewport_transform(viewport, *m_camera);
+  // auto culling_result = m_renderer->cull(viewport, *m_scene);
+  // m_renderer->render(viewport, culling_result);
 }
 
 void WinApp::run() {

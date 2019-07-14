@@ -8,12 +8,12 @@
 #include <windows.h>
 #endif
 
-#include "container_utils.h"
-#include "type_utils.h"
-#include "color.h"
 #include "camera.h"
+#include "color.h"
+#include "container_utils.h"
 #include "graphic_handle.h"
 #include "shader_struct.h"
+#include "type_utils.h"
 
 /*
  * renderer.h
@@ -36,6 +36,49 @@ struct SystemWindowID {
     HWND hwnd;
   } value;
 };
+
+} // namespace rei
+
+namespace std {
+
+/*
+ *hasher and equalizer for system window id
+ */
+
+template<>
+struct hash<rei::SystemWindowID> {
+  using T = typename rei::SystemWindowID;
+  using Platform = typename rei::SystemWindowID::Platform;
+  std::size_t operator()(const rei::SystemWindowID& id) const {
+    switch (id.platform) {
+      case Platform::Win:
+        return size_t(id.value.hwnd);
+      default:
+        REI_ASSERT("Unhandled platform case");
+        return 0;
+    }
+  }
+};
+
+template<>
+struct equal_to<rei::SystemWindowID> {
+  using T = typename rei::SystemWindowID;
+  using Platform = typename rei::SystemWindowID::Platform;
+  bool operator()(const T& lhs, const T& rhs) const {
+    if (lhs.platform != rhs.platform) return false;
+    switch (lhs.platform) {
+      case Platform::Win:
+        return lhs.value.hwnd == rhs.value.hwnd;
+      default:
+        REI_ASSERT("Unhandled platform case");
+        return false;
+    }
+  }
+};
+
+} // namespace std
+
+namespace rei {
 
 // Pramater types
 // NOTE: each represent a range type in descriptor table
@@ -91,7 +134,8 @@ public:
   Renderer() {}
   virtual ~Renderer() {}
 
-  //virtual ScreenTransformHandle create_viewport(SystemWindowID window_id, int width, int height) = 0;
+  // virtual ScreenTransformHandle create_viewport(SystemWindowID window_id, int width, int height)
+  // = 0;
   virtual void set_viewport_clear_value(ScreenTransformHandle viewport, Color color) = 0;
   virtual void update_viewport_vsync(ScreenTransformHandle viewport, bool enabled_vsync) = 0;
   virtual void update_viewport_size(ScreenTransformHandle viewport, int width, int height) = 0;

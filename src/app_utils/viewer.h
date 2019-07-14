@@ -1,16 +1,13 @@
-#ifndef rei_VIEWER_H
-#define rei_VIEWER_H
+#ifndef REI_VIEWER_H
+#define REI_VIEWER_H
 
 #include <cstddef>
 #include <string>
 #include <vector>
 #include <memory>
 
-#include "../common.h"
 #include "../console.h"
 #include "../input.h"
-#include "../camera.h"
-#include "../scene.h"
 #include "../renderer.h"
 
 /**
@@ -29,8 +26,7 @@ public:
     : m_width(window_w), m_height(window_h), m_title(title) {}
   virtual ~Viewer() {};
 
-  virtual void init_viewport(Renderer& renderer) = 0;
-  ScreenTransformHandle get_viewport() const { return viewport; }
+  virtual SystemWindowID get_window_id() const = 0;
 
   virtual void update_title(const std::wstring& title) = 0;
   void set_input_bus(std::weak_ptr<InputBus> input_bus) { this->input_bus = input_bus; }
@@ -41,25 +37,12 @@ public:
 
   virtual bool is_destroyed() const = 0;
 
-  [[deprecated]]
-  void set_renderer(std::shared_ptr<Renderer> renderer) { REI_DEPRECATED }
-  void set_scene(std::shared_ptr<Scene> scene) { REI_DEPRECATED }
-  void set_camera(std::shared_ptr<Camera> cam) { REI_DEPRECATED }
-
-  [[deprecated]]
-  virtual void run() { REI_DEPRECATED }
-
 protected:
   std::size_t m_width, m_height;
   std::wstring m_title = L"No Title";
 
   std::weak_ptr<InputBus> input_bus;
-
-  ScreenTransformHandle viewport;
 };
-
-[[deprecated]]
-std::shared_ptr<Viewer> makeViewer(size_t window_w, size_t window_h, std::string title);
 
 }
 
