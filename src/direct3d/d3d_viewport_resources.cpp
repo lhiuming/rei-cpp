@@ -87,6 +87,7 @@ void ViewportResources::create_size_dependent_resources() {
      * NOTE: In DX12, IDXGIDevice is not available anymore, so IDXGIFactory/IDXGIAdaptor has to be
      * created/specified, rather than being found through IDXGIDevice.
      */
+    ComPtr<IDXGISwapChain1> base_swapchain;
     DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc = {}; // use it if you need fullscreen
     fullscreen_desc.RefreshRate.Numerator = 60;
     fullscreen_desc.RefreshRate.Denominator = 1;
@@ -107,7 +108,10 @@ void ViewportResources::create_size_dependent_resources() {
     hr = dxgi_factory->CreateSwapChainForHwnd(this->command_queue(), hwnd, &chain_desc,
       NULL, // windowed app
       NULL, // optional
-      &m_swapchain);
+      &base_swapchain);
+    REI_ASSERT(SUCCEEDED(hr));
+
+    hr = base_swapchain.As(&m_swapchain);
     REI_ASSERT(SUCCEEDED(hr));
 
     DefaultBufferFormat meta;
@@ -116,11 +120,15 @@ void ViewportResources::create_size_dependent_resources() {
     D3D12_RENDER_TARGET_VIEW_DESC* default_rtv_desc = nullptr; // default initialization
     for (UINT i = 0; i < swapchain_buffer_count; i++) {
       hr = m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_rt_buffers[i]->buffer));
+#if DEBUG
+      REI_ASSERT(SUCCEEDED(m_rt_buffers[i]->buffer->SetName(rt_buffer_names[i])));
+#endif
       m_rt_buffers[i]->state = D3D12_RESOURCE_STATE_PRESENT;
       m_rt_buffers[i]->meta = meta;
       REI_ASSERT(SUCCEEDED(hr));
       device->CreateRenderTargetView(m_rt_buffers[i]->buffer.Get(), default_rtv_desc, get_rtv(i));
     }
+
   }
 
   // Create depth stencil buffer and view
@@ -147,6 +155,10 @@ void ViewportResources::create_size_dependent_resources() {
       &optimized_clear, IID_PPV_ARGS(&m_ds_buffer->buffer));
     REI_ASSERT(SUCCEEDED(hr));
 
+    #if DEBUG
+    REI_ASSERT(SUCCEEDED(m_ds_buffer->buffer->SetName(ds_buffer_name)));
+    #endif
+
     DefaultBufferFormat meta;
     meta.dimension = ResourceDimension::Texture2D;
     meta.format = m_target_spec.ds_format;
@@ -158,7 +170,8 @@ void ViewportResources::create_size_dependent_resources() {
     device->CreateDepthStencilView(m_ds_buffer->buffer.Get(), p_dsv_desc, get_dsv());
   }
 
-  // Create UAV buffer for raytracing output (raygen shader)
+  // update to current "current" index
+  current_back_buffer_index = m_swapchain->GetCurrentBackBufferIndex();
  }
 
 void ViewportResources::update_size(int width, int height) {

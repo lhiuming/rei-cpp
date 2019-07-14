@@ -49,11 +49,6 @@ WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer)
   m_scene = make_unique<Scene>();
   m_camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
   m_camera->set_aspect(config.width, config.height);
-  {
-    SceneConfig conf {};
-    conf.scene = m_scene.get();
-    m_pipeline->register_scene(conf);
-  }
 }
 
 WinApp::~WinApp() {
@@ -87,7 +82,11 @@ void WinApp::initialize_scene() {
     m->set_rendering_handle(h_model);
   }
 
-  // m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
+  {
+    SceneConfig conf {};
+    conf.scene = m_scene.get();
+    m_scene_h = m_pipeline->register_scene(conf);
+  }
 }
 
 void WinApp::start() {
@@ -189,6 +188,9 @@ void WinApp::render() {
 }
 
 void WinApp::on_render() {
+  // update camera
+  m_pipeline->transform_viewport(m_viewport_h, *m_camera);
+  // render
   m_pipeline->render(m_viewport_h, m_scene_h);
 
   // m_renderer->prepare(*m_scene);

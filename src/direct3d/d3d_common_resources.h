@@ -15,9 +15,9 @@
 
 #include "../algebra.h"
 #include "../camera.h"
-#include "../model.h"
 #include "../color.h"
 #include "../common.h"
+#include "../model.h"
 #include "../renderer.h"
 #include "d3d_utils.h"
 
@@ -36,9 +36,15 @@ constexpr bool is_right_handed = true;
 
 inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
   switch (format) {
-    case rei::ResourceFormat::R32G32B32A32_FLOAT:
+    case ResourceFormat::R32G32B32A32_FLOAT:
       return DXGI_FORMAT_R32G32B32A32_FLOAT;
-    case rei::ResourceFormat::Count:
+    case ResourceFormat::B8G8R8A8_UNORM:
+      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    case ResourceFormat::D24_UNORM_S8_UINT:
+      return DXGI_FORMAT_D24_UNORM_S8_UINT;
+    case ResourceFormat::AcclerationStructure:
+      return DXGI_FORMAT_UNKNOWN;
+    case ResourceFormat::Count:
     default:
       REI_ERROR("Unhandled format");
       return DXGI_FORMAT_UNKNOWN;
@@ -47,20 +53,23 @@ inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
 
 inline static constexpr D3D12_SRV_DIMENSION to_srv_dimension(ResourceDimension dim) {
   switch (dim) {
-    case rei::ResourceDimension::Raw:
+    case ResourceDimension::Undefined:
+    case ResourceDimension::Raw:
       return D3D12_SRV_DIMENSION_UNKNOWN;
-    case rei::ResourceDimension::StructuredBuffer:
+    case ResourceDimension::StructuredBuffer:
       return D3D12_SRV_DIMENSION_BUFFER;
-    case rei::ResourceDimension::Texture1D:
+    case ResourceDimension::Texture1D:
       return D3D12_SRV_DIMENSION_TEXTURE1D;
-    case rei::ResourceDimension::Texture1DArray:
+    case ResourceDimension::Texture1DArray:
       return D3D12_SRV_DIMENSION_TEXTURE1DARRAY;
-    case rei::ResourceDimension::Texture2D:
+    case ResourceDimension::Texture2D:
       return D3D12_SRV_DIMENSION_TEXTURE2D;
-    case rei::ResourceDimension::Texture2DArray:
+    case ResourceDimension::Texture2DArray:
       return D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-    case rei::ResourceDimension::Texture3D:
+    case ResourceDimension::Texture3D:
       return D3D12_SRV_DIMENSION_TEXTURE3D;
+    case ResourceDimension::AccelerationStructure:
+      return D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     default:
       REI_ERROR("Unhandled case detected");
       return D3D12_SRV_DIMENSION_UNKNOWN;
@@ -69,6 +78,7 @@ inline static constexpr D3D12_SRV_DIMENSION to_srv_dimension(ResourceDimension d
 
 inline static constexpr D3D12_UAV_DIMENSION to_usv_dimension(ResourceDimension dim) {
   switch (dim) {
+    case rei::ResourceDimension::Undefined:
     case rei::ResourceDimension::Raw:
       return D3D12_UAV_DIMENSION_UNKNOWN;
     case rei::ResourceDimension::StructuredBuffer:
@@ -84,6 +94,8 @@ inline static constexpr D3D12_UAV_DIMENSION to_usv_dimension(ResourceDimension d
       return D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
     case rei::ResourceDimension::Texture3D:
       return D3D12_UAV_DIMENSION_TEXTURE3D;
+    case rei::ResourceDimension::AccelerationStructure:
+      return D3D12_UAV_DIMENSION_UNKNOWN;
     default:
       REI_ERROR("Unhandled case detected");
       return D3D12_UAV_DIMENSION_UNKNOWN;
@@ -243,13 +255,13 @@ struct ViewportData : BaseScreenTransformData {
   }
 };
 
-inline static D3D12_ROOT_PARAMETER convert(ShaderParameter params, UINT space) {}
-
 struct RootSignatureDescMemory {
   CD3DX12_ROOT_SIGNATURE_DESC desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
-  using ParamContainer = std::vector<CD3DX12_ROOT_PARAMETER>;
+  // probably no more than 4 space
+  using ParamContainer = v_array<CD3DX12_ROOT_PARAMETER, 4>;
   ParamContainer params;
-  using RangeContainer = std::vector<CD3DX12_DESCRIPTOR_RANGE>;
+  // probably no more than 4 space * 4 range-types
+  using RangeContainer = v_array<CD3DX12_DESCRIPTOR_RANGE, 16>;
   RangeContainer ranges;
 };
 
@@ -273,8 +285,8 @@ struct RayTracingShaderMetaInfo {
   RootSignatureDescMemory global;
   std::wstring hitgroup_name;
   std::wstring closest_hit_name;
-  //std::wstring any_hit_name;
-  //std::wstring intersection_name;
+  // std::wstring any_hit_name;
+  // std::wstring intersection_name;
   RootSignatureDescMemory hitgroup;
   std::wstring raygen_name;
   RootSignatureDescMemory raygen;
@@ -283,42 +295,51 @@ struct RayTracingShaderMetaInfo {
 
   RayTracingShaderMetaInfo() {}
 
-  RayTracingShaderMetaInfo(const rei::RaytracingShaderMetaInfo& meta) {
-    fill_signature(global, meta.global_signature);
+  RayTracingShaderMetaInfo(rei::RaytracingShaderMetaInfo&& meta)
+      : hitgroup_name(std::move(meta.hitgroup_name)),
+        closest_hit_name(std::move(meta.closest_hit_name)),
+        raygen_name(std::move(meta.raygen_name)),
+        miss_name(std::move(meta.miss_name)) {
+    fill_signature(global, meta.global_signature, true);
     fill_signature(hitgroup, meta.hitgroup_signature);
     fill_signature(raygen, meta.raygen_signature);
     fill_signature(miss, meta.miss_signature);
   }
 
   // Convert high-level shader signature to D3D12 Root Signature Desc
-  inline void fill_signature(RootSignatureDescMemory& desc, const ShaderSignature& signature) {
+  inline void fill_signature(
+    RootSignatureDescMemory& desc, const ShaderSignature& signature, bool global = false) {
     auto& param_table = signature.param_table;
 
-    auto& d3d_ranges = desc.ranges;
-    d3d_ranges.resize(param_table.size() * 4); // conservative max size
-    auto& d3d_params = desc.params;
-    d3d_params.resize(param_table.size());
+    auto& ranges = desc.ranges;
+    ranges.clear();
+    auto& params_descs = desc.params;
+    params_descs.clear();
+
     for (int space = 0; space < param_table.size(); space++) {
       auto& params = param_table[space];
-      size_t range_offset = d3d_ranges.size();
+      size_t range_offset = ranges.size();
+
       if (params.const_buffers.size())
-        d3d_ranges.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
+        ranges.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
       if (params.shader_resources.size())
-        d3d_ranges.emplace_back(
+        ranges.emplace_back(
           D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
       if (params.unordered_accesses.size())
-        d3d_ranges.emplace_back(
+        ranges.emplace_back(
           D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
       if (params.samplers.size())
-        d3d_ranges.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
+        ranges.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
 
-      d3d_params[space].InitAsDescriptorTable(
-        d3d_ranges.size() - range_offset, &d3d_ranges[range_offset]);
+      UINT new_range_count = UINT(ranges.size() - range_offset);
+      if (new_range_count > 0) {
+        params_descs.emplace_back().InitAsDescriptorTable(new_range_count, &ranges[range_offset]);
+      }
     }
 
-    desc.desc.Init(d3d_params.size(), d3d_params.data());
+    D3D12_ROOT_SIGNATURE_FLAGS flags
+      = global ? D3D12_ROOT_SIGNATURE_FLAG_NONE : D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+    desc.desc.Init(params_descs.size(), params_descs.data(), 0, nullptr, flags);
   }
 };
 
@@ -355,8 +376,7 @@ struct RasterizationShaderData : ShaderData {
   using ShaderData::ShaderData;
   std::unique_ptr<RasterizationShaderMetaInfo> meta;
   ShaderCompileResult compiled_data;
-  [[deprecated]]
-  ShaderConstBuffers const_buffers;
+  [[deprecated]] ShaderConstBuffers const_buffers;
 };
 
 struct RaytracingShaderData : ShaderData {
@@ -365,7 +385,7 @@ struct RaytracingShaderData : ShaderData {
 
   struct LocalShaderData {
     ComPtr<ID3D12RootSignature> root_signature;
-    void* shader_id;
+    const void* shader_id;
   };
   LocalShaderData raygen;
   LocalShaderData hitgroup;

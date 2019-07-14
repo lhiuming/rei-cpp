@@ -20,7 +20,7 @@ struct GlobalSignatureLayout {
 struct RaygenRSLayout {};
 
 struct HitgroupRSLayout {
-  enum CBV { PerObjectCBV = 0, CBV_Count };
+  //enum CBV { PerObjectCBV = 0, CBV_Count };
   enum SRV { MeshIndexSRV = 0, MeshVertexSRV, SRV_Count };
 };
 
@@ -48,6 +48,7 @@ struct PerFrameConstantBuffer {
 
 constexpr wchar_t* c_hit_group_name = L"hit_group0";
 constexpr wchar_t* c_raygen_shader_name = L"raygen_shader";
+//constexpr wchar_t* c_raygen_shader_name = L"raygen_plain_color";
 constexpr wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
 constexpr wchar_t* c_miss_shader_name = L"miss_shader";
 
@@ -59,11 +60,16 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
     space0.unordered_accesses = {UnorderedAccess()};
 
     ShaderParameter space1 = {};
-    space1.const_buffers = {ConstBuffer()};
-    space1.shader_resources = {ShaderResource()};
+    //space1.const_buffers = {ConstBuffer()};
+    space1.shader_resources = {ShaderResource(), ShaderResource()};
 
     global_signature.param_table = {space0};
     hitgroup_signature.param_table = {{}, space1};
+
+    hitgroup_name = c_hit_group_name;
+    raygen_name = c_raygen_shader_name;
+    closest_hit_name = c_closest_hit_shader_name;
+    miss_name = c_miss_shader_name;
   }
 };
 
@@ -81,11 +87,10 @@ RealtimePathTracingPipeline::ViewportHandle RealtimePathTracingPipeline::registe
   auto viewport = make_shared<ViewportData>();
 
   viewport->swapchain = renderer->create_swapchain(conf.window_id, conf.width, conf.height, 2);
-  viewport->view_transform = renderer->create_viewport(conf.width, conf.height);
   viewport->width = conf.width;
   viewport->height = conf.height;
   viewport->raytracing_output_buffer = renderer->create_unordered_access_buffer_2d(
-    conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT);
+    conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM);
 
   {
     /*
@@ -118,6 +123,7 @@ void RealtimePathTracingPipeline::transform_viewport(ViewportHandle handle, cons
   // Record camera transforms
   viewport->view_matrix = camera.world_to_camera();
   viewport->view_proj_matrix = camera.world_to_device_halfz(); // TODO check if using direct3D
+  viewport->camera_pos = camera.position();
   viewport->camera_matrix_dirty = true;
 }
 
@@ -128,7 +134,12 @@ RealtimePathTracingPipeline::SceneHandle RealtimePathTracingPipeline::register_s
 
   // We need Top-Level Acceleration Structure and shader table, about the whole scene
   scene->tlas_buffer = renderer->create_raytracing_accel_struct(*conf.scene);
-  scene->shader_table = renderer->create_shder_table(*conf.scene, pathtracing_shader);
+  scene->shader_table = renderer->create_shader_table(*conf.scene, pathtracing_shader);
+
+  // set up model properties in the scene
+  for (auto& m : conf.scene->get_models()) {
+    scene->dirty_models.push_back(m->get_rendering_handle());
+  }
 
   auto handle = SceneHandle(scene.get());
   scenes.insert({handle, scene});
@@ -144,8 +155,11 @@ void RealtimePathTracingPipeline::add_model(SceneHandle scene_h, ModelHandle mod
 
 void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHandle scene_handle) {
   ViewportData* viewport = get_viewport(viewport_handle);
+  REI_ASSERT(viewport);
   SceneData* scene = get_scene(scene_handle);
+  REI_ASSERT(scene);
   Renderer* renderer = get_renderer();
+  REI_ASSERT(renderer);
 
   renderer->begin_render();
 
@@ -157,6 +171,7 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
     BufferHandle pre_render_buffer = viewport->per_render_buffer;
     if (viewport->camera_matrix_dirty) {
       cmd_list->update_const_buffer(pre_render_buffer, 0, 0, viewport->view_proj_matrix.inv());
+      cmd_list->update_const_buffer(pre_render_buffer, 0, 1, viewport->camera_pos);
       viewport->camera_matrix_dirty = false;
     }
   }
@@ -191,11 +206,11 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
     cmd_list->copy_texture(viewport->raytracing_output_buffer, rt_buffer);
   }
 
-  // Done and Present
-  renderer->present(viewport->swapchain, true);
+  // Done
+  renderer->present(viewport->swapchain, false);
 
-  // Wait
-  cmd_list->close_cmd_list();
+  // Wait 
+  // TODO remove this
   renderer->end_render();
 }
 

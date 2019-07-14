@@ -117,11 +117,6 @@ public:
   void flush_command_list();
   void flush_command_queue_for_frame();
 
-  // temporary for raytracing kick-up
-  ComPtr<ID3D12RootSignature> global_root_sign;
-  ComPtr<ID3D12RootSignature> hitgroup_root_sign;
-  ComPtr<ID3D12StateObject> dxr_pso;
-
 private:
   HINSTANCE hinstance = NULL;
 

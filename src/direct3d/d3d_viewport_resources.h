@@ -39,11 +39,6 @@ public:
   ID3D12Resource* get_ds_buffer() const { return m_ds_buffer->buffer.Get(); }
   D3D12_CPU_DESCRIPTOR_HANDLE get_dsv() const;
 
-  ID3D12Resource* raytracing_output_buffer() const { return m_raytracing_output_buffer.Get(); }
-  D3D12_GPU_DESCRIPTOR_HANDLE raytracing_output_gpu_uav() const { return m_raytracing_output_gpu_uav; }
-  int raytracing_output_width() const { return width; }
-  int raytracing_output_height() const { return height; }
-
   void flip_backbuffer() {
     current_back_buffer_index = (current_back_buffer_index + 1) % swapchain_buffer_count;
   }
@@ -51,6 +46,17 @@ public:
   // temporarily
   const v_array<std::shared_ptr<DefaultBufferData>, 4> m_rt_buffers;
   const std::shared_ptr<DefaultBufferData> m_ds_buffer;
+  constexpr static const WCHAR* rt_buffer_names[8] = {
+    L"m_rt_buffers[0]",
+    L"m_rt_buffers[1]",
+    L"m_rt_buffers[2]",
+    L"m_rt_buffers[3]",
+    L"m_rt_buffers[4]",
+    L"m_rt_buffers[5]",
+    L"m_rt_buffers[6]",
+    L"m_rt_buffers[7]",
+  };
+  constexpr static const WCHAR* ds_buffer_name = L"m_ds_buffer";
 
 protected:
   ID3D12Device* device() const { return m_device_resources->device(); }
@@ -72,15 +78,10 @@ private:
   // Swapchain objects
   ComPtr<ID3D12DescriptorHeap> m_rtv_heap;
   ComPtr<ID3D12DescriptorHeap> m_dsv_heap;
-  ComPtr<IDXGISwapChain1> m_swapchain;
+  ComPtr<IDXGISwapChain3> m_swapchain;
 
   UINT64 rtv_descriptor_size = -1;
   UINT current_back_buffer_index = 0;
-
-  // Raytracing output UAV
-  ComPtr<ID3D12Resource> m_raytracing_output_buffer;
-  CD3DX12_CPU_DESCRIPTOR_HANDLE m_raytracing_output_cpu_uav;
-  CD3DX12_GPU_DESCRIPTOR_HANDLE m_raytracing_output_gpu_uav;
 };
 
 } // namespace d3d

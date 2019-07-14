@@ -152,7 +152,7 @@ SwapchainHandle Renderer::create_swapchain(
   HWND hwnd = window_id.value.hwnd;
 
   REI_ASSERT(rendertarget_count <= 4);
-  v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers;
+  v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers(rendertarget_count);
   for (size_t i = 0; i < rendertarget_count; i++) {
     rt_buffers[i] = make_shared<DefaultBufferData>(this);
   }
@@ -251,15 +251,8 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
     REI_ASSERT(SUCCEEDED(hr));
   }
 
-  // Create view with the descriptor
-  D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-  {
-    uav_desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uav_desc.Texture2D = {}; // defualt
-  }
-
   auto buffer_data = make_shared<DefaultBufferData>(this);
-  buffer_data->state == D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+  buffer_data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
   buffer_data->buffer = buffer;
   buffer_data->meta = meta;
   return BufferHandle(buffer_data);
@@ -301,17 +294,17 @@ ShaderHandle Renderer::create_shader(
 }
 
 ShaderHandle Renderer::create_raytracing_shader(
-  const std::wstring& shader_path, std::unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
+  const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
   auto shader = make_shared<RaytracingShaderData>(this);
 
-  shader->meta = {*meta};
+  shader->meta = {std::move(*meta)};
   d3d::RayTracingShaderMetaInfo& d3d_meta = shader->meta;
   device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
   device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
   device().get_root_signature(d3d_meta.hitgroup.desc, shader->hitgroup.root_signature);
   device().get_root_signature(d3d_meta.miss.desc, shader->miss.root_signature);
 
-  build_raytracing_pso(shader_path, d3d_meta, shader->pso);
+  build_raytracing_pso(shader_path, *shader, shader->pso);
 
   // Collect shader IDs
   {
@@ -321,7 +314,7 @@ ShaderHandle Renderer::create_raytracing_shader(
     HRESULT hr = shader->pso.As(&state_object_prop);
     REI_ASSERT(SUCCEEDED(hr));
 
-    auto get_shader_id = [&](const std::wstring& name, void*& id) {
+    auto get_shader_id = [&](const std::wstring& name, const void*& id) {
       id = state_object_prop->GetShaderIdentifier(name.c_str());
     };
 
@@ -364,6 +357,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
     desc.ViewDimension = to_srv_dimension(meta.dimension);
     desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     // FIXME handle other cases and options
+    bool is_accel_struct = false;
     switch (desc.ViewDimension) {
       case D3D12_SRV_DIMENSION_TEXTURE2D:
         desc.Texture2D.MostDetailedMip = 0;
@@ -371,23 +365,29 @@ ShaderArgumentHandle Renderer::create_shader_argument(
         desc.Texture2D.PlaneSlice = 0;
         desc.Texture2D.ResourceMinLODClamp = 0;
         break;
+      case D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE:
+        desc.RaytracingAccelerationStructure.Location = b->buffer->GetGPUVirtualAddress();
+        is_accel_struct = true;
+        break;
       default:
-        REI_ASSERT("Unhandled case detected");
+        REI_ERROR("Unhandled case detected");
         break;
     }
-    device->CreateShaderResourceView(b->buffer.Get(), &desc, cpu_descriptor);
+    if (is_accel_struct)
+      device->CreateShaderResourceView(NULL, &desc, cpu_descriptor);
+    else
+      device->CreateShaderResourceView(b->buffer.Get(), &desc, cpu_descriptor);
     cpu_descriptor.Offset(1, descriptor_size);
   }
   for (auto& h : arg_value.unordered_accesses) {
     auto b = to_buffer<DefaultBufferData>(h);
     auto meta = b->meta;
-    D3D12_UNORDERED_ACCESS_VIEW_DESC desc;
-    desc.Format = to_dxgi_format(meta.format);
+    D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
+    //desc.Format = to_dxgi_format(meta.format);
     desc.ViewDimension = to_usv_dimension(meta.dimension);
     switch (desc.ViewDimension) {
       case D3D12_UAV_DIMENSION_TEXTURE2D:
-        desc.Texture2D.MipSlice = 0;
-        desc.Texture2D.PlaneSlice = 0;
+        desc.Texture2D = {};
       default:
         REI_ASSERT("Unhandled case detected");
         break;
@@ -402,8 +402,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
   // arg_data->cbvs
   arg_data->alloc_index = head_index;
   arg_data->alloc_num = buf_count;
-
-  return ShaderArgumentHandle();
+  return ShaderArgumentHandle(arg_data);
 }
 
 GeometryHandle Renderer::create_geometry(const Geometry& geometry) {
@@ -474,23 +473,37 @@ BufferHandle Renderer::create_raytracing_accel_struct(const Scene& scene) {
   return BufferHandle(data);
 }
 
-BufferHandle Renderer::create_shder_table(const Scene& scene, ShaderHandle raytracing_shader) {
+BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
   auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
-  auto& meta = shader->meta;
+  const auto& meta = shader->meta;
 
-  auto tables = make_shared<RaytracingShaderTableData>(this);
+   auto tables = make_shared<RaytracingShaderTableData>(this);
 
   size_t model_count = scene.get_models().size();
 
-  auto device = device_resources->dxr_device();
-  auto build
-    = [&](size_t max_root_arguments_width, size_t entry_num, shared_ptr<ShaderTable>& shader_table) {
-        shader_table = make_shared<ShaderTable>(*device, max_root_arguments_width, entry_num);
-      };
 
-  build(get_root_arguments_size(meta.raygen.desc), 1, tables->raygen);
-  build(get_root_arguments_size(meta.hitgroup.desc), model_count, tables->hitgroup);
-  build(get_root_arguments_size(meta.miss.desc), model_count, tables->miss);
+  // Some wierd bug in MSVC debug-mode
+  // `paramter-type` in the follwing `ROOT_SIGNATURE_DESC` might be modified somehow.
+  // FIXME currently move to Release Build to avoid it when happened.
+  size_t raygen_arg_width = get_root_arguments_size(meta.raygen.desc);
+  size_t hitgroup_arg_width = get_root_arguments_size(meta.hitgroup.desc);
+  size_t miss_arg_width = get_root_arguments_size(meta.miss.desc);
+
+  auto device = device_resources->dxr_device();
+  auto build = [&](size_t max_root_arguments_width, size_t entry_num, const void* shader_id,
+                 shared_ptr<ShaderTable>& shader_table) {
+    // Create buffer
+    shader_table = make_shared<ShaderTable>(*device, max_root_arguments_width, entry_num);
+    // init all shader id
+    for (size_t i = 0; i < entry_num; i++) {
+      shader_table->update(shader_id, nullptr, 0, i, 0);
+    }
+  };
+
+
+  build(raygen_arg_width, 1, shader->raygen.shader_id, tables->raygen);
+  build(hitgroup_arg_width, model_count, shader->hitgroup.shader_id, tables->hitgroup);
+  build(miss_arg_width, model_count, shader->miss.shader_id, tables->miss);
   tables->shader = shader;
 
   return BufferHandle(tables);
@@ -508,12 +521,12 @@ void Renderer::update_hitgroup_shader_record(BufferHandle shader_table_h, ModelH
 }
 
 void Renderer::begin_render() {
+  // Finish previous resources commands
+  upload_resources();
+
+  // Begin command list recording
   auto cmd_list = device_resources->prepare_command_list();
   cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
-}
-
-void Renderer::close_cmd_list() {
-  device_resources->flush_command_list();
 }
 
 void Renderer::end_render() {
@@ -600,7 +613,11 @@ void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_
 void Renderer::present(SwapchainHandle handle, bool vsync) {
   auto swapchain = to_swapchain(handle);
   auto viewport = swapchain->res;
- // Present and flip
+
+  // Done any writing
+  device_resources->flush_command_list();
+
+  // Present and flip
   if (vsync) {
     viewport->swapchain()->Present(1, 0);
   } else {
@@ -977,7 +994,9 @@ void Renderer::draw_meshes(
 }
 
 void Renderer::build_raytracing_pso(const std::wstring& shader_path,
-  const d3d::RayTracingShaderMetaInfo& meta, ComPtr<ID3D12StateObject>& pso) {
+  const d3d::RaytracingShaderData& shader, ComPtr<ID3D12StateObject>& pso) {
+  const d3d::RayTracingShaderMetaInfo& meta = shader.meta;
+
   // hard-coded properties
   const UINT payload_max_size = sizeof(float) * 4 + sizeof(int) * 1;
   const UINT attr_max_size = sizeof(float) * 2;
@@ -1019,23 +1038,23 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
     shader_config->Config(payload_max_size, attr_max_size);
   }
 
+  { // bind global root signature
+    auto global_root
+      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
+    global_root->SetRootSignature(shader.root_signature.Get());
+  }
+
+  // TODO binding more local root signatures
   { // bind local root signatures and association: hit group
     auto local_root
       = raytracing_pipeline_desc.CreateSubobject<CD3DX12_LOCAL_ROOT_SIGNATURE_SUBOBJECT>();
-    local_root->SetRootSignature(device_resources->hitgroup_root_sign.Get());
+    local_root->SetRootSignature(shader.hitgroup.root_signature.Get());
 
     auto rootSignatureAssociation
       = raytracing_pipeline_desc
           .CreateSubobject<CD3DX12_SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT>();
     rootSignatureAssociation->SetSubobjectToAssociate(*local_root);
     rootSignatureAssociation->AddExport(meta.hitgroup_name.c_str());
-  }
-
-  { // bind global root signature
-    auto global_root
-      = raytracing_pipeline_desc.CreateSubobject<CD3DX12_GLOBAL_ROOT_SIGNATURE_SUBOBJECT>();
-    auto sign = device_resources->global_root_sign;
-    global_root->SetRootSignature(sign.Get());
   }
 
   { // pipeline config
@@ -1045,7 +1064,7 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   }
 
   HRESULT hr
-    = device->CreateStateObject(raytracing_pipeline_desc, IID_PPV_ARGS(&device_resources->dxr_pso));
+    = device->CreateStateObject(raytracing_pipeline_desc, IID_PPV_ARGS(&pso));
   REI_ASSERT(SUCCEEDED(hr));
 }
 
@@ -1114,6 +1133,7 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
     1, &CD3DX12_RESOURCE_BARRIER::UAV(tlas_buffer.Get())); // sync before use
 
   // FIXME finish uploading before the locally created test buffer out ot scope
+  // e.g. instance buffer and stractch buffer
   device_resources->flush_command_list();
   device_resources->flush_command_queue_for_frame();
 }

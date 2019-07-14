@@ -16,13 +16,13 @@ namespace rtpt {
 struct ViewportData {
   // Window viewport
   SwapchainHandle swapchain;
-  ScreenTransformHandle view_transform;
   size_t width, height;
 
   // Camera info
   bool camera_matrix_dirty = true;
   Mat4 view_matrix;
   Mat4 view_proj_matrix;
+  Vec4 camera_pos;
 
   // Raytracing resources
   BufferHandle raytracing_output_buffer;

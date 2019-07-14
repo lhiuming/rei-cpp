@@ -83,13 +83,12 @@ public:
   ModelHandle create_model(const Model& model) override;
 
   BufferHandle create_raytracing_accel_struct(const Scene& scene);
-  BufferHandle create_shder_table(const Scene& scene, ShaderHandle raytracing_shader);
+  BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
   //void update_raygen_shader_record();
   void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
 
   void begin_render();
-  void close_cmd_list();
   void end_render();
 
   using ShaderArguments = v_array<ShaderArgumentHandle, 8>;
@@ -156,7 +155,7 @@ protected:
     ShaderData* shader_override = nullptr);
 
   void build_raytracing_pso(const std::wstring& shader_path,
-    const d3d::RayTracingShaderMetaInfo& meta, ComPtr<ID3D12StateObject>& pso);
+    const d3d::RaytracingShaderData& shader_data, ComPtr<ID3D12StateObject>& pso);
   void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count,
     ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
 

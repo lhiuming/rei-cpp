@@ -24,16 +24,19 @@ namespace rei {
 namespace d3d {
 
 DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
-    : hinstance(hinstance), is_dxr_enabled(opt.is_dxr_enabled) {
+    : hinstance(h_inst), is_dxr_enabled(opt.is_dxr_enabled) {
   HRESULT hr;
 
   UINT dxgi_factory_flags = 0;
 #if DEBUG
   {
     // d3d12 debug layer
-    ComPtr<ID3D12Debug> debug_controller;
+    //ComPtr<ID3D12Debug> debug_controller;
+    ComPtr<ID3D12Debug1> debug_controller;
     REI_ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
     debug_controller->EnableDebugLayer();
+    // deeper debug, might be alot slower
+    //debug_controller->SetEnableGPUBasedValidation(true);
     // dxgi 4 debug layer
     dxgi_factory_flags = DXGI_CREATE_FACTORY_DEBUG;
   }

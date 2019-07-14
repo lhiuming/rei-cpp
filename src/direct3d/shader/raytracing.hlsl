@@ -19,17 +19,17 @@ struct Vertex {
 
 // Global
 // Output
-RWTexture2D<float4> render_target : register(u0);
+RWTexture2D<float4> render_target : register(u0, space0);
 // AS
-RaytracingAccelerationStructure scene : register(t0);
+RaytracingAccelerationStructure scene : register(t0, space0);
 // Per-frame CB
-ConstantBuffer<PerFrameConstantBuffer> g_perfram_cb : register(b0);
+ConstantBuffer<PerFrameConstantBuffer> g_perfram_cb : register(b0, space0);
 
 // Local: Hit Group //
 
 //  mesh data
-ByteAddressBuffer g_indicies : register(t1);
-StructuredBuffer<Vertex> g_vertices : register(t2);
+ByteAddressBuffer g_indicies : register(t0, space1);
+StructuredBuffer<Vertex> g_vertices : register(t1, space1);
 
 // Tracing data //
 

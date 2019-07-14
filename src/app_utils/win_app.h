@@ -73,8 +73,8 @@ private:
   std::shared_ptr<InputBus> m_input_bus;
 
   std::shared_ptr<RenderPipeline> m_pipeline;
-  RenderPipeline::ViewportHandle m_viewport_h;
-  RenderPipeline::SceneHandle m_scene_h;
+  RenderPipeline::ViewportHandle m_viewport_h = 0;
+  RenderPipeline::SceneHandle m_scene_h = 0;
 
   bool is_started = false;
 

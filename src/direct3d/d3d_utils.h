@@ -39,30 +39,8 @@ constexpr inline UINT64 align_cb_bytesize(size_t bytesize) {
   return align_bytesize(bytesize, CB_ALIGNMENT_WIDTH);
 }
 
-// ref: https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
-inline UINT get_root_arguments_size(const D3D12_ROOT_SIGNATURE_DESC& signature) {
-  UINT sum = 0;
-  for (UINT param_i = 0; param_i < signature.NumParameters; param_i++) {
-    const D3D12_ROOT_PARAMETER& param = signature.pParameters[param_i];
-    switch (param.ParameterType) {
-      case D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE:
-        sum += sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
-        break;
-      case D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS:
-        sum += param.Constants.Num32BitValues * sizeof(int32_t);
-        break;
-      case D3D12_ROOT_PARAMETER_TYPE_CBV:
-      case D3D12_ROOT_PARAMETER_TYPE_SRV:
-      case D3D12_ROOT_PARAMETER_TYPE_UAV:
-        sum += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
-        break;
-      default:
-        REI_ERROR("Unexpected Parameter type");
-        return 0;
-    }
-  }
-  return sum;
-}
+// Calculate local Root Argument bytesize; useful for shader table layout
+UINT get_root_arguments_size(const D3D12_ROOT_SIGNATURE_DESC& signature);
 
 // Create a simple upload buffer, and populate it with cpu data (optionally)
 ComPtr<ID3D12Resource> create_upload_buffer(
@@ -167,8 +145,7 @@ public:
         m_element_bytewidth(align_bytesize(layout.element_width, layout.element_alignment)),
         m_effective_bytewidth(element_num * m_element_bytewidth),
         m_padded_bytewidth(m_effective_bytewidth + m_address_start_alignment),
-        m_init_state(init_states)
-  {
+        m_init_state(init_states) {
     HRESULT hr;
 
     // ... Life should be easy
@@ -184,8 +161,11 @@ public:
     REI_ASSERT(SUCCEEDED(hr));
 
     // calculate the offset needed to align the gpu address
-    buffer_offset = align_bytesize(buffer->GetGPUVirtualAddress(), m_address_start_alignment)
-                    - m_effective_bytewidth;
+    D3D12_GPU_VIRTUAL_ADDRESS buf_addr = buffer->GetGPUVirtualAddress();
+    D3D12_GPU_VIRTUAL_ADDRESS aligned_buf_addr
+      = align_bytesize(buf_addr, m_address_start_alignment);
+    REI_ASSERT(aligned_buf_addr >= buf_addr);
+    buffer_offset = aligned_buf_addr - buf_addr;
 
     UINT subres = 0;
     D3D12_RANGE* range = nullptr;
@@ -272,11 +252,14 @@ public:
   ShaderTable(ID3D12Device& device, UINT num)
       : ShaderTable(device, sizeof(ShaderRecord<RootArgs>), num) {}
 
-  void update(const void* shader_id, const void* args, size_t bytecount, UINT index, UINT local_offset) const {
+  void update(const void* shader_id, const void* args, size_t bytecount, UINT index,
+    UINT local_offset) const {
     size_t offset = buffer_offset + m_element_bytewidth * index + local_offset;
     memcpy(mapped_memory + offset, shader_id, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    memcpy(mapped_memory + offset, args, bytecount);
+    if (bytecount > 0) {
+      offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+      memcpy(mapped_memory + offset, args, bytecount);
+    }
   }
 
   template <typename RootArgs>

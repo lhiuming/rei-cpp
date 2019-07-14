@@ -127,6 +127,12 @@ struct RaytracingShaderMetaInfo {
   ShaderSignature raygen_signature;
   ShaderSignature hitgroup_signature;
   ShaderSignature miss_signature;
+  std::wstring raygen_name;
+  std::wstring hitgroup_name;
+  std::wstring closest_hit_name;
+  //std::wstring any_hit_name;
+  //std::wstring intersection_name;
+  std::wstring miss_name;
 };
 
 class Renderer : private NoCopy {
