@@ -81,18 +81,55 @@ public:
 
   constexpr v_array(const std::initializer_list<T>& l) : m_size(l.size()) {
     REI_ASSERT(l.size() <= N);
-    //static_assert(M <= N, "initializer size is greater than v_array max size");
+    // static_assert(M <= N, "initializer size is greater than v_array max size");
     std::copy(l.begin(), l.end(), ((Base*)this)->begin());
   }
 
   // TODO do we need modifiable iterator?
   const_iterator cbegin() const { return const_iterator(this->data(), 0); }
   const_iterator begin() const { return const_iterator(this->data(), 0); }
-  const_iterator cend() const { return const_iterator(this->data(), N); }
-  const_iterator end() const { return const_iterator(this->data(), N); }
+  const_iterator cend() const { return const_iterator(this->data(), m_size); }
+  const_iterator end() const { return const_iterator(this->data(), m_size); }
 
-  constexpr reference operator[](size_type i) { return ((Base*)this)->operator[](i); }
-  constexpr const_reference operator[](size_type i) const { return const_cast<Self*>(this)->operator[](i); }
+  constexpr reference operator[](size_type i) {
+    REI_ASSERT(i < m_size);
+    return ((Base*)this)->operator[](i);
+  }
+  constexpr const_reference operator[](size_type i) const {
+    REI_ASSERT(i < m_size);
+    return const_cast<Self*>(this)->operator[](i);
+  }
+
+  void push_back(value_type&& v) {
+    REI_ASSERT(m_size < N);
+    *(this->data() + m_size) = std::move(v);
+    m_size++;
+  }
+
+  void push_back(const value_type& v) {
+    REI_ASSERT(m_size < N);
+    *(this->data() + m_size) = v;
+    m_size++;
+  }
+
+  template<typename ...Args>
+  reference emplace_back(Args&& ...args) {
+    REI_ASSERT(m_size < N);
+    reference r = *(this->data() + m_size);
+    r = T(std::forward<Args>(args)...);
+    m_size++;
+    return r;
+  }
+
+  reference back() { return *this[m_size]; }
+  const_reference back() const { return *this[m_size]; }
+
+  void clear() {
+    for (auto& ele : *this) {
+      ele.~T();
+    }
+    m_size = 0;
+  }
 
   size_type size() const { return m_size; }
   constexpr size_type max_size() const { return N; }
