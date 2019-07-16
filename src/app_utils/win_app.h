@@ -15,9 +15,6 @@
 //#include "app.h"
 #include "win_viewer.h"
 
-// lazy
-#include "../direct3d/d3d_renderer.h"
-
 namespace rei {
 
 class WinApp {

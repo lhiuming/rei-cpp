@@ -1,5 +1,7 @@
 #include "rt_path_tracing.h"
 
+#include "../direct3d/d3d_renderer.h"
+
 using std::make_shared;
 using std::make_unique;
 using std::shared_ptr;

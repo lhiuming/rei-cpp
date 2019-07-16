@@ -6,9 +6,7 @@
 #include <unordered_map>
 
 #include "../camera.h"
-#include "../render_pipeline.h";
-// TODO for laziness
-#include "../direct3d/d3d_renderer.h";
+#include "render_pipeline_base.h"
 
 namespace rei {
 
@@ -17,6 +15,11 @@ namespace rtpt {
 struct ViewportData;
 struct SceneData;
 } // namespace rtpt
+
+// FIXME lazy
+namespace d3d {
+class Renderer;
+}
 
 class RealtimePathTracingPipeline : public RenderPipeline {
   using Renderer = d3d::Renderer;
