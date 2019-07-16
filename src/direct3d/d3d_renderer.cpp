@@ -661,19 +661,6 @@ CullingResult Renderer::cull(ScreenTransformHandle viewport_handle, const Scene&
   return CullingResult(culling_data);
 }
 
-void Renderer::render(const ScreenTransformHandle viewport_handle, CullingResult culling_handle) {
-  shared_ptr<ViewportData> p_viewport = to_viewport(viewport_handle);
-  REI_ASSERT(p_viewport);
-  shared_ptr<CullingData> p_culling = to_culling(culling_handle);
-  REI_ASSERT(p_culling);
-
-  if (mode == RenderMode::Rasterization) {
-    render(*p_viewport, *p_culling);
-  } else {
-    raytracing(*p_viewport, *p_culling);
-  }
-}
-
 void Renderer::upload_resources() {
   // NOTE: if the cmd_list is closed, we don need to submit it
   if (is_uploading_resources) {
@@ -793,94 +780,6 @@ void Renderer::render(ViewportData& viewport, CullingData& culling) {
 
   // Flush and wait
   dev_res.flush_command_queue_for_frame();
-  */
-}
-
-void Renderer::raytracing(ViewportData& viewport, CullingData& culling) {
-  /*
-  auto cmd_list = device_resources->prepare_command_list_dxr();
-
-  auto viewport_resources = viewport.viewport_resources.lock();
-
-  // Update perframe const buffer
-  {
-    dxr::PerFrameConstantBuffer perframe_cb_value = {};
-    perframe_cb_value.proj_to_world = rei_to_D3D(viewport.view_proj.inv());
-    perframe_cb_value.camera_pos = rei_to_D3D(viewport.pos);
-    m_perframe_cb->update(perframe_cb_value, 0);
-  }
-
-  // Update shader tables
-  {
-    vector<ModelData>& models = culling.models;
-    update_shader_table(models.data(), models.size());
-  }
-
-  // Dispatch ray and write to raytracing output
-  {
-    cmd_list->SetComputeRootSignature(device_resources->global_root_sign.Get());
-    cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
-    cmd_list->SetPipelineState1(device_resources->dxr_pso.Get());
-
-    // Bind global root arguments
-    cmd_list->SetComputeRootDescriptorTable(dxr::GlobalRSLayout::OuputTextureUAV_SingleTable,
-      viewport_resources->raytracing_output_gpu_uav());
-    cmd_list->SetComputeRootShaderResourceView(
-      dxr::GlobalRSLayout::AccelStructSRV, this->tlas_buffer->GetGPUVirtualAddress());
-    cmd_list->SetComputeRootConstantBufferView(
-      dxr::GlobalRSLayout::PerFrameCBV, m_perframe_cb->buffer_address());
-
-    // Dispatch
-    D3D12_DISPATCH_RAYS_DESC desc = {};
-    desc.RayGenerationShaderRecord.StartAddress = raygen_shader_table->GetGPUVirtualAddress();
-    desc.RayGenerationShaderRecord.SizeInBytes = raygen_shader_table->GetDesc().Width;
-    desc.MissShaderTable.StartAddress = miss_shader_table->GetGPUVirtualAddress();
-    desc.MissShaderTable.SizeInBytes = miss_shader_table->GetDesc().Width;
-    desc.MissShaderTable.StrideInBytes = miss_shader_table->GetDesc().Width; // sinlge element
-    desc.HitGroupTable.StartAddress = m_hitgroup_shader_table->buffer_address();
-    desc.HitGroupTable.SizeInBytes = m_hitgroup_shader_table->bytewidth();
-    desc.HitGroupTable.StrideInBytes = m_hitgroup_shader_table->element_bytewidth();
-    desc.Width = viewport_resources->raytracing_output_width();
-    desc.Height = viewport_resources->raytracing_output_height();
-    desc.Depth = 1;
-    cmd_list->DispatchRays(&desc);
-  }
-
-  // Copy to frame buffer
-  {
-    auto render_target = viewport_resources->get_current_rt_buffer();
-    auto raytracing_output = viewport_resources->raytracing_output_buffer();
-
-    D3D12_RESOURCE_BARRIER pre_copy[2];
-    pre_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-      raytracing_output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
-    pre_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-      render_target, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-    cmd_list->ResourceBarrier(2, pre_copy);
-
-    cmd_list->CopyResource(render_target, raytracing_output);
-
-    D3D12_RESOURCE_BARRIER post_copy[2];
-    post_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
-      raytracing_output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    post_copy[1] = CD3DX12_RESOURCE_BARRIER::Transition(
-      render_target, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
-    cmd_list->ResourceBarrier(2, post_copy);
-  }
-
-  // Done
-  device_resources->flush_command_list();
-
-  // Present and flip
-  if (viewport.enable_vsync) {
-    viewport_resources->swapchain()->Present(1, 0);
-  } else {
-    viewport_resources->swapchain()->Present(0, 0);
-  }
-  viewport_resources->flip_backbuffer();
-
-  // Wait
-  device_resources->flush_command_queue_for_frame();
   */
 }
 
@@ -1143,23 +1042,6 @@ void Renderer::set_const_buffer(
   shared_ptr<ConstBufferData> buffer = to_buffer<ConstBufferData>(handle);
   unsigned int local_offset = get_offset(buffer->layout, member);
   buffer->buffer->update(value, width, index, local_offset);
-}
-
-void Renderer::update_shader_table(const ModelData* models, size_t count) {
-  // update hitgroup table
-  /*
-  {
-    // Hit group table are plained array index by instance id
-    dxr::HitgroupRootArguments args = {};
-    for (size_t i = 0; i < count; i++) {
-      const ModelData& model = *(models + i);
-      const MeshData& mesh = *to_geometry<MeshData>(model.geometry);
-      args.mesh_buffer_table_start = mesh.ind_srv_gpu;
-      const UINT position = model.tlas_instance_id;
-      m_hitgroup_shader_table->update(m_hitgroup_shader_id, std::move(args), position);
-    }
-  }
-  */
 }
 
 } // namespace d3d

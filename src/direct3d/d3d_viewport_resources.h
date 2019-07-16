@@ -46,23 +46,11 @@ public:
   // temporarily
   const v_array<std::shared_ptr<DefaultBufferData>, 4> m_rt_buffers;
   const std::shared_ptr<DefaultBufferData> m_ds_buffer;
-  constexpr static const WCHAR* rt_buffer_names[8] = {
-    L"m_rt_buffers[0]",
-    L"m_rt_buffers[1]",
-    L"m_rt_buffers[2]",
-    L"m_rt_buffers[3]",
-    L"m_rt_buffers[4]",
-    L"m_rt_buffers[5]",
-    L"m_rt_buffers[6]",
-    L"m_rt_buffers[7]",
-  };
-  constexpr static const WCHAR* ds_buffer_name = L"m_ds_buffer";
 
 protected:
   ID3D12Device* device() const { return m_device_resources->device(); }
   IDXGIFactory4* dxgi_factory() const { return m_device_resources->dxgi_factory(); }
   ID3D12CommandQueue* command_queue() const { return m_device_resources->command_queue(); }
-  // ID3D12CommandList& command_list() const { return m_device_resources->command_list(); }
 
   void create_size_dependent_resources();
 

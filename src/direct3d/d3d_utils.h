@@ -15,6 +15,7 @@
 #include "../type_utils.h"
 
 namespace rei {
+
 namespace d3d {
 
 using Microsoft::WRL::ComPtr;

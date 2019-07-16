@@ -13,6 +13,19 @@ namespace rei {
 
 namespace d3d {
 
+constexpr static const WCHAR* c_rt_buffer_names[8] = {
+    L"m_rt_buffers[0]",
+    L"m_rt_buffers[1]",
+    L"m_rt_buffers[2]",
+    L"m_rt_buffers[3]",
+    L"m_rt_buffers[4]",
+    L"m_rt_buffers[5]",
+    L"m_rt_buffers[6]",
+    L"m_rt_buffers[7]",
+};
+
+constexpr static const WCHAR* c_ds_buffer_name = L"m_ds_buffer";
+
 ViewportResources::ViewportResources(shared_ptr<DeviceResources> dev_res, HWND hwnd, int init_width,
   int init_height, v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers,
   std::shared_ptr<DefaultBufferData> ds_buffer)
@@ -121,7 +134,7 @@ void ViewportResources::create_size_dependent_resources() {
     for (UINT i = 0; i < swapchain_buffer_count; i++) {
       hr = m_swapchain->GetBuffer(i, IID_PPV_ARGS(&m_rt_buffers[i]->buffer));
 #if DEBUG
-      REI_ASSERT(SUCCEEDED(m_rt_buffers[i]->buffer->SetName(rt_buffer_names[i])));
+      REI_ASSERT(SUCCEEDED(m_rt_buffers[i]->buffer->SetName(c_rt_buffer_names[i])));
 #endif
       m_rt_buffers[i]->state = D3D12_RESOURCE_STATE_PRESENT;
       m_rt_buffers[i]->meta = meta;
@@ -156,7 +169,7 @@ void ViewportResources::create_size_dependent_resources() {
     REI_ASSERT(SUCCEEDED(hr));
 
     #if DEBUG
-    REI_ASSERT(SUCCEEDED(m_ds_buffer->buffer->SetName(ds_buffer_name)));
+    REI_ASSERT(SUCCEEDED(m_ds_buffer->buffer->SetName(c_ds_buffer_name)));
     #endif
 
     DefaultBufferFormat meta;

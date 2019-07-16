@@ -29,11 +29,6 @@ struct ShaderData;
 struct ViewportData;
 struct CullingData;
 
-namespace dxr {
-struct PerFrameConstantBuffer;
-struct HitgroupRootArguments;
-} // namespace dxr
-
 enum RenderMode {
   Rasterization,
   RealtimeRaytracing,
@@ -101,7 +96,6 @@ public:
 
   void prepare(Scene& scene) override;
   CullingResult cull(ScreenTransformHandle viewport, const Scene& scene) override;
-  void render(ScreenTransformHandle viewport, CullingResult culling_result) override;
 
 protected:
   HINSTANCE hinstance;
@@ -161,10 +155,6 @@ protected:
 
   void set_const_buffer(
     BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
-
-  void update_shader_table(const ModelData* models, std::size_t count);
-
-  void raytracing(ViewportData& viewport, CullingData& culling);
 
   // Debug support
   void create_default_assets();

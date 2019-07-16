@@ -384,10 +384,8 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
     // populate the result
     mesh_res.vert_srv_cpu = vertex_srv_cpu;
     mesh_res.vert_srv_gpu = vertex_srv_gpu;
-    mesh_res.vertex_pos_format = c_accel_struct_vertex_pos_format;
     mesh_res.ind_srv_cpu = index_srv_cpu;
     mesh_res.ind_srv_gpu = index_srv_gpu;
-    mesh_res.index_format = c_index_format;
 
     mesh_res.blas_buffer = blas_buffer;
     mesh_res.scratch_buffer = scratch_buffer;

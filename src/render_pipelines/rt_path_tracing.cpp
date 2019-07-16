@@ -8,50 +8,6 @@ using std::weak_ptr;
 
 namespace rei {
 
-/*
- * Hard code the root siagnature for dxr kick up
- */
-struct GlobalSignatureLayout {
-  enum CBV { PreFrameCBV = 0, CBV_Count };
-  enum SRV { AccelStruct = 0, SRV_COUNT };
-  enum UAV { OutputTex = 0, UAV_COUNT };
-};
-
-struct RaygenRSLayout {};
-
-struct HitgroupRSLayout {
-  //enum CBV { PerObjectCBV = 0, CBV_Count };
-  enum SRV { MeshIndexSRV = 0, MeshVertexSRV, SRV_Count };
-};
-
-/*
-struct PerObjectConstantBuffer {
-};
-
-struct HitgroupRootArguments {
-  D3D12_GPU_DESCRIPTOR_HANDLE mesh_buffer_table_start;
-};
-*/
-
-// FIXME remove this hardcode
-constexpr size_t c_hitgroup_size = 32;
-
-/*
-struct PerFrameConstantBuffer {
-  DirectX::XMMATRIX proj_to_world;
-  DirectX::XMFLOAT4 camera_pos;
-  DirectX::XMFLOAT4 ambient_color;
-  DirectX::XMFLOAT4 light_pos;
-  DirectX::XMFLOAT4 light_color;
-};
-*/
-
-constexpr wchar_t* c_hit_group_name = L"hit_group0";
-constexpr wchar_t* c_raygen_shader_name = L"raygen_shader";
-//constexpr wchar_t* c_raygen_shader_name = L"raygen_plain_color";
-constexpr wchar_t* c_closest_hit_shader_name = L"closest_hit_shader";
-constexpr wchar_t* c_miss_shader_name = L"miss_shader";
-
 struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
   PathTracingShaderMeta() {
     ShaderParameter space0 = {};
@@ -66,12 +22,42 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
     global_signature.param_table = {space0};
     hitgroup_signature.param_table = {{}, space1};
 
-    hitgroup_name = c_hit_group_name;
-    raygen_name = c_raygen_shader_name;
-    closest_hit_name = c_closest_hit_shader_name;
-    miss_name = c_miss_shader_name;
+    hitgroup_name = L"hit_group0";
+    raygen_name = L"raygen_shader";
+    //raygen_name = L"raygen_plain_color";
+    closest_hit_name = L"closest_hit_shader";
+    miss_name = L"miss_shader";
   }
 };
+
+namespace rtpt {
+
+struct ViewportData {
+  // Window viewport
+  SwapchainHandle swapchain;
+  size_t width, height;
+
+  // Camera info
+  bool camera_matrix_dirty = true;
+  Mat4 view_matrix;
+  Mat4 view_proj_matrix;
+  Vec4 camera_pos;
+
+  // Raytracing resources
+  BufferHandle raytracing_output_buffer;
+  BufferHandle per_render_buffer;
+};
+
+struct SceneData {
+  // Raytracing resources
+  BufferHandle tlas_buffer;
+  BufferHandle shader_table;
+  // Model proxies
+  // std::vector<MaterialHandle> dirty_materials;
+  std::vector<ModelHandle> dirty_models;
+};
+
+} // namespace rtpt
 
 RealtimePathTracingPipeline::RealtimePathTracingPipeline(weak_ptr<rei::Renderer> renderer_wptr)
     : m_renderer(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
@@ -93,19 +79,9 @@ RealtimePathTracingPipeline::ViewportHandle RealtimePathTracingPipeline::registe
     conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM);
 
   {
-    /*
-struct PerFrameConstantBuffer {
-  DirectX::XMMATRIX proj_to_world;
-  DirectX::XMFLOAT4 camera_pos;
-  DirectX::XMFLOAT4 ambient_color;
-  DirectX::XMFLOAT4 light_pos;
-  DirectX::XMFLOAT4 light_color;
-};
-     */
-
     ConstBufferLayout layout = {5};
-    layout[0] = ShaderDataType::Float4x4;
-    layout[1] = ShaderDataType::Float4;
+    layout[0] = ShaderDataType::Float4x4; // proj to world
+    layout[1] = ShaderDataType::Float4; // camera pos
     layout[2] = ShaderDataType::Float4;
     layout[3] = ShaderDataType::Float4;
     layout[4] = ShaderDataType::Float4;

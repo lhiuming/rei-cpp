@@ -152,7 +152,6 @@ public:
 
   virtual void prepare(Scene& scene) = 0;
   virtual CullingResult cull(ScreenTransformHandle viewport, const Scene& scene) = 0;
-  virtual void render(ScreenTransformHandle viewport, CullingResult culling_result) = 0;
 
 protected:
   // Convert from handle to data

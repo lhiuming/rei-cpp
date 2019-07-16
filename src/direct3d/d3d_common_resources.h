@@ -221,7 +221,6 @@ struct MeshData : GeometryData {
 
   CD3DX12_GPU_DESCRIPTOR_HANDLE vert_srv_gpu = {D3D12_DEFAULT};
   CD3DX12_CPU_DESCRIPTOR_HANDLE vert_srv_cpu = {D3D12_DEFAULT};
-  DXGI_FORMAT vertex_pos_format;
 
   ComPtr<ID3D12Resource> ind_buffer;
   ComPtr<ID3D12Resource> ind_upload_buffer;
@@ -230,7 +229,6 @@ struct MeshData : GeometryData {
 
   CD3DX12_GPU_DESCRIPTOR_HANDLE ind_srv_gpu = {D3D12_DEFAULT};
   CD3DX12_CPU_DESCRIPTOR_HANDLE ind_srv_cpu = {D3D12_DEFAULT};
-  DXGI_FORMAT index_format = DXGI_FORMAT_UNKNOWN;
 
   ComPtr<ID3D12Resource> blas_buffer;
   ComPtr<ID3D12Resource> scratch_buffer;

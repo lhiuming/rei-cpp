@@ -13,31 +13,9 @@
 namespace rei {
 
 namespace rtpt {
-struct ViewportData {
-  // Window viewport
-  SwapchainHandle swapchain;
-  size_t width, height;
-
-  // Camera info
-  bool camera_matrix_dirty = true;
-  Mat4 view_matrix;
-  Mat4 view_proj_matrix;
-  Vec4 camera_pos;
-
-  // Raytracing resources
-  BufferHandle raytracing_output_buffer;
-  BufferHandle per_render_buffer;
-};
-
-struct SceneData {
-  // Raytracing resources
-  BufferHandle tlas_buffer;
-  BufferHandle shader_table;
-  // Model proxies
-  //std::vector<MaterialHandle> dirty_materials;
-  std::vector<ModelHandle> dirty_models;
-};
-
+// Forward Declaration
+struct ViewportData;
+struct SceneData;
 } // namespace rtpt
 
 class RealtimePathTracingPipeline : public RenderPipeline {
