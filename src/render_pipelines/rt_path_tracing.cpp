@@ -32,8 +32,6 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
   }
 };
 
-namespace rtpt {
-
 struct ViewportData {
   // Window viewport
   SwapchainHandle swapchain;
@@ -59,10 +57,8 @@ struct SceneData {
   std::vector<ModelHandle> dirty_models;
 };
 
-} // namespace rtpt
-
 RealtimePathTracingPipeline::RealtimePathTracingPipeline(weak_ptr<rei::Renderer> renderer_wptr)
-    : m_renderer(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
+    : SimplexPipeline(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
   auto renderer = m_renderer.lock();
   std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
   pathtracing_shader

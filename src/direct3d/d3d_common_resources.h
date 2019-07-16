@@ -137,6 +137,8 @@ struct VertexElement {
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 };
 
+extern const D3D12_INPUT_ELEMENT_DESC c_input_layout[3];
+
 // Over simple Light object, to debug
 struct Light {
   DirectX::XMFLOAT3 dir;

@@ -35,24 +35,6 @@ namespace rei {
 
 namespace d3d {
 
-static const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
-  = {{
-       "POSITION", 0,                  // a Name and an Index to map elements in the shader
-       DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the
-                                       // element
-       0,                              // input slot; kind of a flexible and optional configuration
-       0,                              // byte offset
-       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing
-       0                                           // ADVANCED; also for instancing
-     },
-    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-      sizeof(VertexElement::pos), // skip the first 3 coordinate data
-      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-    {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
-      sizeof(VertexElement::pos)
-        + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
-      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-
 struct ForwardBaseMeta : RasterizationShaderMetaInfo {
   CD3DX12_ROOT_PARAMETER root_par_slots[2];
   ForwardBaseMeta() {
@@ -618,6 +600,7 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
   device_resources->flush_command_list();
 
   // Present and flip
+  // TODO check state of swapchain buffer
   if (vsync) {
     viewport->swapchain()->Present(1, 0);
   } else {
