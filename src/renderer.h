@@ -108,6 +108,7 @@ struct ShaderArgumentValue {
   constexpr static size_t c_buf_max = 8;
   // TODO make this inplace memory
   v_array<BufferHandle, c_buf_max> const_buffers;
+  v_array<size_t, c_buf_max> const_buffer_offsets;
   v_array<BufferHandle, c_buf_max> shader_resources;
   v_array<BufferHandle, c_buf_max> unordered_accesses;
   // std::vector<void*> samplers;
@@ -133,6 +134,13 @@ struct RaytracingShaderMetaInfo {
   //std::wstring any_hit_name;
   //std::wstring intersection_name;
   std::wstring miss_name;
+};
+
+using ShaderArguments = v_array<ShaderArgumentHandle, 8>;
+struct DrawCommand {
+  GeometryHandle geo;
+  ShaderHandle shader;
+  ShaderArguments arguments;
 };
 
 class Renderer : private NoCopy {

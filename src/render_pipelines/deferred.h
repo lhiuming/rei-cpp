@@ -5,19 +5,21 @@
 
 namespace rei {
 
+// FIXME lazyness
 namespace d3d {
 class Renderer;
 }
 
+// Forwared decl
 namespace deferred {
-struct ViewportData {
-  SwapchainHandle swapchain;
-};
-struct SceneData {};
+struct ViewportData;
+struct SceneData;
 } // namespace deferred
 
 class DeferredPipeline
     : public SimplexPipeline<deferred::ViewportData, deferred::SceneData, d3d::Renderer> {
+  // FIXME lazyness
+using Renderer = d3d::Renderer;
 public:
   DeferredPipeline(RendererPtr renderer);
 
@@ -33,6 +35,10 @@ public:
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
 private:
+
+  // FIXME should be material handle
+  ShaderHandle m_default_shader;
+  ShaderHandle m_lighting_shader;
 
 };
 

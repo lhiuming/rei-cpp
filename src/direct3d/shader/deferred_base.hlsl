@@ -5,14 +5,14 @@ struct Light {
 };
 
 // constant buffer to hold the projection transforming matrix
-cbuffer cbPerObject : register(b0) {
+cbuffer cbPerObject : register(b0, space0) {
   float4x4 WVP;
   float4x4 World;
 };
-cbuffer cbPerFrame : register(b1) {
-  Light light;
+cbuffer cbPerFrame : register(b0, space1) {
+  //Light light;
   float4x4 camera_world_trans;
-  float3 camera_pos;
+  float4 camera_pos;
 };
 
 // Yes, you actually need to define this truct

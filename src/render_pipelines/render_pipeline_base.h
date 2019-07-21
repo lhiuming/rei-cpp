@@ -2,6 +2,7 @@
 #define REI_RENDER_PIPELINE_BASE_H
 
 #include <memory>
+#include <unordered_map>
 
 #include "../graphic_handle.h"
 #include "../renderer.h"
@@ -41,7 +42,7 @@ protected:
   using RendererPtr = std::weak_ptr<TRenderer>;
 
 public:
-  SimplexPipeline(std::weak_ptr<TRenderer> renderer) m_renderer(renderer) : m_renderer(renderer) {}
+  SimplexPipeline(std::weak_ptr<TRenderer> renderer) : m_renderer(renderer) {}
 
 protected:
   using ViewportPtr = std::shared_ptr<TViewport>;
@@ -53,6 +54,20 @@ protected:
 
   // TODO handle expiration
   TRenderer* get_renderer() const { return m_renderer.lock().get(); }
+
+  ViewportHandle add_viewport(TViewport&& viewport) {
+    ViewportPtr ptr = std::make_shared<TViewport>(viewport);
+    ViewportHandle handle = ViewportHandle(ptr.get());
+    viewports.insert({handle, ptr});
+    return handle;
+  }
+
+  SceneHandle add_scene(TScene&& scene) {
+    ScenePtr ptr = std::make_shared<TScene>(scene);
+    SceneHandle handle = SceneHandle(ptr.get());
+    scenes.insert({handle, ptr});
+    return handle;
+  }
 
   // TODO add validation
   template<typename SharedPtr, typename Handle> 

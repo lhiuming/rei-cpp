@@ -99,7 +99,7 @@ public:
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
   void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
   void get_root_signature(
-    ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaInfo& meta);
+    ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta);
   void get_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
@@ -109,7 +109,8 @@ public:
 
   void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
 
-  ID3D12GraphicsCommandList* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  ID3D12GraphicsCommandList4* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  // TODO remove this, just use the new prepare_cmd_list
   ID3D12GraphicsCommandList4* prepare_command_list_dxr(ID3D12PipelineState* init_pso = nullptr) {
     prepare_command_list();
     return m_dxr_command_list.Get();
@@ -137,11 +138,19 @@ private:
   UINT64 current_frame_fence = 0;
   ComPtr<ID3D12Fence> frame_fence;
 
-  // Naive descriptor allocator
+  // Naive descriptor allocators
   const UINT max_descriptor_num = 128;
   UINT next_descriptor_index = UINT_MAX;
   ComPtr<ID3D12DescriptorHeap> m_descriotpr_heap;
   UINT m_descriptor_size = UINT_MAX;
+
+  // Naive rtv/dsv descriotpr allocators
+  UINT next_rtv_index = UINT_MAX;
+  ComPtr<ID3D12DescriptorHeap> m_rtv_heap;
+  UINT64 m_rtv_descriptor_size = -1;
+  UINT next_dsv_index = UINT_MAX;
+  ComPtr<ID3D12DescriptorHeap> m_dsv_heap;
+  UINT64 m_dsv_descriptor_size = -1;
 
   PSOCache pso_cache;
 };

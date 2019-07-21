@@ -32,6 +32,13 @@ enum class ResourceDimension {
   AccelerationStructure,
 };
 
+enum class ResourceState {
+  Present,
+  RenderTarget,
+  DeptpWrite,
+  UnorderedAccess,
+};
+
 struct GraphicData {
   GraphicData(Renderer* owner) : owner(owner) {}
   const Renderer const* owner; // as a marker
@@ -75,6 +82,7 @@ struct BaseCullingData : GraphicData {
   using GraphicData::GraphicData;
 };
 
+// TODO remove this
 using ScreenTransformHandle = std::shared_ptr<BaseScreenTransformData>;
 using SwapchainHandle = std::shared_ptr<BaseSwapchainData>;
 using BufferHandle = std::shared_ptr<BaseBufferData>;
@@ -82,9 +90,13 @@ using ShaderArgumentHandle = std::shared_ptr<BaseShaderArgument>;
 
 using ShaderHandle = std::shared_ptr<BaseShaderData>;
 using GeometryHandle = std::shared_ptr<BaseGeometryData>;
+// TODO remove this
 using MaterialHandle = std::shared_ptr<BaseMaterialData>;
+// TODO remove this
 using ModelHandle = std::shared_ptr<BaseModelData>;
 using CullingResult = std::shared_ptr<BaseCullingData>;
+
+inline static constexpr decltype(nullptr) c_empty_handle = nullptr;
 
 } // namespace rei
 

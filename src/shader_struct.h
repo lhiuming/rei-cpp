@@ -15,15 +15,16 @@ struct ShaderTableEntry {
 };
 
 struct ConstBufferLayout {
-  std::vector<ShaderDataType> members;
+  std::vector<ShaderDataType> m_members;
 
-  ConstBufferLayout(size_t member_num = 1) : members(member_num) {}
+  ConstBufferLayout(size_t member_num = 1) : m_members(member_num) {}
+  ConstBufferLayout(std::initializer_list<ShaderDataType> members) : m_members(members) {}
 
-  size_t size() const { return members.size(); }
+  size_t size() const { return m_members.size(); }
 
   ShaderDataType& operator[](size_t i) {
-    if (i >= members.size()) { members.resize(i); }
-    return members[i];
+    if (i >= m_members.size()) { m_members.resize(i); }
+    return m_members[i];
   }
   ShaderDataType operator[](size_t i) const { return const_cast<ConstBufferLayout*>(this)->operator[](i); }
 };

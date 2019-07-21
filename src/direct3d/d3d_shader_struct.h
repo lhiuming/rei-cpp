@@ -23,7 +23,7 @@ inline static UINT get_width(ShaderDataType dtype) {
 
 inline static UINT get_width(const ConstBufferLayout& layout) {
   UINT sum = 0;
-  for (ShaderDataType ele : layout.members) {
+  for (ShaderDataType ele : layout.m_members) {
     sum += get_width(ele);
   }
   return sum;

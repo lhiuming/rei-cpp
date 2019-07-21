@@ -34,6 +34,7 @@ enum RenderMode {
   RealtimeRaytracing,
 };
 
+
 class Renderer : public rei::Renderer {
   using Self = typename Renderer;
   using Base = typename rei::Renderer;
@@ -49,7 +50,8 @@ public:
   Renderer(HINSTANCE hinstance, Options options = {});
   ~Renderer() override;
 
-  SwapchainHandle create_swapchain(SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
+  SwapchainHandle create_swapchain(
+    SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
   BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
@@ -69,10 +71,11 @@ public:
   ShaderHandle create_shader(
     const std::wstring& shader_path, std::unique_ptr<RasterizationShaderMetaInfo>&& meta);
   ShaderHandle create_raytracing_shader(
-    const std::wstring& shader_path, std::unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta);
+    const std::wstring& shader_path, std::unique_ptr<RaytracingShaderMetaInfo>&& meta);
 
   ShaderArgumentHandle create_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value);
-  void update_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
+  void update_shader_argument(
+    ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
 
   GeometryHandle create_geometry(const Geometry& geometry) override;
   ModelHandle create_model(const Model& model) override;
@@ -80,17 +83,29 @@ public:
   BufferHandle create_raytracing_accel_struct(const Scene& scene);
   BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
-  //void update_raygen_shader_record();
+  // void update_raygen_shader_record();
   void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
 
-  void begin_render();
-  void end_render();
+  // TODO add clear options?
+  struct RenderArea {
+    size_t width;
+    size_t height;
+  };
+  void begin_render_pass(BufferHandle render_target, BufferHandle depth_stencil, RenderArea area,
+    bool clear_rt, bool clear_ds);
+  void end_render_pass();
 
-  using ShaderArguments = v_array<ShaderArgumentHandle, 8>;
-  void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table, size_t width, size_t height, size_t depth = 1);
+  void transition(BufferHandle buffer, ResourceState state);
+
+  void draw(const DrawCommand& cmd);
+
+  void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table,
+    size_t width, size_t height, size_t depth = 1);
   void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
 
-  void present(SwapchainHandle handle, bool vsync);
+  // TODO return a command list object
+  Renderer* prepare();
+  void present(SwapchainHandle swapchain, bool vsync);
 
   DeviceResources& device() const { return *device_resources; }
 
@@ -117,6 +132,9 @@ protected:
   std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
+
+  // TODO move state to cmd_list object
+  RenderTargetSpec curr_target_spec {};
 
   // Deferred resources
 
@@ -156,8 +174,20 @@ protected:
   void set_const_buffer(
     BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
 
+  D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(const ID3D12Resource* texture) { 
+    // FIXME
+    return {};
+  }
+  D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(const ID3D12Resource* texture) { 
+    // FIXME
+    return {};
+
+  }
+
+  /*
   // Debug support
   void create_default_assets();
+  */
 
   // Handle conversion
 

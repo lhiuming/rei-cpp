@@ -10,9 +10,11 @@
 #include <windows.h>
 #include <wrl.h>
 
-#include "../algebra.h"
 #include "../debug.h"
 #include "../type_utils.h"
+
+#include "../algebra.h"
+#include "../color.h"
 
 namespace rei {
 
@@ -116,6 +118,13 @@ inline void fill_tlas_instance_transform(
       for (int j = 0; j < 4; j++)
         dest[i][j] = float(src(j, i));
   }
+}
+
+inline void fill_color(FLOAT (&dest)[4], const Color& src) {
+  dest[0] = src.r;
+  dest[1] = src.g;
+  dest[2] = src.b;
+  dest[3] = src.a;
 }
 
 // Wrapper class for a reused upload buffer,

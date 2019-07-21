@@ -94,6 +94,28 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   next_descriptor_index = 0;
   m_descriptor_size
     = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+  // Create rtv and dsv heaps
+  D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc;
+  rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+  rtv_heap_desc.NumDescriptors = max_descriptor_num;
+  rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // TODO check this
+  rtv_heap_desc.NodeMask = 0;                            // TODO check this
+  hr = m_device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&m_rtv_heap));
+  REI_ASSERT(SUCCEEDED(hr));
+
+  m_rtv_descriptor_size = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+  D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc;
+  dsv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+  dsv_heap_desc.NumDescriptors = 1; // afterall we need only one DS buffer
+  dsv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+  dsv_heap_desc.NodeMask = 0;
+  hr = m_device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&m_dsv_heap));
+  REI_ASSERT(SUCCEEDED(hr));
+
+  m_dsv_descriptor_size = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
 }
 
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
@@ -144,7 +166,7 @@ void DeviceResources::create_const_buffers(
   */
 }
 
-void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaInfo& meta) {
+void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta) {
   get_root_signature(meta.root_desc, root_sign);
 }
 
@@ -185,7 +207,7 @@ void DeviceResources::get_pso(
   const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
-  const RasterizationShaderMetaInfo& meta = *shader.meta;
+  const RasterizationShaderMetaDesc& meta = shader.meta;
   ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
 
   // Try to retried from cache
@@ -392,13 +414,15 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   }
 }
 
-ID3D12GraphicsCommandList* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
+ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
   if (!is_using_cmd_list) {
     HRESULT hr = m_command_list->Reset(m_command_alloc.Get(), nullptr);
     REI_ASSERT((SUCCEEDED(hr)));
     is_using_cmd_list = true;
   }
-  return m_command_list.Get();
+  // Let's use the newest version
+  //return m_command_list.Get();
+  return m_dxr_command_list.Get();
 }
 
 void DeviceResources::flush_command_list() {

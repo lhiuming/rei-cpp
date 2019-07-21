@@ -32,6 +32,7 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
   }
 };
 
+namespace rtpt {
 struct ViewportData {
   // Window viewport
   SwapchainHandle swapchain;
@@ -56,6 +57,9 @@ struct SceneData {
   // std::vector<MaterialHandle> dirty_materials;
   std::vector<ModelHandle> dirty_models;
 };
+} // namespace rtpt
+
+using namespace rtpt;
 
 RealtimePathTracingPipeline::RealtimePathTracingPipeline(weak_ptr<rei::Renderer> renderer_wptr)
     : SimplexPipeline(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
@@ -135,6 +139,8 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
   Renderer* renderer = get_renderer();
   REI_ASSERT(renderer);
 
+  /* TODO recover this
+
   renderer->begin_render();
 
   // TODO abstract a command list object; currently just an alias
@@ -186,6 +192,8 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
   // Wait 
   // TODO remove this
   renderer->end_render();
+
+  */
 }
 
 } // namespace rei

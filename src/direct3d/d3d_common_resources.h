@@ -78,27 +78,43 @@ inline static constexpr D3D12_SRV_DIMENSION to_srv_dimension(ResourceDimension d
 
 inline static constexpr D3D12_UAV_DIMENSION to_usv_dimension(ResourceDimension dim) {
   switch (dim) {
-    case rei::ResourceDimension::Undefined:
-    case rei::ResourceDimension::Raw:
+    case ResourceDimension::Undefined:
+    case ResourceDimension::Raw:
       return D3D12_UAV_DIMENSION_UNKNOWN;
-    case rei::ResourceDimension::StructuredBuffer:
+    case ResourceDimension::StructuredBuffer:
       return D3D12_UAV_DIMENSION_BUFFER;
       break;
-    case rei::ResourceDimension::Texture1D:
+    case ResourceDimension::Texture1D:
       return D3D12_UAV_DIMENSION_TEXTURE1D;
-    case rei::ResourceDimension::Texture1DArray:
+    case ResourceDimension::Texture1DArray:
       return D3D12_UAV_DIMENSION_TEXTURE1DARRAY;
-    case rei::ResourceDimension::Texture2D:
+    case ResourceDimension::Texture2D:
       return D3D12_UAV_DIMENSION_TEXTURE2D;
-    case rei::ResourceDimension::Texture2DArray:
+    case ResourceDimension::Texture2DArray:
       return D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-    case rei::ResourceDimension::Texture3D:
+    case ResourceDimension::Texture3D:
       return D3D12_UAV_DIMENSION_TEXTURE3D;
-    case rei::ResourceDimension::AccelerationStructure:
+    case ResourceDimension::AccelerationStructure:
       return D3D12_UAV_DIMENSION_UNKNOWN;
     default:
       REI_ERROR("Unhandled case detected");
       return D3D12_UAV_DIMENSION_UNKNOWN;
+  }
+}
+
+inline static constexpr D3D12_RESOURCE_STATES to_res_state(ResourceState state) {
+  switch (state) {
+    case ResourceState::Present:
+      return D3D12_RESOURCE_STATE_PRESENT;
+    case ResourceState::RenderTarget:
+      return D3D12_RESOURCE_STATE_RENDER_TARGET;
+    case ResourceState::DeptpWrite:
+      return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+    case ResourceState::UnorderedAccess:
+      return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    default:
+      REI_THROW("Unhandled resource state");
+      return D3D12_RESOURCE_STATE_COMMON;
   }
 }
 
@@ -196,18 +212,30 @@ struct SwapchainData : BaseSwapchainData {
 struct BufferData : BaseBufferData {
   using BaseBufferData::BaseBufferData;
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+  virtual ID3D12Resource* get_res() const = 0;
 };
 
+// Texture
 struct DefaultBufferData : BufferData {
   using BufferData::BufferData;
   ComPtr<ID3D12Resource> buffer;
   DefaultBufferFormat meta;
+
+  // optionals
+  D3D12_CPU_DESCRIPTOR_HANDLE rtv_cpu {NULL};
+  D3D12_GPU_DESCRIPTOR_HANDLE rtv_gpu {NULL};
+  D3D12_CPU_DESCRIPTOR_HANDLE dsv_cpu {NULL};
+  D3D12_GPU_DESCRIPTOR_HANDLE dsv_gpu {NULL};
+
+  ID3D12Resource* get_res() const { return buffer.Get(); }
 };
 
+// Buffer
 struct ConstBufferData : BufferData {
   using BufferData::BufferData;
   std::unique_ptr<UploadBuffer> buffer;
   ConstBufferLayout layout;
+  ID3D12Resource* get_res() const { return buffer->resource(); }
 };
 
 struct GeometryData : BaseGeometryData {
@@ -244,6 +272,8 @@ struct ViewportData : BaseScreenTransformData {
   Mat4 view = Mat4::I();
   Mat4 view_proj = Mat4::I();
   std::array<FLOAT, 4> clear_color;
+  FLOAT clear_depth;
+  FLOAT clear_stencil;
   D3D12_VIEWPORT d3d_viewport;
   D3D12_RECT scissor;
 
@@ -265,7 +295,7 @@ struct RootSignatureDescMemory {
   RangeContainer ranges;
 };
 
-struct RasterizationShaderMetaInfo {
+struct RasterizationShaderMetaDesc {
   CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   bool is_depth_stencil_null = false;
@@ -273,33 +303,41 @@ struct RasterizationShaderMetaInfo {
   CD3DX12_ROOT_SIGNATURE_DESC root_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
   D3D12_INPUT_LAYOUT_DESC input_layout = {nullptr, 0};
 
-  RasterizationShaderMetaInfo() {
+  RasterizationShaderMetaDesc() {
     REI_ASSERT(is_right_handed);
     raster_state.FrontCounterClockwise = true;
     depth_stencil.DepthFunc
       = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   }
+
+  RasterizationShaderMetaDesc(RasterizationShaderMetaInfo&& meta) { 
+    // TODO create signature !
+  }
 };
 
-struct RayTracingShaderMetaInfo {
-  RootSignatureDescMemory global;
+struct RayTracingShaderMetaDesc {
+  RootSignatureDescMemory global {};
   std::wstring hitgroup_name;
   std::wstring closest_hit_name;
   // std::wstring any_hit_name;
   // std::wstring intersection_name;
-  RootSignatureDescMemory hitgroup;
+  RootSignatureDescMemory hitgroup {};
   std::wstring raygen_name;
-  RootSignatureDescMemory raygen;
+  RootSignatureDescMemory raygen {};
   std::wstring miss_name;
-  RootSignatureDescMemory miss;
+  RootSignatureDescMemory miss {};
 
-  RayTracingShaderMetaInfo() {}
+  RayTracingShaderMetaDesc() {}
 
-  RayTracingShaderMetaInfo(rei::RaytracingShaderMetaInfo&& meta)
-      : hitgroup_name(std::move(meta.hitgroup_name)),
-        closest_hit_name(std::move(meta.closest_hit_name)),
-        raygen_name(std::move(meta.raygen_name)),
-        miss_name(std::move(meta.miss_name)) {
+  RayTracingShaderMetaDesc(RaytracingShaderMetaInfo&& meta) {
+    fill(std::move(meta));
+  }
+
+  void fill(RaytracingShaderMetaInfo&& meta) {
+    hitgroup_name = std::move(meta.hitgroup_name);
+    closest_hit_name = std::move(meta.closest_hit_name);
+    raygen_name = std::move(meta.raygen_name);
+    miss_name = std::move(meta.miss_name);
     fill_signature(global, meta.global_signature, true);
     fill_signature(hitgroup, meta.hitgroup_signature);
     fill_signature(raygen, meta.raygen_signature);
@@ -339,8 +377,14 @@ struct RayTracingShaderMetaInfo {
 
     D3D12_ROOT_SIGNATURE_FLAGS flags
       = global ? D3D12_ROOT_SIGNATURE_FLAG_NONE : D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-    desc.desc.Init(params_descs.size(), params_descs.data(), 0, nullptr, flags);
+    if (params_descs.size() > 0)
+      desc.desc.Init(params_descs.size(), params_descs.data(), 0, nullptr, flags);
   }
+
+private:
+  // any form of copying is not allow
+  RayTracingShaderMetaDesc(const RayTracingShaderMetaDesc&) = delete;
+  RayTracingShaderMetaDesc(RayTracingShaderMetaDesc&&) = delete;
 };
 
 struct ShaderCompileResult {
@@ -374,14 +418,14 @@ struct ShaderArgumentData : BaseShaderArgument {
 
 struct RasterizationShaderData : ShaderData {
   using ShaderData::ShaderData;
-  std::unique_ptr<RasterizationShaderMetaInfo> meta;
+  RasterizationShaderMetaDesc meta;
   ShaderCompileResult compiled_data;
   [[deprecated]] ShaderConstBuffers const_buffers;
 };
 
 struct RaytracingShaderData : ShaderData {
   using ShaderData::ShaderData;
-  RayTracingShaderMetaInfo meta;
+  RayTracingShaderMetaDesc meta;
 
   struct LocalShaderData {
     ComPtr<ID3D12RootSignature> root_signature;
