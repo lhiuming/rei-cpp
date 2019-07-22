@@ -3,14 +3,16 @@
 
 #include <array>
 #include <initializer_list>
+#include <unordered_map>
 
 #include "debug.h"
 
 namespace rei {
 
+// Using an array like a vector, but with fixed size
 template <typename T, size_t N>
-class v_array : private std::array<T, N> {
-  using Self = v_array;
+class FixedVec : private std::array<T, N> {
+  using Self = FixedVec;
   using Base = std::array<T, N>;
   using Containter = std::array<T, N>;
   using C = Containter;
@@ -75,11 +77,11 @@ public:
     void validate(const Self& rhs) const { REI_ASSERT(ptr == rhs.ptr); }
   };
 
-  v_array() {}
+  FixedVec() {}
 
-  v_array(size_t size) : m_size(size) {}
+  FixedVec(size_t size) : m_size(size) {}
 
-  constexpr v_array(const std::initializer_list<T>& l) : m_size(l.size()) {
+  constexpr FixedVec(const std::initializer_list<T>& l) : m_size(l.size()) {
     REI_ASSERT(l.size() <= N);
     // static_assert(M <= N, "initializer size is greater than v_array max size");
     std::copy(l.begin(), l.end(), ((Base*)this)->begin());
@@ -138,6 +140,17 @@ public:
 
 private:
   size_type m_size = 0;
+};
+
+// TODO fast hashmap
+template<typename TKey, typename TVal>
+class Hashmap : public std::unordered_map<TKey, TVal> {
+public:
+  TVal* try_get(TKey key) {
+    auto found = this->find(key);
+    if (found != this->end()) { return &(found->second); }
+    return nullptr;
+  }
 };
 
 } // namespace rei

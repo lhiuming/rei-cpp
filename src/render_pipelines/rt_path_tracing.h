@@ -23,8 +23,10 @@ class Renderer;
 
 class RealtimePathTracingPipeline
     : public SimplexPipeline<rtpt::ViewportData, rtpt::SceneData, d3d::Renderer> {
+  // FIXME lazyness
+  using Renderer = d3d::Renderer;
 public:
-  RealtimePathTracingPipeline(std::weak_ptr<rei::Renderer> renderer);
+  RealtimePathTracingPipeline(RendererPtr renderer);
 
   ViewportHandle register_viewport(ViewportConfig conf) override;
   void remove_viewport(ViewportHandle viewport) override { /* TODO */ }

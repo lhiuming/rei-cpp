@@ -5,29 +5,29 @@
 
 #include "../common.h"
 
+using std::make_shared;
 using std::runtime_error;
 using std::shared_ptr;
-using std::make_shared;
 
 namespace rei {
 
 namespace d3d {
 
 constexpr static const WCHAR* c_rt_buffer_names[8] = {
-    L"m_rt_buffers[0]",
-    L"m_rt_buffers[1]",
-    L"m_rt_buffers[2]",
-    L"m_rt_buffers[3]",
-    L"m_rt_buffers[4]",
-    L"m_rt_buffers[5]",
-    L"m_rt_buffers[6]",
-    L"m_rt_buffers[7]",
+  L"m_rt_buffers[0]",
+  L"m_rt_buffers[1]",
+  L"m_rt_buffers[2]",
+  L"m_rt_buffers[3]",
+  L"m_rt_buffers[4]",
+  L"m_rt_buffers[5]",
+  L"m_rt_buffers[6]",
+  L"m_rt_buffers[7]",
 };
 
 constexpr static const WCHAR* c_ds_buffer_name = L"m_ds_buffer";
 
 ViewportResources::ViewportResources(shared_ptr<DeviceResources> dev_res, HWND hwnd, int init_width,
-  int init_height, v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers,
+  int init_height, FixedVec<std::shared_ptr<DefaultBufferData>, 4> rt_buffers,
   std::shared_ptr<DefaultBufferData> ds_buffer)
     : m_device_resources(dev_res),
       hwnd(hwnd),
@@ -42,28 +42,6 @@ ViewportResources::ViewportResources(shared_ptr<DeviceResources> dev_res, HWND h
 
   auto device = dev_res->device();
 
-  HRESULT hr;
-
-  // Create rtv and dsv heaps
-  D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc;
-  rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-  rtv_heap_desc.NumDescriptors = swapchain_buffer_count;
-  rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // TODO check this
-  rtv_heap_desc.NodeMask = 0;                            // TODO check this
-  hr = device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&m_rtv_heap));
-  REI_ASSERT(SUCCEEDED(hr));
-
-  current_back_buffer_index = 0;
-  rtv_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-  D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc;
-  dsv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-  dsv_heap_desc.NumDescriptors = 1; // afterall we need only one DS buffer
-  dsv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-  dsv_heap_desc.NodeMask = 0;
-  hr = device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&m_dsv_heap));
-  REI_ASSERT(SUCCEEDED(hr));
-
   // Some size-dependent resources
   create_size_dependent_resources();
 }
@@ -77,15 +55,6 @@ ID3D12Resource* ViewportResources::get_rt_buffer(UINT index) const {
   ComPtr<ID3D12Resource> ret;
   REI_ASSERT(SUCCEEDED(m_swapchain->GetBuffer(index, IID_PPV_ARGS(&ret))));
   return ret.Get();
-}
-
-D3D12_CPU_DESCRIPTOR_HANDLE ViewportResources::get_rtv(UINT index) const {
-  return CD3DX12_CPU_DESCRIPTOR_HANDLE(
-    m_rtv_heap->GetCPUDescriptorHandleForHeapStart(), index, rtv_descriptor_size);
-}
-
-D3D12_CPU_DESCRIPTOR_HANDLE ViewportResources::get_dsv() const {
-  return m_dsv_heap->GetCPUDescriptorHandleForHeapStart();
 }
 
 void ViewportResources::create_size_dependent_resources() {
@@ -139,9 +108,7 @@ void ViewportResources::create_size_dependent_resources() {
       m_rt_buffers[i]->state = D3D12_RESOURCE_STATE_PRESENT;
       m_rt_buffers[i]->meta = meta;
       REI_ASSERT(SUCCEEDED(hr));
-      device->CreateRenderTargetView(m_rt_buffers[i]->buffer.Get(), default_rtv_desc, get_rtv(i));
     }
-
   }
 
   // Create depth stencil buffer and view
@@ -154,8 +121,8 @@ void ViewportResources::create_size_dependent_resources() {
     ds_desc.Alignment = 0; // default; let the runtime choose
     ds_desc.Width = width;
     ds_desc.Height = height;
-    ds_desc.DepthOrArraySize = 1;             // just a normal texture
-    ds_desc.MipLevels = 1;                    // see above
+    ds_desc.DepthOrArraySize = 1;                  // just a normal texture
+    ds_desc.MipLevels = 1;                         // see above
     ds_desc.Format = m_target_spec.dxgi_ds_format; // srandard choice
     ds_desc.SampleDesc = m_target_spec.sample_desc;
     ds_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;                       // defualt; TODO check this
@@ -168,24 +135,22 @@ void ViewportResources::create_size_dependent_resources() {
       &optimized_clear, IID_PPV_ARGS(&m_ds_buffer->buffer));
     REI_ASSERT(SUCCEEDED(hr));
 
-    #if DEBUG
+#if DEBUG
     REI_ASSERT(SUCCEEDED(m_ds_buffer->buffer->SetName(c_ds_buffer_name)));
-    #endif
+#endif
 
     DefaultBufferFormat meta;
-    meta.dimension = ResourceDimension::Texture2D;
-    meta.format = m_target_spec.ds_format;
-
+    {
+      meta.dimension = ResourceDimension::Texture2D;
+      meta.format = m_target_spec.ds_format;
+    }
     m_ds_buffer->meta = meta;
     m_ds_buffer->state = init_state;
-
-    D3D12_DEPTH_STENCIL_VIEW_DESC* p_dsv_desc = nullptr; // default value: same format as buffer[0]
-    device->CreateDepthStencilView(m_ds_buffer->buffer.Get(), p_dsv_desc, get_dsv());
   }
 
   // update to current "current" index
   current_back_buffer_index = m_swapchain->GetCurrentBackBufferIndex();
- }
+}
 
 void ViewportResources::update_size(int width, int height) {
   this->width = width;

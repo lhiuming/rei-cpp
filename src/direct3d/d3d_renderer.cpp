@@ -35,101 +35,13 @@ namespace rei {
 
 namespace d3d {
 
-/*
-struct ForwardBaseMeta : RasterizationShaderMetaInfo {
-  CD3DX12_ROOT_PARAMETER root_par_slots[2];
-  ForwardBaseMeta() {
-    // Input layout
-    this->input_layout.NumElements = 3;
-    this->input_layout.pInputElementDescs = c_input_layout;
-
-    // Root signature
-    root_par_slots[0].InitAsConstantBufferView(0); // per obejct resources
-    root_par_slots[1].InitAsConstantBufferView(1); // per frame resources
-
-    UINT par_num = ARRAYSIZE(root_par_slots);
-    D3D12_ROOT_PARAMETER* pars = root_par_slots;
-    UINT s_sampler_num = 0; // TODO check this later
-    D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
-    D3D12_ROOT_SIGNATURE_FLAGS sig_flags
-      = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
-    this->root_desc
-      = CD3DX12_ROOT_SIGNATURE_DESC(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
-  }
-};
-
-struct DeferredBaseMeta : RasterizationShaderMetaInfo {
-  CD3DX12_ROOT_PARAMETER root_par_slots[2];
-  DeferredBaseMeta() {
-    // Input layout
-    this->input_layout.NumElements = 3;
-    this->input_layout.pInputElementDescs = c_input_layout;
-
-    // Root signature
-    root_par_slots[0].InitAsConstantBufferView(0); // per obejct resources
-    root_par_slots[1].InitAsConstantBufferView(1); // per frame resources
-
-    UINT par_num = ARRAYSIZE(root_par_slots);
-    D3D12_ROOT_PARAMETER* pars = root_par_slots;
-    UINT s_sampler_num = 0; // TODO check this later
-    D3D12_STATIC_SAMPLER_DESC* s_sampler_descs = nullptr;
-    D3D12_ROOT_SIGNATURE_FLAGS sig_flags
-      = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT; // standard choice
-    this->root_desc
-      = CD3DX12_ROOT_SIGNATURE_DESC(par_num, pars, s_sampler_num, s_sampler_descs, sig_flags);
-  }
-};
-
-struct DeferredShadingMeta : RasterizationShaderMetaInfo {
-  enum Slots {
-    GBufferTable = 0,
-    Count,
-  };
-  array<CD3DX12_ROOT_PARAMETER, Slots::Count> root_params;
-  CD3DX12_DESCRIPTOR_RANGE gbuffers = {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0};
-  CD3DX12_STATIC_SAMPLER_DESC depth_sampler = {0};
-  DeferredShadingMeta() {
-    // G-Buffer
-    root_params[Slots::GBufferTable].InitAsDescriptorTable(1, &gbuffers);
-    D3D12_ROOT_SIGNATURE_FLAGS flag = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    root_desc.Init(root_params.size(), root_params.data(), 1, &depth_sampler, flag);
-
-    // Dont use DS buffer
-    is_depth_stencil_null = true;
-  }
-};
-*/
-
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
     : hinstance(hinstance),
-      mode(opt.init_render_mode),
-      is_dxr_enabled(opt.enable_realtime_raytracing),
-      draw_debug_model(opt.draw_debug_model) {
-  // validate
-  if (!is_dxr_enabled && REI_WARNINGIF(mode == RenderMode::RealtimeRaytracing)) {
-    mode = RenderMode::Rasterization;
-  }
-
+      is_dxr_enabled(opt.enable_realtime_raytracing) {
   DeviceResources::Options dev_opt;
   dev_opt.is_dxr_enabled = is_dxr_enabled;
   device_resources = std::make_shared<DeviceResources>(hinstance, dev_opt);
-
-  // Create deffered shaders
-  /*
-  {
-    deferred_base_pass
-      = create_shader(L"CoreData/shader/deferred_base.hlsl", make_unique<DeferredBaseMeta>());
-    deferred_shading_pass
-      = create_shader(L"CoreData/shader/deferred_shading.hlsl", make_unique<DeferredShadingMeta>());
-  }
-  */
-
-  //create_default_assets();
-}
-
-Renderer::~Renderer() {
-  log("D3DRenderer is destructed.");
 }
 
 SwapchainHandle Renderer::create_swapchain(
@@ -138,14 +50,13 @@ SwapchainHandle Renderer::create_swapchain(
   HWND hwnd = window_id.value.hwnd;
 
   REI_ASSERT(rendertarget_count <= 4);
-  v_array<std::shared_ptr<DefaultBufferData>, 4> rt_buffers(rendertarget_count);
+  FixedVec<std::shared_ptr<DefaultBufferData>, 4> rt_buffers(rendertarget_count);
   for (size_t i = 0; i < rendertarget_count; i++) {
     rt_buffers[i] = make_shared<DefaultBufferData>(this);
   }
   std::shared_ptr<DefaultBufferData> ds_buffer = make_shared<DefaultBufferData>(this);
   auto vp_res = std::make_shared<ViewportResources>(
     device_resources, hwnd, width, height, rt_buffers, ds_buffer);
-  viewport_resources_lib.push_back(vp_res);
 
   auto swapchain = make_shared<SwapchainData>(this);
   swapchain->res = vp_res;
@@ -161,58 +72,6 @@ BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle hand
   auto swapchain = to_swapchain(handle);
   UINT curr_rt_index = swapchain->res->get_current_rt_index();
   return BufferHandle(swapchain->res->m_rt_buffers[curr_rt_index]);
-}
-
-ScreenTransformHandle Renderer::create_viewport(int width, int height) {
-  auto vp = std::make_shared<ViewportData>(this);
-  vp->clear_color = {0.f, 0.f, 0.f, 0.5f};
-  RenderTargetSpec def_spec {};
-  vp->clear_depth = def_spec.ds_clear.Depth;
-  vp->clear_stencil = def_spec.ds_clear.Stencil;
-
-  // NOTE: DirectX viewport starts from top-left to bottom-right.
-  {
-    D3D12_VIEWPORT d3d_vp {};
-    d3d_vp.TopLeftX = 0.0f;
-    d3d_vp.TopLeftY = 0.0f;
-    d3d_vp.Width = width;
-    d3d_vp.Height = height;
-    d3d_vp.MinDepth = D3D12_MIN_DEPTH;
-    d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
-    vp->d3d_viewport = d3d_vp;
-  }
-
-  {
-    D3D12_RECT scissor {};
-    scissor.left = 0;
-    scissor.top = 0;
-    scissor.right = width;
-    scissor.bottom = height;
-    vp->scissor = scissor;
-  }
-
-  return vp;
-}
-
-void Renderer::set_viewport_clear_value(ScreenTransformHandle viewport_handle, Color c) {
-  auto viewport = to_viewport(viewport_handle);
-  viewport->clear_color = {c.r, c.g, c.b, c.a};
-}
-
-void Renderer::update_viewport_vsync(ScreenTransformHandle viewport_handle, bool enabled_vsync) {
-  auto viewport = to_viewport(viewport_handle);
-  REI_ASSERT(viewport);
-  viewport->enable_vsync = enabled_vsync;
-}
-
-void Renderer::update_viewport_size(ScreenTransformHandle viewport, int width, int height) {
-  error("Method is not implemented");
-}
-
-void Renderer::update_viewport_transform(ScreenTransformHandle h_viewport, const Camera& camera) {
-  shared_ptr<ViewportData> viewport = to_viewport(h_viewport);
-  REI_ASSERT(viewport);
-  viewport->update_camera_transform(camera);
 }
 
 BufferHandle Renderer::create_unordered_access_buffer_2d(
@@ -275,10 +134,9 @@ ShaderHandle Renderer::create_shader(
   auto shader = make_shared<RasterizationShaderData>(this);
 
   // compile and retrive root signature
-  shader->meta = {std::move(*meta)};
+  shader->meta.fill(std::move(*meta));
   device_resources->compile_shader(shader_path, shader->compiled_data);
   device_resources->get_root_signature(shader->root_signature, shader->meta);
-  device_resources->create_const_buffers(*shader, shader->const_buffers);
 
   return ShaderHandle(shader);
 }
@@ -324,11 +182,11 @@ ShaderArgumentHandle Renderer::create_shader_argument(
   size_t buf_count = arg_value.total_buffer_count();
   CD3DX12_GPU_DESCRIPTOR_HANDLE base_gpu_descriptor;
   CD3DX12_CPU_DESCRIPTOR_HANDLE base_cpu_descriptor;
-  UINT head_index = device_resources->alloc_descriptor(
+  UINT head_index = device_resources->cbv_srv_heap().alloc(
     UINT(buf_count), &base_cpu_descriptor, &base_gpu_descriptor);
 
   auto device = device_resources->device();
-  UINT descriptor_size = device_resources->descriptor_size();
+  UINT cnv_srv_descriptor_size = device_resources->cnv_srv_descriptor_size();
   CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_descriptor = base_cpu_descriptor;
 
   for (auto& h : arg_value.const_buffers) {
@@ -337,13 +195,13 @@ ShaderArgumentHandle Renderer::create_shader_argument(
     desc.BufferLocation = b->buffer->buffer_address();
     desc.SizeInBytes = b->buffer->effective_bytewidth();
     device->CreateConstantBufferView(&desc, cpu_descriptor);
-    cpu_descriptor.Offset(1, descriptor_size);
+    cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
   for (auto& h : arg_value.shader_resources) {
     auto b = to_buffer<DefaultBufferData>(h);
     auto meta = b->meta;
     D3D12_SHADER_RESOURCE_VIEW_DESC desc;
-    desc.Format = to_dxgi_format(meta.format);
+    desc.Format = to_dxgi_format_srv(meta.format);
     desc.ViewDimension = to_srv_dimension(meta.dimension);
     desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     // FIXME handle other cases and options
@@ -367,7 +225,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
       device->CreateShaderResourceView(NULL, &desc, cpu_descriptor);
     else
       device->CreateShaderResourceView(b->buffer.Get(), &desc, cpu_descriptor);
-    cpu_descriptor.Offset(1, descriptor_size);
+    cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
   for (auto& h : arg_value.unordered_accesses) {
     auto b = to_buffer<DefaultBufferData>(h);
@@ -383,7 +241,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
         break;
     }
     device->CreateUnorderedAccessView(b->buffer.Get(), nullptr, &desc, cpu_descriptor);
-    cpu_descriptor.Offset(1, descriptor_size);
+    cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
 
   auto arg_data = make_shared<ShaderArgumentData>(this);
@@ -411,21 +269,13 @@ ModelHandle Renderer::create_model(const Model& model) {
   // set up reference
   model_data->geometry = to_geometry(model.get_geometry()->get_graphic_handle());
   REI_ASSERT(model_data->geometry);
+  /*
   if (!model.get_material()) {
     log("model has no material; use deafult mat");
     model_data->material = default_material;
   } else {
     model_data->material = to_material(model.get_material()->get_graphic_handle());
   }
-
-  // allocate const buffer
-  /*
-  auto shader = to_shader<RasterizationShaderData>(model_data->material->shader);
-  REI_ASSERT(shader);
-  ShaderConstBuffers& shader_cbs = shader->const_buffers;
-  UINT cb_index = shader->const_buffers.next_object_index++;
-  REI_ASSERT(cb_index < shader_cbs.per_object_CBs->size());
-  model_data->const_buffer_index = cb_index;
   */
 
   // assign a tlas instance id
@@ -446,7 +296,6 @@ BufferHandle Renderer::create_raytracing_accel_struct(const Scene& scene) {
     GeometryData& g_data = *to_geometry(m->get_geometry()->get_graphic_handle());
     models.push_back(m_data);
   }
-  if (draw_debug_model) { models.push_back(*debug_model); }
 
   ComPtr<ID3D12Resource> tlas, scratch;
   build_dxr_acceleration_structure(models.data(), models.size(), scratch, tlas);
@@ -500,8 +349,8 @@ void Renderer::update_hitgroup_shader_record(BufferHandle shader_table_h, ModelH
   auto model = to_model(model_h);
   auto geometry = std::static_pointer_cast<MeshData>(model->geometry);
 
-  const size_t descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
-  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu, descriptor_size,
+  const size_t cnv_srv_descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
+  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu, cnv_srv_descriptor_size,
     model->tlas_instance_id, 0);
 }
 
@@ -539,34 +388,48 @@ void Renderer::begin_render_pass(BufferHandle render_target_h, BufferHandle dept
   const FLOAT clear_depth = 0;
   const FLOAT clear_stentil = 0;
 
-  D3D12_RENDER_PASS_RENDER_TARGET_DESC rt_desc {};
-  rt_desc.cpuDescriptor = get_rtv_cpu(rt_texture->get_res());
-  if (clear_rt) {
-    rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
-    rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
-  } else {
-    rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
-  }
-  rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+  UINT rt_num = 0;
+  D3D12_RENDER_PASS_RENDER_TARGET_DESC* rt_desc_ptr = nullptr;
+  D3D12_RENDER_PASS_RENDER_TARGET_DESC rt_desc = {};
+  if (rt_texture != c_empty_handle) {
+    rt_desc.cpuDescriptor = get_rtv_cpu(rt_texture->get_res());
+    REI_ASSERT(rt_desc.cpuDescriptor.ptr);
+    if (clear_rt) {
+      rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+      rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+      fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
+    } else {
+      rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+    }
+    rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
 
-  D3D12_RENDER_PASS_DEPTH_STENCIL_DESC ds_desc {};
-  ds_desc.cpuDescriptor = get_dsv_cpu(ds_texture->get_res());
-  if (clear_ds) {
-    ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
-    ds_desc.DepthBeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    ds_desc.DepthBeginningAccess.Clear.ClearValue.DepthStencil.Depth = clear_depth;
-    ds_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
-  } else {
-    ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
-    ds_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+    rt_desc_ptr = &rt_desc;
+    rt_num = 1;
   }
-  ds_desc.DepthEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE; // keep depth ?
-  ds_desc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+
+  D3D12_RENDER_PASS_DEPTH_STENCIL_DESC* ds_desc_ptr = nullptr;
+  D3D12_RENDER_PASS_DEPTH_STENCIL_DESC ds_desc {};
+  if (ds_texture != c_empty_handle) {
+    ds_desc.cpuDescriptor = get_dsv_cpu(ds_texture->get_res());
+    REI_ASSERT(ds_desc.cpuDescriptor.ptr);
+    if (clear_ds) {
+      ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+      ds_desc.DepthBeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+      ds_desc.DepthBeginningAccess.Clear.ClearValue.DepthStencil.Depth = clear_depth;
+      ds_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+    } else {
+      ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+      ds_desc.StencilBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
+    }
+    ds_desc.DepthEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE; // keep depth ?
+    ds_desc.StencilEndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_DISCARD;
+
+    ds_desc_ptr = &ds_desc;
+  }
 
   D3D12_RENDER_PASS_FLAGS flag = D3D12_RENDER_PASS_FLAG_NONE; // TODO check this what is other enum
 
-  cmd_list->BeginRenderPass(1, &rt_desc, &ds_desc, flag);
+  cmd_list->BeginRenderPass(rt_num, rt_desc_ptr, ds_desc_ptr, flag);
 }
 
 void Renderer::end_render_pass() {
@@ -580,11 +443,12 @@ void Renderer::transition(BufferHandle buffer_h, ResourceState state) {
   shared_ptr<BufferData> buffer = to_buffer<BufferData>(buffer_h);
   D3D12_RESOURCE_STATES to_state = to_res_state(state);
 
-  if (REI_WARNINGIF(to_state == buffer->state)) { REI_WARNING("Redudant state transition"); }
+  if (to_state == buffer->state) { return; }
 
-  auto barr = CD3DX12_RESOURCE_BARRIER::Transition(
-    buffer->get_res(), buffer->state, D3D12_RESOURCE_STATE_PRESENT);
+  auto barr = CD3DX12_RESOURCE_BARRIER::Transition(buffer->get_res(), buffer->state, to_state);
   cmd_list->ResourceBarrier(1, &barr);
+
+  buffer->state = to_state;
 }
 
 void Renderer::draw(const DrawCommand& cmd) {
@@ -595,8 +459,7 @@ void Renderer::draw(const DrawCommand& cmd) {
 
   // Check root signature
   REI_ASSERT(cmd.shader);
-  shared_ptr<RasterizationShaderData> shader
-    = cmd.shader ? to_shader<RasterizationShaderData>(cmd.shader) : nullptr;
+  shared_ptr<RasterizationShaderData> shader = to_shader<RasterizationShaderData>(cmd.shader);
   ID3D12RootSignature* this_root_sign = shader->root_signature.Get();
   cmd_list->SetGraphicsRootSignature(this_root_sign);
 
@@ -610,7 +473,7 @@ void Renderer::draw(const DrawCommand& cmd) {
     for (UINT i = 0; i < cmd.arguments.size(); i++) {
       const auto shader_arg = to_argument(cmd.arguments[i]);
       if (shader_arg) {
-        cmd_list->SetComputeRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
+        cmd_list->SetGraphicsRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
       }
     }
   }
@@ -623,8 +486,10 @@ void Renderer::draw(const DrawCommand& cmd) {
     // Draw
     cmd_list->DrawIndexedInstanced(mesh->index_num, 1, 0, 0, 0);
   } else {
-    // FIXME shortcut for blit pass
-    cmd_list->DrawIndexedInstanced(6, 1, 0, 0, 0);
+    // FIXME better shortcut for blit pass
+    cmd_list->IASetVertexBuffers(0, 0, NULL);
+    cmd_list->IASetIndexBuffer(NULL);
+    cmd_list->DrawInstanced(3, 1, 0, 0);
   }
 }
 
@@ -711,7 +576,7 @@ Renderer* Renderer::prepare() {
 
   // Begin command list recording
   auto cmd_list = device_resources->prepare_command_list();
-  cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
+  cmd_list->SetDescriptorHeaps(1, device_resources->cbv_srv_heap_addr());
 
   return this;
 }
@@ -723,7 +588,7 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
   // check state
   UINT curr_idx = swapchain->res->get_current_rt_index();
   DefaultBufferData& rt_buffer = *swapchain->res->m_rt_buffers[curr_idx];
-  REI_ASSERT(rt_buffer.state != D3D12_RESOURCE_STATE_PRESENT);
+  REI_ASSERT(rt_buffer.state == D3D12_RESOURCE_STATE_PRESENT);
 
   // Done any writing
   device_resources->flush_command_list();
@@ -742,271 +607,12 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
   device_resources->flush_command_queue_for_frame();
 }
 
-void Renderer::prepare(Scene& scene) {
-  // TODO update data from scene
-  Scene::ModelsRef models = scene.get_models();
-  for (ModelPtr& m : models) {
-    shared_ptr<ModelData> data = to_model(m->get_rendering_handle());
-    data->update_transform(*m);
-  }
-
-  // wait to finish reresource creation commands
-  // TODO make this non-block
-  upload_resources();
-}
-
-CullingResult Renderer::cull(ScreenTransformHandle viewport_handle, const Scene& scene) {
-  // TODO pool this
-  auto culling_data = make_shared<CullingData>(this);
-  vector<ModelData>& culled_models = culling_data->models;
-  // TODO current culling is just a dummy process
-  Scene::ModelsConstRef scene_models = scene.get_models();
-  for (ModelPtr a : scene_models) {
-    ModelHandle h_model = a->get_rendering_handle();
-    if (warning_if(h_model == nullptr, "Model is not create in renderer")) { continue; }
-    shared_ptr<ModelData> a_model = to_model(h_model);
-    culled_models.push_back(*a_model);
-  }
-
-  // TODO check if need to draw debug
-  if (draw_debug_model) {
-    // add the debug model to culling result
-    culled_models.push_back(*debug_model);
-  }
-
-  return CullingResult(culling_data);
-}
-
 void Renderer::upload_resources() {
   // NOTE: if the cmd_list is closed, we don need to submit it
   if (is_uploading_resources) {
     device_resources->flush_command_list();
     is_uploading_resources = false;
   }
-}
-
-void Renderer::render(ViewportData& viewport, CullingData& culling) {
-  /*
-  REI_ASSERT(device_resources.get());
-  REI_ASSERT(!viewport.viewport_resources.expired());
-
-  auto& dev_res = *device_resources;
-  auto& vp_res = *(viewport.viewport_resources.lock());
-
-  // viewport shortcuts
-  const D3D12_VIEWPORT& d3d_vp = viewport.d3d_viewport;
-  const D3D12_RECT& scissor = viewport.scissor;
-  const RenderTargetSpec& target_spec = vp_res.target_spec();
-
-  // Prepare command list
-  ID3D12GraphicsCommandList* cmd_list = dev_res.prepare_command_list();
-  cmd_list->SetDescriptorHeaps(1, device_resources->descriptor_heap_ptr());
-
-  // Prepare render target
-  D3D12_RESOURCE_BARRIER pre_rt
-    = CD3DX12_RESOURCE_BARRIER::Transition(vp_res.get_current_rt_buffer(),
-      D3D12_RESOURCE_STATE_PRESENT, // previous either COMMON of PRESENT
-      D3D12_RESOURCE_STATE_RENDER_TARGET);
-  cmd_list->ResourceBarrier(1, &pre_rt);
-
-  // Set Viewport and scissor
-  cmd_list->RSSetViewports(1, &d3d_vp);
-  cmd_list->RSSetScissorRects(1, &scissor);
-
-  // Specify render target
-  cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, &vp_res.get_dsv());
-
-  // Clear
-  const FLOAT* clear_color = viewport.clear_color.data();
-  D3D12_RECT* entire_view = nullptr;
-  cmd_list->ClearRenderTargetView(vp_res.get_current_rtv(), clear_color, 0, entire_view);
-  D3D12_CLEAR_FLAGS ds_clear_flags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
-  FLOAT clear_depth = target_spec.ds_clear.Depth;
-  FLOAT clear_stencil = target_spec.ds_clear.Stencil;
-  cmd_list->ClearDepthStencilView(
-    vp_res.get_dsv(), ds_clear_flags, clear_depth, clear_stencil, 0, entire_view);
-
-  // Update per-frame buffers for all shaders
-  // TODO cache this object
-  unordered_set<UploadBuffer<cbPerFrame>*> per_frame_CBs {};
-  for (ModelData& model : culling.models) {
-    ShaderData* shader = model.material->shader.get();
-    REI_ASSERT(shader);
-    REI_ASSERT(shader->const_buffers.per_frame_CB.get());
-    per_frame_CBs.insert(shader->const_buffers.per_frame_CB.get());
-  }
-  cbPerFrame frame_cb = {};
-  frame_cb.light = {};
-  frame_cb.set_camera_world_trans(viewport.view);
-  frame_cb.set_camera_pos(viewport.pos);
-  for (UploadBuffer<cbPerFrame>* cb : per_frame_CBs) {
-    cb->update(frame_cb);
-  }
-
-  // Geomtry Pass
-  // TODO sort the models into different level of batches, and draw by these batches
-  {
-    ModelDrawTask r_task = {};
-    r_task.view_proj = &viewport.view_proj;
-    r_task.target_spec = &target_spec;
-    for (ModelData& model : culling.models) {
-      if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr))
-        continue;
-      r_task.model_num = 1;
-      r_task.models = &model;
-      draw_meshes(*cmd_list, r_task, to_shader(deferred_base_pass).get());
-    }
-  }
-
-  // Copy depth to render target for test
-  {
-    auto& shader = to_shader(deferred_shading_pass);
-
-    cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, NULL);
-
-    cmd_list->SetGraphicsRootSignature(shader->root_signature.Get());
-    ComPtr<ID3D12PipelineState> pso;
-    device_resources->get_pso(*shader, target_spec, pso);
-    cmd_list->SetPipelineState(pso.Get());
-
-    cmd_list->SetGraphicsRootDescriptorTable(
-      DeferredShadingMeta::GBufferTable, viewport.depth_buffer_srv_gpu);
-
-    cmd_list->IASetVertexBuffers(0, 0, NULL);
-    cmd_list->IASetIndexBuffer(NULL);
-    cmd_list->DrawInstanced(6, 1, 0, 0);
-  }
-
-  // Finish writing render target
-  D3D12_RESOURCE_BARRIER post_rt
-    = CD3DX12_RESOURCE_BARRIER::Transition(vp_res.get_current_rt_buffer(),
-      D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-  cmd_list->ResourceBarrier(1, &post_rt);
-
-  // Finish adding commands
-  device_resources->flush_command_list();
-
-  // Present and flip
-  if (viewport.enable_vsync) {
-    vp_res.swapchain()->Present(1, 0);
-  } else {
-    vp_res.swapchain()->Present(0, 0);
-  }
-  vp_res.flip_backbuffer();
-
-  // Flush and wait
-  dev_res.flush_command_queue_for_frame();
-  */
-}
-
-/*
-void Renderer::create_default_assets() {
-  REI_ASSERT(is_right_handed);
-  // default mesh
-  MeshPtr cube = make_shared<Mesh>(L"D3D-Renderer Debug Cube");
-  vector<Mesh::Vertex> vertices = {
-    //     Position               Normal
-    {{-1.0f, -1.0f, -1.0f}, {-1.0f, -1.0f, -1.0f}},
-    {{-1.0f, +1.0f, -1.0f}, {-1.0f, +1.0f, -1.0f}},
-    {{+1.0f, +1.0f, -1.0f}, {+1.0f, +1.0f, -1.0f}},
-    {{+1.0f, -1.0f, -1.0f}, {+1.0f, -1.0f, -1.0f}},
-    {{-1.0f, -1.0f, +1.0f}, {-1.0f, -1.0f, +1.0f}},
-    {{-1.0f, +1.0f, +1.0f}, {-1.0f, +1.0f, +1.0f}},
-    {{+1.0f, +1.0f, +1.0f}, {+1.0f, +1.0f, +1.0f}},
-    {{+1.0f, -1.0f, +1.0f}, {+1.0f, -1.0f, +1.0f}},
-  };
-  vector<Mesh::Triangle> indicies = {// front face
-    {0, 1, 2}, {0, 2, 3},
-
-    // back face
-    {4, 6, 5}, {4, 7, 6},
-
-    // left face
-    {4, 5, 1}, {4, 1, 0},
-
-    // right face
-    {3, 2, 6}, {3, 6, 7},
-
-    // top face
-    {1, 5, 6}, {1, 6, 2},
-
-    // bottom face
-    {4, 0, 3}, {4, 3, 7}};
-  cube->set(std::move(vertices), std::move(indicies));
-  MaterialPtr mat = make_shared<Material>();
-
-  // default mesh
-  auto default_mesh = make_shared<MeshData>(this);
-  device_resources->create_mesh_buffer(*cube, *default_mesh);
-  default_geometry = default_mesh;
-  cube->set_graphic_handle(default_geometry);
-
-  // default material & shader
-  default_shader = to_shader<RasterizationShaderData>(create_shader(L"CoreData/shader/shader.hlsl", make_unique<DeferredBaseMeta>()));
-  default_material = make_shared<MaterialData>(this);
-  default_material->shader = default_shader;
-  mat->set_graphic_handle(default_material);
-
-  // combining the default assets
-  Model central_cube {L"Central Cubeeee", Mat4::I(), cube, mat};
-  debug_model = to_model(create_model(central_cube));
-}
-*/
-
-void Renderer::draw_meshes(
-  ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task, ShaderData* shader_override) {
-  /*
-  // short cuts
-  const Mat4& view_proj_mat = *(task.view_proj);
-  const RenderTargetSpec& target_spec = *(task.target_spec);
-
-  // shared setup
-  cmd_list.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-  const ModelData* models = task.models;
-  ID3D12RootSignature* curr_root_sign = nullptr;
-  ID3D12PipelineState* curr_pso = nullptr;
-  for (std::size_t i = 0; i < task.model_num; i++) {
-    const ModelData& model = models[i];
-    const MeshData& mesh = *(static_cast<MeshData*>(model.geometry.get()));
-    const MaterialData& material = *(model.material);
-    const ShaderData& shader = shader_override != nullptr ? *shader_override : *(material.shader);
-    const ShaderConstBuffers& const_buffers = shader.const_buffers;
-
-    // Check root signature
-    ID3D12RootSignature* this_root_sign = shader.root_signature.Get();
-    if (curr_root_sign != this_root_sign) {
-      cmd_list.SetGraphicsRootSignature(this_root_sign);
-      curr_root_sign = this_root_sign;
-    }
-
-    // Check Pipeline state
-    ComPtr<ID3D12PipelineState> this_pso;
-    device_resources->get_pso(shader, target_spec, this_pso);
-    if (curr_pso != this_pso.Get()) {
-      cmd_list.SetPipelineState(this_pso.Get());
-      curr_pso = this_pso.Get();
-    }
-
-    // Bind parameters
-    // Per frame data // TODO check redudant
-    cmd_list.SetGraphicsRootConstantBufferView(1, const_buffers.per_frame_CB->buffer_address());
-    // Per object data
-    cbPerObject object_cb = {};
-    REI_ASSERT(is_right_handed);
-    object_cb.update(view_proj_mat * model.transform, model.transform);
-    const_buffers.per_object_CBs->update(object_cb, model.const_buffer_index);
-    cmd_list.SetGraphicsRootConstantBufferView(
-      0, const_buffers.per_object_CBs->buffer_address(model.const_buffer_index));
-
-    // Set geometry buffer
-    cmd_list.IASetVertexBuffers(0, 1, &mesh.vbv);
-    cmd_list.IASetIndexBuffer(&mesh.ibv);
-
-    // Draw
-    cmd_list.DrawIndexedInstanced(mesh.index_num, 1, 0, 0, 0);
-  } // end for each model
-  */
 }
 
 void Renderer::build_raytracing_pso(const std::wstring& shader_path,
@@ -1158,6 +764,36 @@ void Renderer::set_const_buffer(
   shared_ptr<ConstBufferData> buffer = to_buffer<ConstBufferData>(handle);
   unsigned int local_offset = get_offset(buffer->layout, member);
   buffer->buffer->update(value, width, index, local_offset);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Renderer::get_rtv_cpu(ID3D12Resource* texture) {
+  {
+    auto* cached = m_rtv_cache.try_get(texture);
+    if (cached) return *cached;
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE ret;
+  device_resources->rtv_heap().alloc(&ret);
+
+  device_resources->device()->CreateRenderTargetView(texture, nullptr, ret);
+
+  m_rtv_cache.insert({texture, ret});
+  return ret;
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE Renderer::get_dsv_cpu(ID3D12Resource* texture) {
+  {
+    auto* cached = m_dsv_cache.try_get(texture);
+    if (cached) return *cached;
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE ret;
+  device_resources->dsv_heap().alloc(&ret);
+
+  device_resources->device()->CreateDepthStencilView(texture, nullptr, ret);
+
+  m_dsv_cache.insert({texture, ret});
+  return ret;
 }
 
 } // namespace d3d

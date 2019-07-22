@@ -17,21 +17,29 @@ using std::unique_ptr;
 
 namespace rei {
 
-WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer)
-    : config(config), m_renderer(std::move(renderer)) {
+WinApp::WinApp(Config config) : config(config) {
   // NOTE: Handle normally get from WinMain;
   // we dont do that here, because we want to create app with standard main()
   hinstance = get_hinstance(); // handle to the current .exe
 
   m_input_bus = make_unique<InputBus>();
 
-  // Default renderer
-  if (m_renderer == nullptr) { 
+  // Default renderer & pipeline
+  {
+    shared_ptr<d3d::Renderer> d3d_renderer;
     d3d::Renderer::Options r_opts = {};
-    r_opts.enable_realtime_raytracing = true;
-    m_renderer = make_shared<d3d::Renderer>(hinstance, r_opts); 
+    d3d_renderer = make_shared<d3d::Renderer>(hinstance, r_opts);
+    m_renderer = d3d_renderer;
+    switch (config.render_mode) {
+      case RenderMode::Rasterization:
+        m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
+        break;
+      case RenderMode::RealtimeRaytracing:
+      default:
+        m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
+        break;
+    }
   }
-  m_pipeline = make_shared<RealtimePathTracingPipeline>(m_renderer);
 
   // Default viewer
   m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
@@ -75,8 +83,8 @@ void WinApp::initialize_scene() {
     }
 
     // register material&shader
-    MaterialPtr mat = m->get_material();
-    if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
+    //MaterialPtr mat = m->get_material();
+    //if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
 
     ModelHandle h_model = m_renderer->create_model(*m);
     m->set_rendering_handle(h_model);

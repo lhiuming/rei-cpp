@@ -283,6 +283,70 @@ public:
 private:
 };
 
+// Naive descriptor allocator
+class NaiveDescriptorHeap : NoCopy {
+public:
+
+  NaiveDescriptorHeap() = default;
+  NaiveDescriptorHeap(NaiveDescriptorHeap&& other) = default;
+  NaiveDescriptorHeap& operator=(NaiveDescriptorHeap&& other) = default;
+
+  NaiveDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, UINT capacity)
+      : max_descriptor_num(capacity),
+        m_descriptor_size(device->GetDescriptorHandleIncrementSize(type)) {
+
+    // Automatic flag
+    D3D12_DESCRIPTOR_HEAP_FLAGS flag = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
+      flag = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    }
+
+    // Create buffer-type descriptor heap
+    D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
+    heap_desc.Type = type;
+    heap_desc.NumDescriptors = max_descriptor_num;
+    heap_desc.Flags = flag;
+    heap_desc.NodeMask = 0; // sinlge GPU
+    HRESULT hr = device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_descriotpr_heap));
+    REI_ASSERT(SUCCEEDED(hr));
+    next_descriptor_index = 0;
+  }
+
+  ID3D12DescriptorHeap* get_ptr() const { return m_descriotpr_heap.Get(); }
+  ID3D12DescriptorHeap* const* get_ptr_addr() const { return m_descriotpr_heap.GetAddressOf(); }
+
+  UINT cnv_srv_descriptor_size() const { return m_descriptor_size; };
+
+  UINT alloc(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
+    ID3D12DescriptorHeap* heap = m_descriotpr_heap.Get();
+    REI_ASSERT(heap);
+    REI_ASSERT(next_descriptor_index + count < max_descriptor_num);
+    if (cpu_descrioptor) {
+      *cpu_descrioptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        heap->GetCPUDescriptorHandleForHeapStart(), INT(next_descriptor_index), m_descriptor_size);
+    }
+    if (gpu_descriptor) {
+      *gpu_descriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(
+        heap->GetGPUDescriptorHandleForHeapStart(), INT(next_descriptor_index), m_descriptor_size);
+    }
+    UINT head_alloc_index = next_descriptor_index;
+    next_descriptor_index += count;
+    return head_alloc_index;
+  }
+
+  UINT alloc(D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
+    return alloc(1, cpu_descrioptor, gpu_descriptor);
+  }
+
+protected:
+  UINT max_descriptor_num = 0;
+  UINT m_descriptor_size = UINT_MAX;
+  UINT next_descriptor_index = 0;
+  ComPtr<ID3D12DescriptorHeap> m_descriotpr_heap;
+};
+
 } // namespace d3d
 
 } // namespace rei

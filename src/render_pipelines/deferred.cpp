@@ -23,7 +23,7 @@ struct SceneData {
   struct ModelData {
     ModelHandle model;
     GeometryHandle geometry;
-    // TODO should use an offset in cb instead
+    // TODO should use an offset in cb instead, rather than a brand-new descriptor
     ShaderArgumentHandle arg;
     Mat4 trans;
   };
@@ -45,15 +45,20 @@ struct DeferredBaseMeta : RasterizationShaderMetaInfo {
 };
 
 struct DeferredShadingMeta : RasterizationShaderMetaInfo {
-  DeferredShadingMeta() {}
+  DeferredShadingMeta() {
+    ShaderParameter space0 {};
+    space0.shader_resources = {ShaderResource()};
+    signature.param_table = {space0};
+    is_depth_stencil_disabled = true;
+  }
 };
 
 DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(renderer) {
   Renderer* r = get_renderer();
   m_default_shader
-    = r->create_shader(L"CoreData/shader/deferred_base", std::make_unique<DeferredBaseMeta>());
+    = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
   m_lighting_shader
-    = r->create_shader(L"CoreData/shader/deferred_shading", std::make_unique<DeferredBaseMeta>());
+    = r->create_shader(L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
 }
 
 DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportConfig conf) {
@@ -111,6 +116,16 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
   return add_scene(std::move(proxy));
 }
 
+void DeferredPipeline::transform_viewport(ViewportHandle handle, const Camera& camera) {
+  ViewportProxy* viewport = get_viewport(handle);
+  REI_ASSERT(viewport);
+  Renderer* r = get_renderer();
+  REI_ASSERT(r);
+
+  viewport->cam_pos = camera.position();
+  viewport->view_proj = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
+}
+
 void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   ViewportProxy* viewport = get_viewport(viewport_h);
   SceneProxy* scene = get_scene(scene_h);
@@ -137,34 +152,11 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   }
 
   // Prepare frame buffer
-  BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
   BufferHandle ds_buffer = renderer->fetch_swapchain_depth_stencil_buffer(viewport->swapchain);
-  cmd_list->transition(render_target, ResourceState::RenderTarget);
+
   cmd_list->transition(ds_buffer, ResourceState::DeptpWrite);
-
-  cmd_list->begin_render_pass(render_target, ds_buffer, {viewport->width, viewport->height}, true,
-    true); // rendertarget, depth-stencil, render area, clear values
-
-  /*
-
-  // Set Viewport and scissor
-  cmd_list->RSSetViewports(1, &d3d_vp);
-  cmd_list->RSSetScissorRects(1, &scissor);
-
-  // Specify render target
-  cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, &vp_res.get_dsv());
-
-  // Clear
-  const FLOAT* clear_color = viewport.clear_color.data();
-  D3D12_RECT* entire_view = nullptr;
-  cmd_list->ClearRenderTargetView(vp_res.get_current_rtv(), clear_color, 0, entire_view);
-  D3D12_CLEAR_FLAGS ds_clear_flags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
-  FLOAT clear_depth = target_spec.ds_clear.Depth;
-  FLOAT clear_stencil = target_spec.ds_clear.Stencil;
-  cmd_list->ClearDepthStencilView(
-    vp_res.get_dsv(), ds_clear_flags, clear_depth, clear_stencil, 0, entire_view);
-  */
-
+  cmd_list->begin_render_pass(c_empty_handle, ds_buffer, {viewport->width, viewport->height}, false,
+    true);
   {
     DrawCommand draw_cmd = {};
     draw_cmd.shader = m_default_shader;
@@ -174,68 +166,26 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       draw_cmd.geo = model.geometry;
       draw_cmd.shader = m_default_shader;
       draw_cmd.arguments = {model.arg};
-      // with geometry handles, shader argumnets and pipeline state /w root signature
       cmd_list->draw(draw_cmd);
     }
   }
-
   cmd_list->end_render_pass();
 
-  /*
-  // Geomtry Pass
-  // TODO sort the models into different level of batches, and draw by these batches
-  {
-    ModelDrawTask r_task = {};
-    r_task.view_proj = &viewport.view_proj;
-    r_task.target_spec = &target_spec;
-    for (ModelData& model : culling.models) {
-      if (REI_WARNINGIF(model.geometry == nullptr) || REI_WARNINGIF(model.material == nullptr))
-        continue;
-      r_task.model_num = 1;
-      r_task.models = &model;
-      draw_meshes(*cmd_list, r_task, to_shader(deferred_base_pass).get());
-    }
-  }
-  */
 
-  {
-    BufferHandle rt = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
-    BufferHandle ds = c_empty_handle;
-    cmd_list->begin_render_pass(rt, ds, {viewport->width, viewport->height}, true, false);
-  }
-
+  BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
+  cmd_list->transition(render_target, ResourceState::RenderTarget);
+  cmd_list->begin_render_pass(
+    render_target, c_empty_handle, {viewport->width, viewport->height}, true, false);
   {
     DrawCommand cmd = {};
     cmd.geo = c_empty_handle;
     cmd.shader = m_lighting_shader;
     cmd.arguments = {viewport->lighting_pass_argument};
-    // with null-geometry, shader arguments, and pipeline state /w root signature
     cmd_list->draw(cmd);
   }
-
   cmd_list->end_render_pass();
 
-  /*
-  // Copy depth to render target for test
-  {
-    auto& shader = to_shader(deferred_shading_pass);
-
-    cmd_list->OMSetRenderTargets(1, &vp_res.get_current_rtv(), true, NULL);
-
-    cmd_list->SetGraphicsRootSignature(shader->root_signature.Get());
-    ComPtr<ID3D12PipelineState> pso;
-    device_resources->get_pso(*shader, target_spec, pso);
-    cmd_list->SetPipelineState(pso.Get());
-
-    cmd_list->SetGraphicsRootDescriptorTable(
-      DeferredShadingMeta::GBufferTable, viewport.depth_buffer_srv_gpu);
-
-    cmd_list->IASetVertexBuffers(0, 0, NULL);
-    cmd_list->IASetIndexBuffer(NULL);
-    cmd_list->DrawInstanced(6, 1, 0, 0);
-  }
-  */
-
+  cmd_list->transition(render_target, ResourceState::Present);
   cmd_list->present(viewport->swapchain, true);
 }
 

@@ -71,11 +71,9 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
     SUCCEEDED(m_device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&m_command_alloc))));
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
   REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(
-    node_mask, list_type, m_command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&m_command_list))));
+    node_mask, list_type, m_command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&m_command_list_legacy))));
+  REI_ASSERT(SUCCEEDED(m_command_list_legacy->QueryInterface(IID_PPV_ARGS(&m_command_list))));
   m_command_list->Close();
-  if (is_dxr_enabled) {
-    REI_ASSERT(SUCCEEDED(m_command_list->QueryInterface(IID_PPV_ARGS(&m_dxr_command_list))));
-  }
   is_using_cmd_list = false;
 
   // Create fence
@@ -83,39 +81,10 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   REI_ASSERT(SUCCEEDED(m_device->CreateFence(0, fence_flags, IID_PPV_ARGS(&frame_fence))));
   current_frame_fence = 0;
 
-  // Create buffer-type descriptor heap
-  D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
-  heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-  heap_desc.NumDescriptors = max_descriptor_num;
-  heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; // for shader resources
-  heap_desc.NodeMask = 0;                                      // sinlge GPU
-  REI_ASSERT(
-    SUCCEEDED(m_device->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&m_descriotpr_heap))));
-  next_descriptor_index = 0;
-  m_descriptor_size
-    = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-  // Create rtv and dsv heaps
-  D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc;
-  rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-  rtv_heap_desc.NumDescriptors = max_descriptor_num;
-  rtv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // TODO check this
-  rtv_heap_desc.NodeMask = 0;                            // TODO check this
-  hr = m_device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&m_rtv_heap));
-  REI_ASSERT(SUCCEEDED(hr));
-
-  m_rtv_descriptor_size = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-  D3D12_DESCRIPTOR_HEAP_DESC dsv_heap_desc;
-  dsv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-  dsv_heap_desc.NumDescriptors = 1; // afterall we need only one DS buffer
-  dsv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-  dsv_heap_desc.NodeMask = 0;
-  hr = m_device->CreateDescriptorHeap(&dsv_heap_desc, IID_PPV_ARGS(&m_dsv_heap));
-  REI_ASSERT(SUCCEEDED(hr));
-
-  m_dsv_descriptor_size = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
+  // Create  descriptor heaps
+  m_cbv_srv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
+  m_rtv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 8);
+  m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
 
 void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
@@ -140,14 +109,18 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
       &error_msg                                         // message if error
     );
     if (FAILED(hr)) {
-      char* err_str = (char*)error_msg->GetBufferPointer();
-      error(err_str);
+      if (error_msg) {
+        char* err_str = (char*)error_msg->GetBufferPointer();
+        error(err_str);
+      } else {
+        REI_ERROR("Shader Compiler failed with no error msg");
+      }
     }
     return return_bytecode;
   };
 
-  ComPtr<ID3DBlob> vs_bytecode = compile("VS", "vs_5_0");
-  ComPtr<ID3DBlob> ps_bytecode = compile("PS", "ps_5_0");
+  ComPtr<ID3DBlob> vs_bytecode = compile("VS", "vs_5_1");
+  ComPtr<ID3DBlob> ps_bytecode = compile("PS", "ps_5_1");
 
 
   result = {vs_bytecode, ps_bytecode};
@@ -155,19 +128,8 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
   return;
 }
 
-void DeviceResources::create_const_buffers(
-  const ShaderData& shader, ShaderConstBuffers& const_buffers) {
-  /*
-  const_buffers.per_frame_CB = make_unique<UploadBuffer<cbPerFrame>>(*m_device.Get(), 1, true);
-  UINT64 init_size = 128;
-  const_buffers.per_object_CBs
-    = make_shared<UploadBuffer<cbPerObject>>(*m_device.Get(), init_size, true);
-  const_buffers.next_object_index = 0;
-  */
-}
-
 void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta) {
-  get_root_signature(meta.root_desc, root_sign);
+  get_root_signature(meta.root_signature.desc, root_sign);
 }
 
 void DeviceResources::get_root_signature(const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
@@ -319,8 +281,8 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
     CD3DX12_CPU_DESCRIPTOR_HANDLE index_srv_cpu;
 
     // index first
-    auto i_index = this->alloc_descriptor(&index_srv_cpu, &index_srv_gpu);
-    auto v_index = this->alloc_descriptor(&vertex_srv_cpu, &vertex_srv_gpu);
+    auto i_index = m_cbv_srv_heap.alloc(&index_srv_cpu, &index_srv_gpu);
+    auto v_index = m_cbv_srv_heap.alloc(&vertex_srv_cpu, &vertex_srv_gpu);
     REI_ASSERT(v_index = i_index + 1);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
@@ -420,9 +382,7 @@ ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12Pipeline
     REI_ASSERT((SUCCEEDED(hr)));
     is_using_cmd_list = true;
   }
-  // Let's use the newest version
-  //return m_command_list.Get();
-  return m_dxr_command_list.Get();
+  return m_command_list.Get();
 }
 
 void DeviceResources::flush_command_list() {

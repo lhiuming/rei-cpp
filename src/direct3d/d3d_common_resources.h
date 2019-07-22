@@ -51,6 +51,11 @@ inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
   }
 }
 
+inline static constexpr DXGI_FORMAT to_dxgi_format_srv(ResourceFormat format) {
+  if (format == ResourceFormat::D24_UNORM_S8_UINT) { return DXGI_FORMAT_R24_UNORM_X8_TYPELESS; }
+  return to_dxgi_format(format);
+}
+
 inline static constexpr D3D12_SRV_DIMENSION to_srv_dimension(ResourceDimension dim) {
   switch (dim) {
     case ResourceDimension::Undefined:
@@ -129,17 +134,6 @@ inline static DirectX::XMMATRIX rei_to_D3D(const Mat4& A) {
     A(2, 2), A(3, 2), A(0, 3), A(1, 3), A(2, 3), A(3, 3));
 }
 
-// TODO remove this hardcode class
-struct cbPerObject {
-  DirectX::XMMATRIX WVP; // DirectXMath fits well with HLSL
-  DirectX::XMMATRIX World;
-
-  void update(const Mat4& wvp, const Mat4& world = Mat4::I()) {
-    WVP = rei_to_D3D(wvp);
-    World = rei_to_D3D(world);
-  }
-};
-
 struct VertexElement {
   DirectX::XMFLOAT4 pos; // DirectXMath fits well with HLSL
   DirectX::XMFLOAT4 color;
@@ -153,27 +147,8 @@ struct VertexElement {
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 };
 
+constexpr UINT c_input_layout_num = 3;
 extern const D3D12_INPUT_ELEMENT_DESC c_input_layout[3];
-
-// Over simple Light object, to debug
-struct Light {
-  DirectX::XMFLOAT3 dir;
-  float pad; // padding to match with shader's constant buffer packing
-  DirectX::XMFLOAT4 ambient;
-  DirectX::XMFLOAT4 diffuse;
-
-  Light() { ZeroMemory(this, sizeof(Light)); }
-};
-
-// per-frame constant-buffer layout
-struct cbPerFrame {
-  Light light;
-  DirectX::XMMATRIX camera_world_trans;
-  DirectX::XMFLOAT3 camera_pos;
-
-  void set_camera_world_trans(const Mat4& m) { camera_world_trans = rei_to_D3D(m); }
-  void set_camera_pos(const Vec3& v) { camera_pos = {float(v.x), float(v.y), float(v.z)}; }
-};
 
 struct RenderTargetSpec {
   DXGI_SAMPLE_DESC sample_desc; // multi-sampling parameters
@@ -244,6 +219,7 @@ struct GeometryData : BaseGeometryData {
 
 struct MeshData : GeometryData {
   using GeometryData::GeometryData;
+  bool is_dummy = false;
   ComPtr<ID3D12Resource> vert_buffer;
   ComPtr<ID3D12Resource> vert_upload_buffer;
   D3D12_VERTEX_BUFFER_VIEW vbv = {NULL, UINT_MAX, UINT_MAX};
@@ -288,11 +264,48 @@ struct ViewportData : BaseScreenTransformData {
 struct RootSignatureDescMemory {
   CD3DX12_ROOT_SIGNATURE_DESC desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
   // probably no more than 4 space
-  using ParamContainer = v_array<CD3DX12_ROOT_PARAMETER, 4>;
-  ParamContainer params;
+  using ParamContainer = FixedVec<CD3DX12_ROOT_PARAMETER, 4>;
+  ParamContainer param_memory;
   // probably no more than 4 space * 4 range-types
-  using RangeContainer = v_array<CD3DX12_DESCRIPTOR_RANGE, 16>;
-  RangeContainer ranges;
+  using RangeContainer = FixedVec<CD3DX12_DESCRIPTOR_RANGE, 16>;
+  RangeContainer range_memory;
+
+  RootSignatureDescMemory(const RootSignatureDescMemory& other) = delete;
+  RootSignatureDescMemory(RootSignatureDescMemory&& other) = delete;
+
+  // Convert high-level shader signature to D3D12 Root Signature Desc
+  inline void fill_signature(const ShaderSignature& signature, bool local) {
+    auto& param_table = signature.param_table;
+
+    range_memory.clear();
+    param_memory.clear();
+
+    for (int space = 0; space < param_table.size(); space++) {
+      auto& params = param_table[space];
+      size_t range_offset = range_memory.size();
+
+      if (params.const_buffers.size())
+        range_memory.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
+      if (params.shader_resources.size())
+        range_memory.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
+      if (params.unordered_accesses.size())
+        range_memory.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
+      if (params.samplers.size())
+        range_memory.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
+
+      UINT new_range_count = UINT(range_memory.size() - range_offset);
+      if (new_range_count > 0) {
+        param_memory.emplace_back().InitAsDescriptorTable(new_range_count, &range_memory[range_offset]);
+      }
+    }
+
+    D3D12_ROOT_SIGNATURE_FLAGS flags
+      = local ? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE : D3D12_ROOT_SIGNATURE_FLAG_NONE;
+    if (param_memory.size() > 0)
+      desc.Init(param_memory.size(), param_memory.data(), 0, nullptr, flags);
+  }
 };
 
 struct RasterizationShaderMetaDesc {
@@ -300,8 +313,12 @@ struct RasterizationShaderMetaDesc {
   CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   bool is_depth_stencil_null = false;
   CD3DX12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-  CD3DX12_ROOT_SIGNATURE_DESC root_desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
-  D3D12_INPUT_LAYOUT_DESC input_layout = {nullptr, 0};
+
+  CD3DX12_STATIC_SAMPLER_DESC static_sampler_desc {};
+  RootSignatureDescMemory root_signature {};
+
+    // TODO allow configuration of input layout
+  D3D12_INPUT_LAYOUT_DESC input_layout = {c_input_layout, c_input_layout_num};
 
   RasterizationShaderMetaDesc() {
     REI_ASSERT(is_right_handed);
@@ -311,7 +328,18 @@ struct RasterizationShaderMetaDesc {
   }
 
   RasterizationShaderMetaDesc(RasterizationShaderMetaInfo&& meta) { 
-    // TODO create signature !
+    this->fill(std::move(meta));
+  }
+  void fill(RasterizationShaderMetaInfo&& meta) {
+    root_signature.fill_signature(meta.signature, false);
+    root_signature.desc.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+    is_depth_stencil_null = meta.is_depth_stencil_disabled;
+
+    // TODO make this configurable
+    // add a default static sampler
+    static_sampler_desc.Init(0, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT);
+    root_signature.desc.NumStaticSamplers = 1;
+    root_signature.desc.pStaticSamplers = &static_sampler_desc;
   }
 };
 
@@ -338,49 +366,12 @@ struct RayTracingShaderMetaDesc {
     closest_hit_name = std::move(meta.closest_hit_name);
     raygen_name = std::move(meta.raygen_name);
     miss_name = std::move(meta.miss_name);
-    fill_signature(global, meta.global_signature, true);
-    fill_signature(hitgroup, meta.hitgroup_signature);
-    fill_signature(raygen, meta.raygen_signature);
-    fill_signature(miss, meta.miss_signature);
+    global.fill_signature(meta.global_signature, false);
+    hitgroup.fill_signature(meta.hitgroup_signature, true);
+    raygen.fill_signature(meta.raygen_signature, true);
+    miss.fill_signature(meta.miss_signature, true);
   }
-
-  // Convert high-level shader signature to D3D12 Root Signature Desc
-  inline void fill_signature(
-    RootSignatureDescMemory& desc, const ShaderSignature& signature, bool global = false) {
-    auto& param_table = signature.param_table;
-
-    auto& ranges = desc.ranges;
-    ranges.clear();
-    auto& params_descs = desc.params;
-    params_descs.clear();
-
-    for (int space = 0; space < param_table.size(); space++) {
-      auto& params = param_table[space];
-      size_t range_offset = ranges.size();
-
-      if (params.const_buffers.size())
-        ranges.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
-      if (params.shader_resources.size())
-        ranges.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
-      if (params.unordered_accesses.size())
-        ranges.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
-      if (params.samplers.size())
-        ranges.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
-
-      UINT new_range_count = UINT(ranges.size() - range_offset);
-      if (new_range_count > 0) {
-        params_descs.emplace_back().InitAsDescriptorTable(new_range_count, &ranges[range_offset]);
-      }
-    }
-
-    D3D12_ROOT_SIGNATURE_FLAGS flags
-      = global ? D3D12_ROOT_SIGNATURE_FLAG_NONE : D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-    if (params_descs.size() > 0)
-      desc.desc.Init(params_descs.size(), params_descs.data(), 0, nullptr, flags);
-  }
-
+ 
 private:
   // any form of copying is not allow
   RayTracingShaderMetaDesc(const RayTracingShaderMetaDesc&) = delete;
@@ -408,7 +399,7 @@ struct ShaderArgumentData : BaseShaderArgument {
   using BaseShaderArgument::BaseShaderArgument;
 
   // support up to 4 root cbv
-  v_array<D3D12_GPU_VIRTUAL_ADDRESS, 4> cbvs;
+  FixedVec<D3D12_GPU_VIRTUAL_ADDRESS, 4> cbvs;
 
   D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor_gpu = {0};
   D3D12_CPU_DESCRIPTOR_HANDLE base_descriptor_cpu = {0};
@@ -420,7 +411,6 @@ struct RasterizationShaderData : ShaderData {
   using ShaderData::ShaderData;
   RasterizationShaderMetaDesc meta;
   ShaderCompileResult compiled_data;
-  [[deprecated]] ShaderConstBuffers const_buffers;
 };
 
 struct RaytracingShaderData : ShaderData {
@@ -446,16 +436,10 @@ struct RaytracingShaderTableData : BaseBufferData {
   std::shared_ptr<ShaderTable> miss;
 };
 
-struct MaterialData : BaseMaterialData {
-  using BaseMaterialData::BaseMaterialData;
-  std::shared_ptr<ShaderData> shader;
-};
-
 struct ModelData : BaseModelData {
   using BaseModelData::BaseModelData;
   // Bound aabb;
   std::shared_ptr<GeometryData> geometry;
-  std::shared_ptr<MaterialData> material;
   UINT const_buffer_index = UINT_MAX; // in shader cb buffer
   UINT cbv_index = UINT_MAX;          // in device shared heap
 
@@ -466,11 +450,6 @@ struct ModelData : BaseModelData {
     REI_ASSERT(is_right_handed);
     this->transform = model.get_transform();
   }
-};
-
-struct CullingData : BaseCullingData {
-  using BaseCullingData::BaseCullingData;
-  std::vector<ModelData> models;
 };
 
 } // namespace d3d

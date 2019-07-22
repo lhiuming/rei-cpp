@@ -18,7 +18,7 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
     space0.unordered_accesses = {UnorderedAccess()};
 
     ShaderParameter space1 = {};
-    //space1.const_buffers = {ConstBuffer()};
+    // space1.const_buffers = {ConstBuffer()};
     space1.shader_resources = {ShaderResource(), ShaderResource()};
 
     global_signature.param_table = {space0};
@@ -26,7 +26,7 @@ struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
 
     hitgroup_name = L"hit_group0";
     raygen_name = L"raygen_shader";
-    //raygen_name = L"raygen_plain_color";
+    // raygen_name = L"raygen_plain_color";
     closest_hit_name = L"closest_hit_shader";
     miss_name = L"miss_shader";
   }
@@ -61,7 +61,7 @@ struct SceneData {
 
 using namespace rtpt;
 
-RealtimePathTracingPipeline::RealtimePathTracingPipeline(weak_ptr<rei::Renderer> renderer_wptr)
+RealtimePathTracingPipeline::RealtimePathTracingPipeline(RendererPtr renderer_wptr)
     : SimplexPipeline(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
   auto renderer = m_renderer.lock();
   std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
@@ -83,7 +83,7 @@ RealtimePathTracingPipeline::ViewportHandle RealtimePathTracingPipeline::registe
   {
     ConstBufferLayout layout = {5};
     layout[0] = ShaderDataType::Float4x4; // proj to world
-    layout[1] = ShaderDataType::Float4; // camera pos
+    layout[1] = ShaderDataType::Float4;   // camera pos
     layout[2] = ShaderDataType::Float4;
     layout[3] = ShaderDataType::Float4;
     layout[4] = ShaderDataType::Float4;
@@ -98,9 +98,12 @@ RealtimePathTracingPipeline::ViewportHandle RealtimePathTracingPipeline::registe
 void RealtimePathTracingPipeline::transform_viewport(ViewportHandle handle, const Camera& camera) {
   ViewportData* viewport = get_viewport(handle);
   REI_ASSERT(viewport);
+  Renderer* r = get_renderer();
+  REI_ASSERT(r);
   // Record camera transforms
   viewport->view_matrix = camera.world_to_camera();
-  viewport->view_proj_matrix = camera.world_to_device_halfz(); // TODO check if using direct3D
+  viewport->view_proj_matrix
+    = r->is_depth_range_01() ? camera.world_to_device_halfz() : camera.world_to_device();
   viewport->camera_pos = camera.position();
   viewport->camera_matrix_dirty = true;
 }
@@ -139,19 +142,15 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
   Renderer* renderer = get_renderer();
   REI_ASSERT(renderer);
 
-  /* TODO recover this
-
-  renderer->begin_render();
-
   // TODO abstract a command list object; currently just an alias
-  Renderer* cmd_list = renderer;
+  Renderer* cmd_list = renderer->prepare();
 
   // Update per-render buffer
   {
-    BufferHandle pre_render_buffer = viewport->per_render_buffer;
+    BufferHandle per_render_buffer = viewport->per_render_buffer;
     if (viewport->camera_matrix_dirty) {
-      cmd_list->update_const_buffer(pre_render_buffer, 0, 0, viewport->view_proj_matrix.inv());
-      cmd_list->update_const_buffer(pre_render_buffer, 0, 1, viewport->camera_pos);
+      cmd_list->update_const_buffer(per_render_buffer, 0, 0, viewport->view_proj_matrix.inv());
+      cmd_list->update_const_buffer(per_render_buffer, 0, 1, viewport->camera_pos);
       viewport->camera_matrix_dirty = false;
     }
   }
@@ -181,19 +180,12 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
   }
 
   // Copy to render target
-  {
-    BufferHandle rt_buffer = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
-    cmd_list->copy_texture(viewport->raytracing_output_buffer, rt_buffer);
-  }
+  BufferHandle rt_buffer = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
+  { cmd_list->copy_texture(viewport->raytracing_output_buffer, rt_buffer, true); }
 
   // Done
+  cmd_list->transition(rt_buffer, ResourceState::Present);
   renderer->present(viewport->swapchain, false);
-
-  // Wait 
-  // TODO remove this
-  renderer->end_render();
-
-  */
 }
 
 } // namespace rei

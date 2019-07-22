@@ -29,37 +29,22 @@ struct ShaderData;
 struct ViewportData;
 struct CullingData;
 
-enum RenderMode {
-  Rasterization,
-  RealtimeRaytracing,
-};
-
-
 class Renderer : public rei::Renderer {
   using Self = typename Renderer;
   using Base = typename rei::Renderer;
 
 public:
   struct Options {
-    RenderMode init_render_mode = RenderMode::Rasterization;
-    bool enable_realtime_raytracing = false;
-    // debug switched
-    bool draw_debug_model = false;
+    bool enable_realtime_raytracing = true;
   };
 
   Renderer(HINSTANCE hinstance, Options options = {});
-  ~Renderer() override;
+  ~Renderer() override = default;
 
   SwapchainHandle create_swapchain(
     SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
   BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
-
-  ScreenTransformHandle create_viewport(int width, int height);
-  void set_viewport_clear_value(ScreenTransformHandle viewport, Color color) override;
-  void update_viewport_vsync(ScreenTransformHandle viewport, bool enabled_vsync) override;
-  void update_viewport_size(ScreenTransformHandle viewport, int width, int height) override;
-  void update_viewport_transform(ScreenTransformHandle viewport, const Camera& camera) override;
 
   BufferHandle create_unordered_access_buffer_2d(
     size_t width, size_t height, ResourceFormat format);
@@ -109,62 +94,31 @@ public:
 
   DeviceResources& device() const { return *device_resources; }
 
-  void prepare(Scene& scene) override;
-  CullingResult cull(ScreenTransformHandle viewport, const Scene& scene) override;
+  bool is_depth_range_01() const override { return true; }
 
 protected:
   HINSTANCE hinstance;
-  RenderMode mode;
   const bool is_dxr_enabled;
-  const bool draw_debug_model;
 
   // some const config
   constexpr static VectorTarget model_trans_target = VectorTarget::Column;
 
   // TODO make unique
   std::shared_ptr<DeviceResources> device_resources;
-  // TODO deprecate this
-  std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
-
-  std::shared_ptr<MeshData> default_geometry;
-  std::shared_ptr<ShaderData> default_shader;
-  std::shared_ptr<MaterialData> default_material;
-  std::shared_ptr<ModelData> debug_model;
 
   bool is_uploading_resources = false;
 
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_dsv_cache {};
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_rtv_cache {};
+
   // TODO move state to cmd_list object
-  RenderTargetSpec curr_target_spec {};
-
-  // Deferred resources
-
-  ShaderHandle deferred_base_pass;
-  ShaderHandle deferred_shading_pass;
+  const RenderTargetSpec curr_target_spec {};
 
   // Ray Tracing Resources //
   UINT next_tlas_instance_id = 0;
   UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
 
-  // std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
-
-  ComPtr<ID3D12Resource> raygen_shader_table;
-  ComPtr<ID3D12Resource> miss_shader_table;
-
-  // void* m_hitgroup_shader_id;
-  // std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
-
   void upload_resources();
-  void render(ViewportData& viewport, CullingData& culling);
-
-  struct ModelDrawTask {
-    std::size_t model_num;
-    const ModelData* models;
-    const Mat4* view_proj;
-    const RenderTargetSpec* target_spec;
-  };
-
-  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task,
-    ShaderData* shader_override = nullptr);
 
   void build_raytracing_pso(const std::wstring& shader_path,
     const d3d::RaytracingShaderData& shader_data, ComPtr<ID3D12StateObject>& pso);
@@ -174,20 +128,9 @@ protected:
   void set_const_buffer(
     BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
 
-  D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(const ID3D12Resource* texture) { 
-    // FIXME
-    return {};
-  }
-  D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(const ID3D12Resource* texture) { 
-    // FIXME
-    return {};
-
-  }
-
-  /*
-  // Debug support
-  void create_default_assets();
-  */
+  // TODO move to device resource
+  D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(ID3D12Resource* texture);
+  D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(ID3D12Resource* texture);
 
   // Handle conversion
 
@@ -199,9 +142,6 @@ protected:
     return get_data<SwapchainHandle, SwapchainData>(h);
   }
 
-  std::shared_ptr<CullingData> to_culling(CullingResult h) {
-    return get_data<CullingResult, CullingData>(h);
-  }
   std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
   template <typename BufferType>
   std::shared_ptr<BufferType> to_buffer(BufferHandle h) {
@@ -223,9 +163,6 @@ protected:
   }
   std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) {
     return get_data<GeometryHandle, GeometryData>(h);
-  }
-  std::shared_ptr<MaterialData> to_material(MaterialHandle h) {
-    return get_data<MaterialHandle, MaterialData>(h);
   }
 };
 

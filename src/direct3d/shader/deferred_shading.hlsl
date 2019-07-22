@@ -1,10 +1,4 @@
 /*
-struct Light {
-  float3 dir;
-  float4 ambient;
-  float4 diffuse;
-};
-
 cbuffer cbPerFrame : register(b1) {
   Light light;
   float4x4 camera_world_trans;
@@ -18,21 +12,24 @@ Texture2D<float> depth_buffer : register(t0);
 
 float4 VS(uint vid : SV_VertexID) : SV_POSITION {
   /*
-   *  2 ------ 1|4
-   *  |       / |
-   *  |     /   |
-   *  |   /     |
-   *  | /       |
-   * 0/5 ------ 3
+   *  2 --------------------- 1
+   *  |     .   / |         /
+   *  |     . /   |       /
+   *  | - - * - - |     /
+   *  |   / .     |   /
+   *  | /   .     | /
+   *  |-----------/
+   *  |         /
+   *  |       /
+   *  |     /
+   *  |   /
+   *  | /
+   *  0 
    */
 
-  if (vid == 0) return float4(-1, -1, 1, 1);
-  if (vid == 1) return float4(+1, +1, 1, 1);
+  if (vid == 0) return float4(-1, -3, 1, 1);
+  if (vid == 1) return float4(+3, +1, 1, 1);
   if (vid == 2) return float4(-1, +1, 1, 1);
-
-  if (vid == 3) return float4(+1, -1, 1, 1);
-  if (vid == 4) return float4(+1, +1, 1, 1);
-  if (vid == 5) return float4(-1, -1, 1, 1);
 
   return float4(0, 0, 0, 1);
 }

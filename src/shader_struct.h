@@ -23,7 +23,7 @@ struct ConstBufferLayout {
   size_t size() const { return m_members.size(); }
 
   ShaderDataType& operator[](size_t i) {
-    if (i >= m_members.size()) { m_members.resize(i); }
+    if (i >= m_members.size()) { m_members.resize(i + 1); }
     return m_members[i];
   }
   ShaderDataType operator[](size_t i) const { return const_cast<ConstBufferLayout*>(this)->operator[](i); }

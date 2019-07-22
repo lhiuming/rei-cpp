@@ -1,10 +1,8 @@
 #include <memory>
 
 #include <app_utils/app.h>
-#include <camera.h>
 #include <console.h>
-#include <geometry.h>
-#include <scene.h>
+#include <direct3d/d3d_renderer.h>
 
 using namespace std;
 using namespace rei;
@@ -19,7 +17,6 @@ public:
     camera().move(0, 3, 0);
     camera().look_at({0, 1, 0});
   }
-
 };
 
 void HelloApp::on_start() {
@@ -34,6 +31,7 @@ int main() {
   conf.width = 1080;
   conf.height = 720;
   conf.bg_color = Colors::ayanami_blue;
+  conf.render_mode = App::RenderMode::Rasterization;
   auto app = HelloApp(conf);
 
   app.run();

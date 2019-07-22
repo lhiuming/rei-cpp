@@ -31,15 +31,15 @@ public:
   Color specular = {0.2, 0.2, 0.2, 1.0};
   double shineness = 30;
 
-  void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
-  MaterialHandle get_graphic_handle() const { return graphic_handle; }
+  //void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
+  //MaterialHandle get_graphic_handle() const { return graphic_handle; }
 
   friend std::wostream& operator<<(std::wostream& os, Material mat) {
     return os << "name = " << mat.name << ", diff = " << mat.diffuse << ", ambi = " << mat.ambient;
   }
 
 protected:
-  MaterialHandle graphic_handle;
+  //MaterialHandle graphic_handle;
 
 };
 

@@ -65,20 +65,12 @@ struct BaseShaderArgument : GraphicData {
   using GraphicData::GraphicData;
 };
 
-struct BaseMaterialData : GraphicData {
-  using GraphicData::GraphicData;
-};
-
 struct BaseModelData : GraphicData {
   using GraphicData::GraphicData;
   Mat4 transform;
 };
 
 struct BaseGeometryData : GraphicData {
-  using GraphicData::GraphicData;
-};
-
-struct BaseCullingData : GraphicData {
   using GraphicData::GraphicData;
 };
 
@@ -91,10 +83,7 @@ using ShaderArgumentHandle = std::shared_ptr<BaseShaderArgument>;
 using ShaderHandle = std::shared_ptr<BaseShaderData>;
 using GeometryHandle = std::shared_ptr<BaseGeometryData>;
 // TODO remove this
-using MaterialHandle = std::shared_ptr<BaseMaterialData>;
-// TODO remove this
 using ModelHandle = std::shared_ptr<BaseModelData>;
-using CullingResult = std::shared_ptr<BaseCullingData>;
 
 inline static constexpr decltype(nullptr) c_empty_handle = nullptr;
 

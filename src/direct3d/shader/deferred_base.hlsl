@@ -1,9 +1,3 @@
-struct Light {
-  float3 dir;
-  float4 ambient;
-  float4 diffuse;
-};
-
 // constant buffer to hold the projection transforming matrix
 cbuffer cbPerObject : register(b0, space0) {
   float4x4 WVP;
