@@ -18,6 +18,6 @@ private:
   NoCopy& operator=(const NoCopy&) = delete;
 };
 
-}
+} // namespace rei
 
 #endif

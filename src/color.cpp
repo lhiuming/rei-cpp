@@ -9,4 +9,4 @@ std::wostream& operator<<(std::wostream& os, const Color& col) {
   return os;
 }
 
-} // namespace REI
+} // namespace rei

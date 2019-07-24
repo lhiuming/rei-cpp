@@ -19,8 +19,9 @@ using Microsoft::WRL::ComPtr;
 class ViewportResources {
 public:
   ViewportResources() = delete;
-  ViewportResources(
-    std::shared_ptr<DeviceResources> device_resources, HWND hwnd, int init_width, int init_height, FixedVec<std::shared_ptr<DefaultBufferData>, 4> rt_buffers, std::shared_ptr<DefaultBufferData> ds_buffer);
+  ViewportResources(std::shared_ptr<DeviceResources> device_resources, HWND hwnd, int init_width,
+    int init_height, FixedVec<std::shared_ptr<DefaultBufferData>, 4> rt_buffers,
+    std::shared_ptr<DefaultBufferData> ds_buffer);
   ~ViewportResources();
 
   IDXGISwapChain1* swapchain() const { return m_swapchain.Get(); }

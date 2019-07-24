@@ -2,9 +2,9 @@
 #define REI_VIEWER_H
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include "../console.h"
 #include "../input.h"
@@ -22,8 +22,8 @@ namespace rei {
 
 class Viewer {
 public:
-  Viewer(std::size_t window_w, std::size_t window_h, std::wstring title) 
-    : m_width(window_w), m_height(window_h), m_title(title) {}
+  Viewer(std::size_t window_w, std::size_t window_h, std::wstring title)
+      : m_width(window_w), m_height(window_h), m_title(title) {}
   virtual ~Viewer() {};
 
   virtual SystemWindowID get_window_id() const = 0;
@@ -44,6 +44,6 @@ protected:
   std::weak_ptr<InputBus> input_bus;
 };
 
-}
+} // namespace rei
 
 #endif

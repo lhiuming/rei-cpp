@@ -73,7 +73,8 @@ BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle hand
   return BufferHandle(swapchain->res->m_rt_buffers[curr_rt_index]);
 }
 
-BufferHandle Renderer::create_texture_2d(size_t width, size_t height, ResourceFormat format, wstring&& name) {
+BufferHandle Renderer::create_texture_2d(
+  size_t width, size_t height, ResourceFormat format, wstring&& name) {
   auto device = device_resources->device();
   DXGI_FORMAT dxgi_format = to_dxgi_format(format);
 
@@ -84,7 +85,8 @@ BufferHandle Renderer::create_texture_2d(size_t width, size_t height, ResourceFo
     meta.format = format;
     texture->meta = meta;
   }
-  { ComPtr<ID3D12Resource> tex;
+  {
+    ComPtr<ID3D12Resource> tex;
     auto tex_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, width, height);
     // TODO add to input config
     tex_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;

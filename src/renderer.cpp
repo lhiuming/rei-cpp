@@ -4,6 +4,4 @@
 #include <iostream>
 #include <memory>
 
-namespace rei {
-
-} // namespace REI
+namespace rei {} // namespace rei

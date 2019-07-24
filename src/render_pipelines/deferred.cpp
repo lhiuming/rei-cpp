@@ -147,7 +147,7 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
       arg_value.const_buffer_offsets[0] = i;
       ShaderArgumentHandle arg = r->create_shader_argument(m_default_shader, arg_value);
       proxy.models.insert({
-        model->get_rendering_handle(),                                             // key
+        model->get_rendering_handle(),                                                // key
         {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
       });
     }

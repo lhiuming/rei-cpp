@@ -19,7 +19,6 @@ namespace rei {
 
 class WinApp {
 public:
-
   enum class RenderMode {
     Rasterization,
     RealtimeRaytracing,

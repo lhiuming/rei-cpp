@@ -45,7 +45,7 @@ namespace std {
  *hasher and equalizer for system window id
  */
 
-template<>
+template <>
 struct hash<rei::SystemWindowID> {
   using T = typename rei::SystemWindowID;
   using Platform = typename rei::SystemWindowID::Platform;
@@ -60,7 +60,7 @@ struct hash<rei::SystemWindowID> {
   }
 };
 
-template<>
+template <>
 struct equal_to<rei::SystemWindowID> {
   using T = typename rei::SystemWindowID;
   using Platform = typename rei::SystemWindowID::Platform;
@@ -98,7 +98,6 @@ struct ShaderParameter {
   std::vector<Sampler> samplers;
   rei::FixedVec<StaticSampler, 8> static_samplers;
 };
-
 
 // Represent the set of shader resources to be bound by a list of shader arguments
 struct ShaderSignature {
@@ -139,8 +138,8 @@ struct RaytracingShaderMetaInfo {
   std::wstring raygen_name;
   std::wstring hitgroup_name;
   std::wstring closest_hit_name;
-  //std::wstring any_hit_name;
-  //std::wstring intersection_name;
+  // std::wstring any_hit_name;
+  // std::wstring intersection_name;
   std::wstring miss_name;
 };
 
@@ -158,10 +157,10 @@ struct DrawCommand {
   ShaderHandle shader;
   ShaderArguments arguments;
 };
-  
+
 struct RenderArea {
-    size_t width;
-    size_t height;
+  size_t width;
+  size_t height;
 };
 
 struct RenderPassCommand {
@@ -190,7 +189,7 @@ protected:
       // Pointer to forward-delcared class cannot be static up-cast, so we have to use reinterpret
       // cast
       return std::static_pointer_cast<Data>(handle);
-      //return std::reinterpret_pointer_cast<Data>(handle);
+      // return std::reinterpret_pointer_cast<Data>(handle);
     }
     return nullptr;
   }

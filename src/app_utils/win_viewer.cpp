@@ -107,9 +107,15 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
         if (mouse_in_window) {
           POINTS p0 = last_mouse_pos_regular;
           input.push(CursorMove(p0.x, p0.y, p1.x, p1.y));
-          if (wParam == MK_LBUTTON) { input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Left)); }
-          if (wParam == MK_RBUTTON) { input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Right)); }
-          if (wParam == MK_MBUTTON) { input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Middle)); }
+          if (wParam == MK_LBUTTON) {
+            input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Left));
+          }
+          if (wParam == MK_RBUTTON) {
+            input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Right));
+          }
+          if (wParam == MK_MBUTTON) {
+            input.push(CursorDrag(p0.x, p0.y, p1.x, p1.y, CursorAlterType::Middle));
+          }
         }
         last_mouse_pos_regular = p1;
         mouse_in_window = true;

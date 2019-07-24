@@ -75,7 +75,7 @@ public:
   UINT cnv_srv_descriptor_size() const { return m_cbv_srv_heap.cnv_srv_descriptor_size(); };
 
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
-  //void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
+  // void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
   void get_root_signature(
     ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta);
   void get_root_signature(
@@ -126,7 +126,7 @@ private:
 
 } // namespace d3d
 
-} // namespace d3d
+} // namespace rei
 
 #endif
 

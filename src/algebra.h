@@ -299,7 +299,7 @@ struct Mat4 {
     double a13, double a20, double a21, double a22, double a23, double a30, double a31, double a32,
     double a33)
       : columns {Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31), Vec4(a02, a12, a22, a32),
-          Vec4(a03, a13, a23, a33)} {}
+        Vec4(a03, a13, a23, a33)} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
   constexpr static Mat4 from_diag(const Vec4& diag) {
@@ -315,7 +315,8 @@ struct Mat4 {
   constexpr static Mat4 I() { return from_diag({1.0, 1.0, 1.0, 1.0}); }
 
   // Construct a translation matrix
-  constexpr static Mat4 translate(const Vec3& translate, VectorTarget target = VectorTarget::Column) {
+  constexpr static Mat4 translate(
+    const Vec3& translate, VectorTarget target = VectorTarget::Column) {
     return {{1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translate, 1.0}};
   }
 
@@ -348,7 +349,6 @@ struct Mat4 {
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat4& A);
   Mat4 inv() const;
-
 
   // Matrix multiplication, or transform composition
   Mat4 operator*(const Mat4& rhs) const;

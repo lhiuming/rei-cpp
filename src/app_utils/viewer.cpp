@@ -4,6 +4,4 @@
 #include <memory>
 #include <string>
 
-namespace rei {
-
-}
+namespace rei {}

@@ -34,7 +34,6 @@ const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
         + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 
-
 } // namespace d3d
 
 } // namespace rei

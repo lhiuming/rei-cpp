@@ -20,6 +20,7 @@ struct SceneConfig {
 
 class RenderPipeline {
   using PtrType = std::uintptr_t;
+
 public:
   using ViewportHandle = PtrType;
   using SceneHandle = PtrType;
@@ -72,8 +73,9 @@ protected:
   }
 
   // TODO add validation
-  template<typename SharedPtr, typename Handle> 
-  typename SharedPtr::element_type* get_ptr(Handle handle, std::unordered_map<Handle, SharedPtr> map) {
+  template <typename SharedPtr, typename Handle>
+  typename SharedPtr::element_type* get_ptr(
+    Handle handle, std::unordered_map<Handle, SharedPtr> map) {
     auto found = map.find(handle);
     if (found != map.end()) { return found->second.get(); }
     return nullptr;

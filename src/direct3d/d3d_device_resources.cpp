@@ -31,12 +31,12 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
 #if DEBUG
   {
     // d3d12 debug layer
-    //ComPtr<ID3D12Debug> debug_controller;
+    // ComPtr<ID3D12Debug> debug_controller;
     ComPtr<ID3D12Debug1> debug_controller;
     REI_ASSERT(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug_controller))));
     debug_controller->EnableDebugLayer();
     // deeper debug, might be alot slower
-    //debug_controller->SetEnableGPUBasedValidation(true);
+    // debug_controller->SetEnableGPUBasedValidation(true);
     // dxgi 4 debug layer
     dxgi_factory_flags = DXGI_CREATE_FACTORY_DEBUG;
   }
@@ -70,8 +70,8 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   REI_ASSERT(
     SUCCEEDED(m_device->CreateCommandAllocator(list_type, IID_PPV_ARGS(&m_command_alloc))));
   ID3D12PipelineState* init_pip_state = nullptr; // no available pip state yet :(
-  REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(
-    node_mask, list_type, m_command_alloc.Get(), init_pip_state, IID_PPV_ARGS(&m_command_list_legacy))));
+  REI_ASSERT(SUCCEEDED(m_device->CreateCommandList(node_mask, list_type, m_command_alloc.Get(),
+    init_pip_state, IID_PPV_ARGS(&m_command_list_legacy))));
   REI_ASSERT(SUCCEEDED(m_command_list_legacy->QueryInterface(IID_PPV_ARGS(&m_command_list))));
   m_command_list->Close();
   is_using_cmd_list = false;
@@ -127,11 +127,13 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
   return;
 }
 
-void DeviceResources::get_root_signature(ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta) {
+void DeviceResources::get_root_signature(
+  ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta) {
   get_root_signature(meta.root_signature.desc, root_sign);
 }
 
-void DeviceResources::get_root_signature(const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
+void DeviceResources::get_root_signature(
+  const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
   /*
    * TODO maybe cache the root signatures
    * NOTE: d3d12 seems already do caching root signature for identical DESC
@@ -162,8 +164,8 @@ void DeviceResources::create_root_signature(
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void DeviceResources::get_pso(
-  const RasterizationShaderData& shader, const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
+void DeviceResources::get_pso(const RasterizationShaderData& shader,
+  const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
   // inputs
   const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
@@ -183,7 +185,7 @@ void DeviceResources::get_pso(
   REI_ASSERT(ps_bytecode);
 
   // some default value
-  UINT rt_num = 1;                            // TODO maybe check this
+  UINT rt_num = 1; // TODO maybe check this
 
   // ruotine for creating PSO
   auto create = [&]() -> ComPtr<ID3D12PipelineState> {

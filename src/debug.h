@@ -5,26 +5,25 @@
 #include <stdexcept>
 #endif
 
-#include "string_utils.h"
 #include "console.h"
+#include "string_utils.h"
 
 namespace rei {
 
 using MetaMsg = const char*;
 constexpr MetaMsg k_empty_meta = "";
 
-
-template<typename LogMsg>
+template <typename LogMsg>
 static inline void log(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << msg << meta << endl;
 }
 
-template<typename LogMsg>
+template <typename LogMsg>
 static inline void warning(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << "WARNING: " << msg << meta << endl;
 }
 
-template<typename T, typename LogMsg>
+template <typename T, typename LogMsg>
 static inline bool warning_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   if (expr) {
     warning(msg, meta);
@@ -33,12 +32,12 @@ static inline bool warning_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   return false;
 }
 
-template<typename LogMsg>
+template <typename LogMsg>
 static inline void error(LogMsg msg, MetaMsg meta = k_empty_meta) {
   console << "ERROR: " << msg << meta << endl;
 }
 
-template<typename T, typename LogMsg>
+template <typename T, typename LogMsg>
 static inline bool error_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   if (expr) { error(msg, meta); }
   return false;
@@ -52,7 +51,7 @@ static inline void deprecated(MetaMsg meta = k_empty_meta) {
   error("Deprecated invocation.", meta);
 }
 
-template<typename T, typename LogMsg>
+template <typename T, typename LogMsg>
 static inline bool rassert(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   if (!expr) {
     console << "Assertion Fail: " << msg << meta << endl;
@@ -61,7 +60,7 @@ static inline bool rassert(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   return true;
 }
 
-template<typename T, typename LogMsg>
+template <typename T, typename LogMsg>
 static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
   rassert(!(expr), msg, meta);
 }
@@ -96,7 +95,8 @@ static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
 #endif
 
 #if THROW
-#define REI_ASSERT(expr) ((expr) ? true : (::rei::rassert(false, #expr, REI_DEBUG_META), REI_THROW(#expr)))
+#define REI_ASSERT(expr) \
+  ((expr) ? true : (::rei::rassert(false, #expr, REI_DEBUG_META), REI_THROW(#expr)))
 #else
 #define REI_ASSERT(expr) ::rei::rassert(expr, #expr, REI_DEBUG_META)
 #endif

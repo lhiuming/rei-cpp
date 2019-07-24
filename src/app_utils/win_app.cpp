@@ -83,8 +83,8 @@ void WinApp::initialize_scene() {
     }
 
     // register material&shader
-    //MaterialPtr mat = m->get_material();
-    //if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
+    // MaterialPtr mat = m->get_material();
+    // if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
 
     ModelHandle h_model = m_renderer->create_model(*m);
     m->set_rendering_handle(h_model);

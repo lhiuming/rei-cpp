@@ -3,8 +3,8 @@
 
 #include <unordered_map>
 
-#include "../renderer.h"
 #include "../render_pipeline.h"
+#include "../renderer.h"
 
 #if WIN32
 

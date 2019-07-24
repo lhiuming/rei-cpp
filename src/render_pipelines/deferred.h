@@ -19,7 +19,8 @@ struct SceneData;
 class DeferredPipeline
     : public SimplexPipeline<deferred::ViewportData, deferred::SceneData, d3d::Renderer> {
   // FIXME lazyness
-using Renderer = d3d::Renderer;
+  using Renderer = d3d::Renderer;
+
 public:
   DeferredPipeline(RendererPtr renderer);
 

@@ -114,8 +114,8 @@ public:
     m_size++;
   }
 
-  template<typename ...Args>
-  reference emplace_back(Args&& ...args) {
+  template <typename... Args>
+  reference emplace_back(Args&&... args) {
     REI_ASSERT(m_size < N);
     reference r = *(this->data() + m_size);
     r = T(std::forward<Args>(args)...);
@@ -143,7 +143,7 @@ private:
 };
 
 // TODO fast hashmap
-template<typename TKey, typename TVal>
+template <typename TKey, typename TVal>
 class Hashmap : public std::unordered_map<TKey, TVal> {
 public:
   TVal* try_get(TKey key) {

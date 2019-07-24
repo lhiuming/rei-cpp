@@ -38,12 +38,7 @@ struct _CursorLineData {
 };
 
 // Typed input data
-enum class CursorAlterType {
-  None,
-  Left, 
-  Right,
-  Middle
-};
+enum class CursorAlterType { None, Left, Right, Middle };
 struct CursorPress : _CursorPointData {
   using _CursorPointData::_CursorPointData;
 };

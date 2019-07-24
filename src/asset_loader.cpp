@@ -52,8 +52,7 @@ private:
   static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
   static Material make_material(const aiMaterial&);
-  static MeshPtr make_mesh(
-    const aiMesh& mesh, const Mat4 trans, const vector<Material>& maters);
+  static MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans, const vector<Material>& maters);
 };
 
 // Main Interfaces //
@@ -220,7 +219,7 @@ Model AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
     // TODO : make Hiearchy
     console << "AssetLoader Warnning: need hiearachy";
     console << "(name = " << node.mName.C_Str() << "chile = " << node.mNumChildren << ")" << endl;
-    return Model{L"empty", W, nullptr, nullptr};
+    return Model {L"empty", W, nullptr, nullptr};
   }
 
   // Build Non Hiearchy model
@@ -343,7 +342,7 @@ MeshPtr AssimpLoaderImpl::make_mesh(
   // Set the data and material, then done
   ret->set(std::move(va), std::move(ta));
   REI_NOT_IMPLEMENTED
-  //ret->set(mat_list[mesh.mMaterialIndex]); // fix model and mesh and material stuffs
+  // ret->set(mat_list[mesh.mMaterialIndex]); // fix model and mesh and material stuffs
   return ret;
 
 } // end make_mesh
@@ -373,4 +372,4 @@ tuple<ScenePtr, CameraPtr, std::vector<LightPtr> > AssetLoader::load_world(
   return make_tuple(sp, cp, std::vector<LightPtr>());
 }
 
-} // namespace REI
+} // namespace rei

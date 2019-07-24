@@ -13,16 +13,15 @@ wostream& operator<<(wostream& os, const Vec3& v) {
   return os;
 }
 
-
 // Mat3 //////////////////////////////////////////////////////////////////////
 // Member and Non-member functions.
 ////
 
 double Mat3::det() const {
   const Mat3& A = *this;
-  return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1)) +
-         A(1, 0) * (A(2, 1) * A(0, 2) - A(2, 2) * A(0, 1)) +
-         A(2, 0) * (A(0, 1) * A(1, 2) - A(0, 2) * A(1, 1));
+  return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1))
+         + A(1, 0) * (A(2, 1) * A(0, 2) - A(2, 2) * A(0, 1))
+         + A(2, 0) * (A(0, 1) * A(1, 2) - A(0, 2) * A(1, 1));
 }
 
 // Print Mat3
@@ -147,9 +146,9 @@ double Mat4::minor(int i, int j) const {
   auto A = [=](int r, int c) -> double {
     return (*this)((r >= i) ? (r + 1) : r, (c >= j) ? (c + 1) : c);
   };
-  return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1)) +
-         A(1, 0) * (A(2, 1) * A(0, 2) - A(2, 2) * A(0, 1)) +
-         A(2, 0) * (A(0, 1) * A(1, 2) - A(0, 2) * A(1, 1));
+  return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1))
+         + A(1, 0) * (A(2, 1) * A(0, 2) - A(2, 2) * A(0, 1))
+         + A(2, 0) * (A(0, 1) * A(1, 2) - A(0, 2) * A(1, 1));
 }
 
 // Cofactor (signed minor)
@@ -184,4 +183,4 @@ std::wostream& operator<<(std::wostream& os, const Mat4& m) {
   return os;
 }
 
-} // namespace REI
+} // namespace rei

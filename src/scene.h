@@ -4,8 +4,8 @@
 #include <memory>
 
 #include "algebra.h"
-#include "model.h"
 #include "graphic_handle.h"
+#include "model.h"
 
 /*
  * scene.h
@@ -28,7 +28,7 @@ public:
   typedef const std::vector<ModelPtr>& ModelsConstRef;
   typedef std::vector<ModelPtr>& ModelsRef;
 
-  //static const MaterialPtr default_material;
+  // static const MaterialPtr default_material;
 
   Scene() = default;
   Scene(Name name) : name(name) {}
@@ -64,9 +64,9 @@ protected:
   Name name = L"Scene-Un-Named";
   ModelContainer models;
 
-  //SceneHandle m_graphic_handle;
+  // SceneHandle m_graphic_handle;
 };
 
-} // namespace REI
+} // namespace rei
 
 #endif

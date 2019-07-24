@@ -12,7 +12,6 @@ enum ShaderDataType {
   Float4x4,
 };
 
-
 struct ShaderTableEntry {
   size_t buffer_count;
 };
@@ -29,7 +28,9 @@ struct ConstBufferLayout {
     if (i >= m_members.size()) { m_members.resize(i + 1); }
     return m_members[i];
   }
-  ShaderDataType operator[](size_t i) const { return const_cast<ConstBufferLayout*>(this)->operator[](i); }
+  ShaderDataType operator[](size_t i) const {
+    return const_cast<ConstBufferLayout*>(this)->operator[](i);
+  }
 };
 
 } // namespace rei

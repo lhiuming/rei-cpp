@@ -1,8 +1,8 @@
 #ifndef REI_COLOR_H
 #define REI_COLOR_H
 
-#include <ostream>
 #include <cstdint>
+#include <ostream>
 
 /*
  * color.h

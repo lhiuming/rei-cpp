@@ -250,8 +250,8 @@ class ShaderTable : public UploadBuffer {
   struct ShaderTableLayout : UploadBuffer::Layout {
     ShaderTableLayout(UINT args_width)
         : Layout(args_width + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES,
-            D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT,
-            D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT) {}
+          D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT,
+          D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT) {}
   };
 
 public:
@@ -286,7 +286,6 @@ private:
 // Naive descriptor allocator
 class NaiveDescriptorHeap : NoCopy {
 public:
-
   NaiveDescriptorHeap() = default;
   NaiveDescriptorHeap(NaiveDescriptorHeap&& other) = default;
   NaiveDescriptorHeap& operator=(NaiveDescriptorHeap&& other) = default;
@@ -294,7 +293,6 @@ public:
   NaiveDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, UINT capacity)
       : max_descriptor_num(capacity),
         m_descriptor_size(device->GetDescriptorHandleIncrementSize(type)) {
-
     // Automatic flag
     D3D12_DESCRIPTOR_HEAP_FLAGS flag = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {

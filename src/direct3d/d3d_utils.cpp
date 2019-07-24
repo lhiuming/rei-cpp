@@ -63,7 +63,8 @@ ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* e
   ComPtr<IDxcBlob> debug;
   wchar_t* debug_name;
   hr = compiler->CompileWithDebug(source.Get(), shader_path, entrypoint,
-    c_raytracing_shader_target_w, nullptr, 0, nullptr, 0, includer.Get(), &result, &debug_name, &debug);
+    c_raytracing_shader_target_w, nullptr, 0, nullptr, 0, includer.Get(), &result, &debug_name,
+    &debug);
   REI_ASSERT(SUCCEEDED(hr));
 
   ComPtr<IDxcBlob> blob;
@@ -122,7 +123,7 @@ ComPtr<ID3D12Resource> create_upload_buffer(
     &heap_prop, heap_flags, &desc, init_state, p_clear_value, IID_PPV_ARGS(&upload_buffer));
   REI_ASSERT(SUCCEEDED(hr));
 
-  if (data != nullptr) { 
+  if (data != nullptr) {
     void* system_memory;
     upload_buffer->Map(0, nullptr, &system_memory);
     memcpy(system_memory, data, bytesize);
@@ -132,7 +133,8 @@ ComPtr<ID3D12Resource> create_upload_buffer(
   return upload_buffer;
 }
 
-ComPtr<ID3D12Resource> create_default_buffer(ID3D12Device* device, size_t bytesize, D3D12_RESOURCE_STATES init_state, D3D12_RESOURCE_FLAGS flags) {
+ComPtr<ID3D12Resource> create_default_buffer(ID3D12Device* device, size_t bytesize,
+  D3D12_RESOURCE_STATES init_state, D3D12_RESOURCE_FLAGS flags) {
   REI_ASSERT(device);
   REI_ASSERT(bytesize > 0);
 

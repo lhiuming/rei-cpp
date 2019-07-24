@@ -285,7 +285,8 @@ struct RootSignatureDescMemory {
 
       // CBV/SRV/UAVs
       if (params.const_buffers.size())
-        range_memory.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
+        range_memory.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
       if (params.shader_resources.size())
         range_memory.emplace_back(
           D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
@@ -295,18 +296,20 @@ struct RootSignatureDescMemory {
 
       // Sampler
       // TODO support sampler
-      // TODO check that sampler is in standalone heap 
+      // TODO check that sampler is in standalone heap
       if (params.samplers.size())
-        range_memory.emplace_back(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
+        range_memory.emplace_back(
+          D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
 
       UINT new_range_count = UINT(range_memory.size() - range_offset);
       if (new_range_count > 0) {
-        param_memory.emplace_back().InitAsDescriptorTable(new_range_count, &range_memory[range_offset]);
+        param_memory.emplace_back().InitAsDescriptorTable(
+          new_range_count, &range_memory[range_offset]);
       }
 
       // Static Sampler
       for (int i = 0; i < params.static_samplers.size(); i++) {
-        //auto sampler = params.static_samplers[i];
+        // auto sampler = params.static_samplers[i];
         auto& sampler_desc = static_sampler_memory.emplace_back();
         sampler_desc.Init(i, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT);
         sampler_desc.RegisterSpace = space;
@@ -330,7 +333,7 @@ struct RasterizationShaderMetaDesc {
   CD3DX12_STATIC_SAMPLER_DESC static_sampler_desc {};
   RootSignatureDescMemory root_signature {};
 
-    // TODO allow configuration of input layout
+  // TODO allow configuration of input layout
   D3D12_INPUT_LAYOUT_DESC input_layout = {c_input_layout, c_input_layout_num};
 
   FixedVec<DXGI_FORMAT, 8> rt_formats;
@@ -342,9 +345,7 @@ struct RasterizationShaderMetaDesc {
       = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   }
 
-  RasterizationShaderMetaDesc(RasterizationShaderMetaInfo&& meta) { 
-    this->init(std::move(meta));
-  }
+  RasterizationShaderMetaDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
 
   void init(RasterizationShaderMetaInfo&& meta) {
     root_signature.init_signature(meta.signature, false);
@@ -355,7 +356,7 @@ struct RasterizationShaderMetaDesc {
     is_depth_stencil_null = meta.is_depth_stencil_disabled;
   }
 
-  UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const { 
+  UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const {
     for (int i = 0; i < rt_formats.size(); i++) {
       dest[i] = rt_formats[i];
     }
@@ -381,9 +382,7 @@ struct RayTracingShaderMetaDesc {
 
   RayTracingShaderMetaDesc() {}
 
-  RayTracingShaderMetaDesc(RaytracingShaderMetaInfo&& meta) {
-    init(std::move(meta));
-  }
+  RayTracingShaderMetaDesc(RaytracingShaderMetaInfo&& meta) { init(std::move(meta)); }
 
   void init(RaytracingShaderMetaInfo&& meta) {
     hitgroup_name = std::move(meta.hitgroup_name);
@@ -395,7 +394,7 @@ struct RayTracingShaderMetaDesc {
     raygen.init_signature(meta.raygen_signature, true);
     miss.init_signature(meta.miss_signature, true);
   }
- 
+
 private:
   // any form of copying is not allow
   RayTracingShaderMetaDesc(const RayTracingShaderMetaDesc&) = delete;

@@ -47,6 +47,6 @@ private:
   std::shared_ptr<AssimpLoaderImpl> impl;
 };
 
-} // namespace REI
+} // namespace rei
 
 #endif
