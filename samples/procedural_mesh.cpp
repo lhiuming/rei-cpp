@@ -66,6 +66,7 @@ int main() {
   conf.width = 1080;
   conf.height = 480;
   conf.bg_color = Colors::ayanami_blue;
+  conf.render_mode = App::RenderMode::Rasterization;
   auto app = ProceduralApp(conf);
 
   app.run();
