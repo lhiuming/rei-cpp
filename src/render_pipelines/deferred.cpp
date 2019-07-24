@@ -133,7 +133,7 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
       ShaderDataType::Float4x4, // WVP
       ShaderDataType::Float4x4, // World
     };
-    proxy.objects_const_buf = r->create_const_buffer(cb_lo, model_count);
+    proxy.objects_const_buf = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
   }
   {
     proxy.models.reserve(model_count);
@@ -142,7 +142,7 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
       arg_value.const_buffers = {proxy.objects_const_buf};
       arg_value.const_buffer_offsets = {0};
     }
-    for (size_t i = 0; i < scene->get_models().size(); i++) {
+    for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
       arg_value.const_buffer_offsets[0] = i;
       ShaderArgumentHandle arg = r->create_shader_argument(m_default_shader, arg_value);

@@ -49,8 +49,8 @@ public:
   BufferHandle create_texture_2d(
     size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name);
   BufferHandle create_unordered_access_buffer_2d(
-    size_t width, size_t height, ResourceFormat format);
-  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num);
+    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name = L"Unnamed UA Buffer");
+  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num, std::wstring&& debug_name = L"Unnamed ConstBuffer");
 
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);

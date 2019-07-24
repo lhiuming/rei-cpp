@@ -104,7 +104,7 @@ BufferHandle Renderer::create_texture_2d(
 }
 
 BufferHandle Renderer::create_unordered_access_buffer_2d(
-  size_t width, size_t height, ResourceFormat format) {
+  size_t width, size_t height, ResourceFormat format, wstring&& name) {
   auto device = device_resources->device();
   DXGI_FORMAT buffer_format = to_dxgi_format(format);
 
@@ -125,6 +125,7 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
     HRESULT hr = device->CreateCommittedResource(
       &heap_prop, heap_flags, &uav_buffer_desc, init_state, nullptr, IID_PPV_ARGS(&buffer));
     REI_ASSERT(SUCCEEDED(hr));
+    buffer->SetName(name.c_str());
   }
 
   auto buffer_data = make_shared<DefaultBufferData>(this);
@@ -134,10 +135,11 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
   return BufferHandle(buffer_data);
 }
 
-BufferHandle Renderer::create_const_buffer(const ConstBufferLayout& layout, size_t num) {
+BufferHandle Renderer::create_const_buffer(const ConstBufferLayout& layout, size_t num, wstring&& name) {
   auto device = device_resources->device();
 
   auto buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, num);
+  buffer->resource()->SetName(name.c_str());
 
   auto buffer_data = make_shared<ConstBufferData>(this);
   buffer_data->state = buffer->init_state();
@@ -228,7 +230,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
     size_t offset = arg_value.const_buffer_offsets[i];
     D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
     desc.BufferLocation = b->buffer->buffer_address(UINT(offset));
-    desc.SizeInBytes = b->buffer->effective_bytewidth();
+    desc.SizeInBytes = b->buffer->element_bytewidth();
     device->CreateConstantBufferView(&desc, cpu_descriptor);
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
