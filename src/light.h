@@ -15,6 +15,6 @@ class Light {
   // Dump
 };
 
-} // namespace REI
+} // namespace rei
 
 #endif

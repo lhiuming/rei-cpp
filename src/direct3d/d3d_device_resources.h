@@ -67,52 +67,34 @@ public:
   // ID3D12CommandAllocator& command_alloc() const { return *m_command_alloc.Get(); }
   // ID3D12GraphicsCommandList& command_list() const { return *m_draw_command_list.Get(); }
 
-  ID3D12DescriptorHeap*const* descriptor_heap_ptr() const { return m_descriotpr_heap.GetAddressOf(); }
-  ID3D12DescriptorHeap* descriptor_heap() const { return m_descriotpr_heap.Get(); }
+  NaiveDescriptorHeap& cbv_srv_heap() { return m_cbv_srv_heap; }
+  NaiveDescriptorHeap& rtv_heap() { return m_rtv_heap; }
+  NaiveDescriptorHeap& dsv_heap() { return m_dsv_heap; }
 
-  // Naive descriptor allocator
-  UINT alloc_descriptor(CD3DX12_CPU_DESCRIPTOR_HANDLE* cpu_descrioptor = nullptr,
-    CD3DX12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor = nullptr) {
-    ID3D12DescriptorHeap* heap = m_descriotpr_heap.Get();
-    REI_ASSERT(heap);
-    UINT alloc_index = next_descriptor_index++;
-    REI_ASSERT(alloc_index < max_descriptor_num);
-    if (cpu_descrioptor) {
-      *cpu_descrioptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(
-        heap->GetCPUDescriptorHandleForHeapStart(), (INT)alloc_index, m_descriptor_size);
-    }
-    if (gpu_descriptor) {
-      *gpu_descriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(
-        heap->GetGPUDescriptorHandleForHeapStart(), INT(alloc_index), m_descriptor_size);
-    }
-    return alloc_index;
-  }
+  ID3D12DescriptorHeap* const* cbv_srv_heap_addr() const { return m_cbv_srv_heap.get_ptr_addr(); }
+  UINT cnv_srv_descriptor_size() const { return m_cbv_srv_heap.cnv_srv_descriptor_size(); };
 
   void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
-  void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
-  void get_root_signature(ComPtr<ID3D12RootSignature>& root_sign);
+  // void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
+  void get_root_signature(
+    ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta);
+  void get_root_signature(
+    const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-  void get_pso(const ShaderData& shader, const RenderTargetSpec& target_spec,
+  void get_pso(const RasterizationShaderData& shader, const RenderTargetSpec& target_spec,
     ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
-  void create_debug_mesh_buffer(MeshData& mesh_data);
 
-  void create_model_buffer(const Model& model, ModelData& model_data);
-
-  ID3D12GraphicsCommandList* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  ID3D12GraphicsCommandList4* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
+  // TODO remove this, just use the new prepare_cmd_list
   ID3D12GraphicsCommandList4* prepare_command_list_dxr(ID3D12PipelineState* init_pso = nullptr) {
     prepare_command_list();
-    return m_dxr_command_list.Get();
+    return m_command_list.Get();
   }
   void flush_command_list();
   void flush_command_queue_for_frame();
-
-  // temporary for raytracing kick-up
-  ComPtr<ID3D12RootSignature> global_root_sign;
-  ComPtr<ID3D12RootSignature> hitgroup_root_sign;
-  ComPtr<ID3D12StateObject> dxr_pso;
 
 private:
   HINSTANCE hinstance = NULL;
@@ -127,18 +109,17 @@ private:
 
   ComPtr<ID3D12CommandQueue> m_command_queue;
   ComPtr<ID3D12CommandAllocator> m_command_alloc;
-  ComPtr<ID3D12GraphicsCommandList> m_command_list;
-  ComPtr<ID3D12GraphicsCommandList4> m_dxr_command_list; // newer interface of m_command_list
+  ComPtr<ID3D12GraphicsCommandList> m_command_list_legacy;
+  ComPtr<ID3D12GraphicsCommandList4> m_command_list; // newer interface of m_command_list
   bool is_using_cmd_list = false;
 
   UINT64 current_frame_fence = 0;
   ComPtr<ID3D12Fence> frame_fence;
 
-  // Naive descriptor allocator
-  const UINT max_descriptor_num = 128;
-  UINT next_descriptor_index = UINT_MAX;
-  ComPtr<ID3D12DescriptorHeap> m_descriotpr_heap;
-  UINT m_descriptor_size = UINT_MAX;
+  // Naive descriptor allocators
+  NaiveDescriptorHeap m_cbv_srv_heap;
+  NaiveDescriptorHeap m_rtv_heap;
+  NaiveDescriptorHeap m_dsv_heap;
 
   PSOCache pso_cache;
 };

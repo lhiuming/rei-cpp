@@ -29,121 +29,136 @@ struct ShaderData;
 struct ViewportData;
 struct CullingData;
 
-namespace dxr {
-struct PerFrameConstantBuffer;
-struct HitgroupRootArguments;
-} // namespace dxr
-
-enum RenderMode {
-  Rasterization,
-  RealtimeRaytracing,
-};
-
 class Renderer : public rei::Renderer {
   using Self = typename Renderer;
   using Base = typename rei::Renderer;
 
 public:
   struct Options {
-    RenderMode init_render_mode = RenderMode::Rasterization;
-    bool enable_realtime_raytracing = false;
-    // debug switched
-    bool draw_debug_model = false;
+    bool enable_realtime_raytracing = true;
   };
 
   Renderer(HINSTANCE hinstance, Options options = {});
-  ~Renderer() override;
+  ~Renderer() override = default;
 
-  ViewportHandle create_viewport(SystemWindowID window_id, int width, int height) override;
-  void set_viewport_clear_value(ViewportHandle viewport, Color color) override;
-  void update_viewport_vsync(ViewportHandle viewport, bool enabled_vsync) override;
-  void update_viewport_size(ViewportHandle viewport, int width, int height) override;
-  void update_viewport_transform(ViewportHandle viewport, const Camera& camera) override;
+  SwapchainHandle create_swapchain(
+    SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
+  BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
+  BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
-  ShaderHandle create_shader(std::wstring shader_path) override;
+  BufferHandle create_texture_2d(
+    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name);
+  BufferHandle create_unordered_access_buffer_2d(
+    size_t width, size_t height, ResourceFormat format);
+  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num);
+
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
+
+  ShaderHandle create_shader(
+    const std::wstring& shader_path, std::unique_ptr<RasterizationShaderMetaInfo>&& meta);
+  ShaderHandle create_raytracing_shader(
+    const std::wstring& shader_path, std::unique_ptr<RaytracingShaderMetaInfo>&& meta);
+
+  ShaderArgumentHandle create_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value);
+  void update_shader_argument(
+    ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
+
   GeometryHandle create_geometry(const Geometry& geometry) override;
   ModelHandle create_model(const Model& model) override;
-  SceneHandle build_enviroment(const Scene& scene) override;
 
-  void prepare(Scene& scene) override;
-  CullingResult cull(ViewportHandle viewport, const Scene& scene) override;
-  void render(ViewportHandle viewport, CullingResult culling_result) override;
+  BufferHandle create_raytracing_accel_struct(const Scene& scene);
+  BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
-  // temporarily for raytracing kick-up
-  ComPtr<ID3D12Resource> scratch_buffer;
-  ComPtr<ID3D12Resource> tlas_buffer;
+  // void update_raygen_shader_record();
+  void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
 
-  UINT next_tlas_instance_id = 0;
-  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
+  void begin_render_pass(const RenderPassCommand& cmd);
+  void end_render_pass();
 
-  std::unique_ptr<UploadBuffer<dxr::PerFrameConstantBuffer>> m_perframe_cb;
+  void transition(BufferHandle buffer, ResourceState state);
 
-  ComPtr<ID3D12Resource> raygen_shader_table;
-  ComPtr<ID3D12Resource> miss_shader_table;
+  void draw(const DrawCommand& cmd);
 
-  void* m_hitgroup_shader_id;
-  std::unique_ptr<ShaderTable<dxr::HitgroupRootArguments>> m_hitgroup_shader_table;
+  void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table,
+    size_t width, size_t height, size_t depth = 1);
+  void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
+
+  // TODO return a command list object
+  Renderer* prepare();
+  void present(SwapchainHandle swapchain, bool vsync);
+
+  DeviceResources& device() const { return *device_resources; }
+
+  bool is_depth_range_01() const override { return true; }
 
 protected:
   HINSTANCE hinstance;
-  RenderMode mode;
   const bool is_dxr_enabled;
-  const bool draw_debug_model;
 
   // some const config
   constexpr static VectorTarget model_trans_target = VectorTarget::Column;
 
-  std::shared_ptr<DeviceResources> device_resources; // shared with viewport resources
-  std::vector<std::shared_ptr<ViewportResources>> viewport_resources_lib;
-
-  std::shared_ptr<MeshData> default_geometry;
-  std::shared_ptr<ShaderData> default_shader;
-  std::shared_ptr<MaterialData> default_material;
-  std::shared_ptr<ModelData> debug_model;
+  // TODO make unique
+  std::shared_ptr<DeviceResources> device_resources;
 
   bool is_uploading_resources = false;
 
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_dsv_cache {};
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_rtv_cache {};
+
+  // TODO move state to cmd_list object
+  const RenderTargetSpec curr_target_spec {};
+
+  // Ray Tracing Resources //
+  UINT next_tlas_instance_id = 0;
+  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
+
   void upload_resources();
-  void render(ViewportData& viewport, CullingData& culling);
 
-  struct ModelDrawTask {
-    std::size_t model_num;
-    const ModelData* models;
-    const Mat4* view_proj;
-    const RenderTargetSpec* target_spec;
-  };
+  void build_raytracing_pso(const std::wstring& shader_path,
+    const d3d::RaytracingShaderData& shader_data, ComPtr<ID3D12StateObject>& pso);
+  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count,
+    ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
 
-  void draw_meshes(ID3D12GraphicsCommandList& cmd_list, ModelDrawTask& task);
+  void set_const_buffer(
+    BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
 
-  void build_raytracing_rootsignatures();
-  void build_raytracing_pso();
-  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count);
-  void build_shader_table();
-  void update_shader_table(const ModelData* models, std::size_t count);
-  void raytracing(ViewportData& viewport, CullingData& culling);
+  // TODO move to device resource
+  D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(ID3D12Resource* texture);
+  D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(ID3D12Resource* texture);
 
-  // Debug support
-  void create_default_assets();
+  // Handle conversion
 
-  std::shared_ptr<ViewportData> to_viewport(ViewportHandle h) {
-    return get_data<ViewportHandle, ViewportData>(h);
+  std::shared_ptr<ViewportData> to_viewport(ScreenTransformHandle h) {
+    return get_data<ScreenTransformHandle, ViewportData>(h);
   }
-  std::shared_ptr<CullingData> to_culling(CullingResult h) {
-    return get_data<CullingResult, CullingData>(h);
+
+  std::shared_ptr<SwapchainData> to_swapchain(SwapchainHandle h) {
+    return get_data<SwapchainHandle, SwapchainData>(h);
   }
+
   std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
-  std::shared_ptr<ShaderData> to_shader(ShaderHandle h) {
-    return get_data<ShaderHandle, ShaderData>(h);
+  template <typename BufferType>
+  std::shared_ptr<BufferType> to_buffer(BufferHandle h) {
+    return get_data<BufferHandle, BufferType>(h);
   }
+
+  template <typename T>
+  std::shared_ptr<T> to_shader(ShaderHandle h) {
+    return get_data<ShaderHandle, T>(h);
+  }
+
+  std::shared_ptr<ShaderArgumentData> to_argument(ShaderArgumentHandle h) {
+    return get_data<ShaderArgumentHandle, ShaderArgumentData>(h);
+  }
+
   template <typename DataType>
   std::shared_ptr<DataType> to_geometry(GeometryHandle h) {
     return get_data<GeometryHandle, DataType>(h);
   }
   std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) {
     return get_data<GeometryHandle, GeometryData>(h);
-  }
-  std::shared_ptr<MaterialData> to_material(MaterialHandle h) {
-    return get_data<MaterialHandle, MaterialData>(h);
   }
 };
 

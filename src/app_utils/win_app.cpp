@@ -8,6 +8,8 @@
 #include "../debug.h"
 #include "../rmath.h"
 
+#include "../direct3d/d3d_renderer.h"
+
 using std::make_shared;
 using std::make_unique;
 using std::shared_ptr;
@@ -15,22 +17,41 @@ using std::unique_ptr;
 
 namespace rei {
 
-WinApp::WinApp(Config config, unique_ptr<Renderer>&& renderer)
-    : config(config), m_renderer(std::move(renderer)) {
+WinApp::WinApp(Config config) : config(config) {
   // NOTE: Handle normally get from WinMain;
   // we dont do that here, because we want to create app with standard main()
   hinstance = get_hinstance(); // handle to the current .exe
 
   m_input_bus = make_unique<InputBus>();
 
-  // Default renderer
-  if (m_renderer == nullptr) { m_renderer = make_unique<d3d::Renderer>(hinstance); }
+  // Default renderer & pipeline
+  {
+    shared_ptr<d3d::Renderer> d3d_renderer;
+    d3d::Renderer::Options r_opts = {};
+    d3d_renderer = make_shared<d3d::Renderer>(hinstance, r_opts);
+    m_renderer = d3d_renderer;
+    switch (config.render_mode) {
+      case RenderMode::Rasterization:
+        m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
+        break;
+      case RenderMode::RealtimeRaytracing:
+      default:
+        m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
+        break;
+    }
+  }
 
   // Default viewer
   m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
-  m_viewer->init_viewport(*m_renderer);
   m_viewer->set_input_bus(m_input_bus);
-  m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
+  {
+    ViewportConfig conf = {};
+    conf.window_id = m_viewer->get_window_id();
+    conf.width = config.width;
+    conf.height = config.height;
+    m_viewport_h = m_pipeline->register_viewport(conf);
+  }
+  // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
 
   // Create default scene and camera
   m_scene = make_unique<Scene>();
@@ -62,14 +83,18 @@ void WinApp::initialize_scene() {
     }
 
     // register material&shader
-    MaterialPtr mat = m->get_material();
-    if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
+    // MaterialPtr mat = m->get_material();
+    // if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
 
     ModelHandle h_model = m_renderer->create_model(*m);
     m->set_rendering_handle(h_model);
   }
 
-  m_scene->set_graphic_handle(m_renderer->build_enviroment(*m_scene));
+  {
+    SceneConfig conf {};
+    conf.scene = m_scene.get();
+    m_scene_h = m_pipeline->register_scene(conf);
+  }
 }
 
 void WinApp::start() {
@@ -82,7 +107,7 @@ void WinApp::start() {
 
 void WinApp::on_start() {
   // init camera control
-  if (config.default_camera_control_enabled) { 
+  if (config.default_camera_control_enabled) {
     double init_target_dist = m_camera->position().norm();
     camera_target = m_camera->position() + m_camera->forward() * init_target_dist;
   }
@@ -171,11 +196,21 @@ void WinApp::render() {
 }
 
 void WinApp::on_render() {
-  m_renderer->prepare(*m_scene);
-  ViewportHandle viewport = m_viewer->get_viewport();
-  m_renderer->update_viewport_transform(viewport, *m_camera);
-  auto culling_result = m_renderer->cull(viewport, *m_scene);
-  m_renderer->render(viewport, culling_result);
+  // update camera
+  m_pipeline->transform_viewport(m_viewport_h, *m_camera);
+  // update model transform
+  for (ModelPtr& m : m_scene->get_models()) {
+    // TODO may be we need some transform mark-dirty mechanics?
+    m_pipeline->update_model(m_scene_h, *m);
+  }
+  // render
+  m_pipeline->render(m_viewport_h, m_scene_h);
+
+  // m_renderer->prepare(*m_scene);
+  // ScreenTransformHandle viewport = m_viewer->get_viewport();
+  // m_renderer->update_viewport_transform(viewport, *m_camera);
+  // auto culling_result = m_renderer->cull(viewport, *m_scene);
+  // m_renderer->render(viewport, culling_result);
 }
 
 void WinApp::run() {

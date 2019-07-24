@@ -4,8 +4,8 @@
 #include <string>
 
 #include "debug.h"
-#include "type_utils.h"
 #include "string_utils.h"
+#include "type_utils.h"
 
 typedef std::wstring Name;
 

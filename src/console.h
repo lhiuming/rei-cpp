@@ -46,6 +46,6 @@ private:
 // A gobal Logger
 extern Logger console;
 
-} // namespace REI
+} // namespace rei
 
 #endif

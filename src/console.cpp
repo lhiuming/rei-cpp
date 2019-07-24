@@ -5,4 +5,4 @@ namespace rei {
 
 Logger console;
 
-} // namespace REI
+} // namespace rei

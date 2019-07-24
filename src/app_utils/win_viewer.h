@@ -4,15 +4,11 @@
 #include <cstddef>
 
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include <windows.h>
 
-#include "../common.h"
-#include "../camera.h"
-#include "../scene.h"
-#include "../renderer.h"
 #include "../input.h"
 #include "viewer.h"
 
@@ -31,9 +27,7 @@ public:
   WinViewer(HINSTANCE h_instance, std::size_t window_w, std::size_t window_h, std::wstring title);
   ~WinViewer();
 
-  void init_viewport(Renderer& renderer) override {
-    REI_UNINIT(viewport) = renderer.create_viewport(WindowID(hwnd), m_width, m_height);
-  }
+  SystemWindowID get_window_id() const override { return WindowID(hwnd); }
 
   bool is_destroyed() const override { return m_is_destroyed; }
 

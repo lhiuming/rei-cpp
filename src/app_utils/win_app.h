@@ -1,23 +1,29 @@
 #ifndef REI_WIN_APP_H
 #define REI_WIN_APP_H
 
+#include <chrono>
 #include <memory>
 #include <string>
-#include <chrono>
 
 #include <windows.h>
 
 #include "../color.h"
-#include "../scene.h"
 #include "../input.h"
-#include "viewer.h"
+#include "../render_pipeline.h"
+#include "../renderer.h"
+#include "../scene.h"
+//#include "app.h"
 #include "win_viewer.h"
-#include "../direct3d/d3d_renderer.h"
 
 namespace rei {
 
 class WinApp {
 public:
+  enum class RenderMode {
+    Rasterization,
+    RealtimeRaytracing,
+  };
+
   struct Config {
     std::wstring title = L"Unmaed App";
     int height = 720;
@@ -25,15 +31,15 @@ public:
     bool show_fps_in_title = true;
     bool enable_vsync = false;
     Color bg_color = Colors::ayanami_blue;
+    RenderMode render_mode = RenderMode::RealtimeRaytracing;
     bool default_camera_control_enabled = true;
     bool enable_grid_line = true;
   };
 
-  WinApp(Config config) : WinApp(config, nullptr) {}
+  WinApp(Config config);
   virtual ~WinApp();
 
-  [[deprecated]]
-  void setup(Scene&& scene, Camera&& camera);
+  [[deprecated]] void setup(Scene&& scene, Camera&& camera);
 
   void run();
 
@@ -42,8 +48,6 @@ public:
 
 protected:
   Config config;
-
-  WinApp(Config config, std::unique_ptr<Renderer>&& renderer);
 
   Viewer& viewer() const { return *m_viewer; }
   Renderer& renderer() const { return *m_renderer; }
@@ -62,11 +66,15 @@ protected:
 private:
   HINSTANCE hinstance = NULL;
 
+  std::shared_ptr<Renderer> m_renderer;
   std::unique_ptr<Viewer> m_viewer;
-  std::unique_ptr<Renderer> m_renderer;
   std::unique_ptr<Scene> m_scene;
   std::unique_ptr<Camera> m_camera;
   std::shared_ptr<InputBus> m_input_bus;
+
+  std::shared_ptr<RenderPipeline> m_pipeline;
+  RenderPipeline::ViewportHandle m_viewport_h = 0;
+  RenderPipeline::SceneHandle m_scene_h = 0;
 
   bool is_started = false;
 
@@ -84,6 +92,6 @@ private:
   void render();
 };
 
-}
+} // namespace rei
 
 #endif

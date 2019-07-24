@@ -5,8 +5,8 @@
 
 #include "string_utils.h"
 
-using std::wstring;
 using std::endl;
+using std::wstring;
 
 namespace rei {
 
@@ -17,4 +17,4 @@ wstring Model::summary() const {
   return oss.str();
 }
 
-}
+} // namespace rei

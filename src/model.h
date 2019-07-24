@@ -31,20 +31,18 @@ public:
   Color specular = {0.2, 0.2, 0.2, 1.0};
   double shineness = 30;
 
-  void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
-  MaterialHandle get_graphic_handle() const { return graphic_handle; }
+  // void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
+  // MaterialHandle get_graphic_handle() const { return graphic_handle; }
 
   friend std::wostream& operator<<(std::wostream& os, Material mat) {
     return os << "name = " << mat.name << ", diff = " << mat.diffuse << ", ambi = " << mat.ambient;
   }
 
 protected:
-  MaterialHandle graphic_handle;
-
+  // MaterialHandle graphic_handle;
 };
 
 typedef std::shared_ptr<Material> MaterialPtr;
-
 
 // Model classes //////////////////////////////////////////////////////////////
 
@@ -53,9 +51,8 @@ typedef std::shared_ptr<Material> MaterialPtr;
 class Model {
 public:
   // Default construct
-  [[depreacated]]
-  Model(const std::string& n) { REI_DEPRECATED }
-  Model(const std::wstring& n) : Model(n, Mat4::I(), nullptr, nullptr) {}
+  [[depreacated]] Model(const std::string& n) {REI_DEPRECATED} Model(const std::wstring& n)
+      : Model(n, Mat4::I(), nullptr, nullptr) {}
   Model(const std::wstring& n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
       : name(n), transform(trans), geometry(geometry), material(material) {}
 
@@ -74,7 +71,7 @@ public:
 
   void set_geometry(std::shared_ptr<Geometry> geo) { this->geometry = geo; }
   GeometryPtr get_geometry() const { return geometry; }
-  
+
   void set_rendering_handle(ModelHandle h) { rendering_handle = h; }
   ModelHandle get_rendering_handle() const { return rendering_handle; }
 
@@ -101,6 +98,6 @@ class Aggregate : public Model {
   // Dump classs
 };
 
-} // namespace REI
+} // namespace rei
 
 #endif

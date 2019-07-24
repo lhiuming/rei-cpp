@@ -12,16 +12,7 @@ class RayTracingApp : public App {
   using Base::Base;
 
 public:
-  RayTracingApp(Config conf) : WinApp(conf, create_renderer()) { }
-
-  static unique_ptr<Renderer> create_renderer() { 
-    d3d::Renderer::Options opt = {};
-    opt.enable_realtime_raytracing = true;
-    opt.init_render_mode = d3d::RenderMode::RealtimeRaytracing;
-    //opt.draw_debug_model = true;
-    auto ret = make_unique<d3d::Renderer>(get_hinstance(), opt);
-    return ret;
-  }
+  RayTracingApp(Config conf) : WinApp(conf) { }
 
 private:
   void on_start() override;
@@ -49,6 +40,7 @@ int main() {
   conf.width = 1080;
   conf.height = 480;
   conf.bg_color = Colors::ayanami_blue;
+  conf.render_mode = App::RenderMode::RealtimeRaytracing;
   auto app = RayTracingApp(conf);
   app.run();
   return 0;

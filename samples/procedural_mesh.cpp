@@ -1,9 +1,3 @@
-// Test color and z-buffer
-
-#ifdef USE_MSVC
-#pragma comment(linker, "/subsystem:windows /ENTRY:mainCRTStartup")
-#endif
-
 #include <memory>
 
 #include <app_utils/app.h>
@@ -72,6 +66,7 @@ int main() {
   conf.width = 1080;
   conf.height = 480;
   conf.bg_color = Colors::ayanami_blue;
+  conf.render_mode = App::RenderMode::Rasterization;
   auto app = ProceduralApp(conf);
 
   app.run();

@@ -1,12 +1,12 @@
 #ifndef REI_GEOMETRY_H
 #define REI_GEOMETRY_H
 
-#include <vector>
 #include <string>
+#include <vector>
 
-#include "common.h"
 #include "algebra.h"
 #include "color.h"
+#include "common.h"
 #include "graphic_handle.h"
 
 namespace rei {
@@ -20,11 +20,13 @@ public:
   Geometry(Geometry&& other) = default;
 
   virtual GeometryHandle get_graphic_handle() const = 0;
-  virtual void set_graphic_handle(const GeometryHandle& h) = 0 ;
+  virtual void set_graphic_handle(const GeometryHandle& h) = 0;
 
   // Debug info
   virtual std::wstring summary() const { return L"<Base Geomtry>"; }
-  friend std::wostream& operator<<(std::wostream& os, const Geometry& g) { return os << g.summary(); }
+  friend std::wostream& operator<<(std::wostream& os, const Geometry& g) {
+    return os << g.summary();
+  }
 
 protected:
   std::wstring name;
@@ -64,9 +66,11 @@ public:
   using Triangle = TriangleTpl<size_type>;
   using Index = size_type;
 
-  [[deprecated]] Mesh(std::string n) : Geometry(L"deprecated") { REI_DEPRECATED }
-  Mesh(std::wstring n = L"Mesh Un-named") : Geometry(n) {}
-  Mesh(std::wstring name, std::vector<Vertex> vertices, std::vector<Triangle>&& triangles) : Geometry(name), m_vertices(vertices), m_triangles(triangles) {}
+  [[deprecated]] Mesh(std::string n)
+      : Geometry(L"deprecated") {REI_DEPRECATED} Mesh(std::wstring n = L"Mesh Un-named")
+      : Geometry(n) {}
+  Mesh(std::wstring name, std::vector<Vertex> vertices, std::vector<Triangle>&& triangles)
+      : Geometry(name), m_vertices(vertices), m_triangles(triangles) {}
 
   Mesh(Mesh&& other) = default;
 
@@ -79,7 +83,7 @@ public:
   const std::vector<Vertex>& get_vertices() const { return m_vertices; }
   const std::vector<Triangle>& get_triangles() const { return m_triangles; }
 
- // Convinient queries
+  // Convinient queries
   bool empty() const { return m_triangles.empty(); }
   bool vertices_num() const { return m_vertices.size(); }
   bool triangle_num() const { return m_triangles.size(); }
@@ -93,10 +97,12 @@ public:
   // Some mesh-related utilities
   // Set `flip` to true if the orientation handness is different from coordinate handness
   static Mesh procudure_cube(Vec3 extent = {1, 1, 1}, Vec3 origin = {0, 0, 0}, bool flip = false);
-  static Mesh procudure_sphere(int quality = 2, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false) {
+  static Mesh procudure_sphere(
+    int quality = 2, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false) {
     return procudure_sphere_icosahedron(quality, radius, origin, flip);
   }
-  static Mesh procudure_sphere_icosahedron(int subdivision = 0, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false);
+  static Mesh procudure_sphere_icosahedron(
+    int subdivision = 0, double radius = 1, Vec3 origin = {0, 0, 0}, bool flip = false);
 
 private:
   std::vector<Vertex> m_vertices;
@@ -107,6 +113,6 @@ private:
 
 typedef std::shared_ptr<Mesh> MeshPtr;
 
-}
+} // namespace rei
 
 #endif // !REI_GEOMETRY_H

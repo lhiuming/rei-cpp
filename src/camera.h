@@ -1,8 +1,8 @@
 #ifndef REI_CAMERA_H
 #define REI_CAMERA_H
 
-#include "rmath.h"
 #include "algebra.h"
+#include "rmath.h"
 
 /*
  * camera.h
@@ -68,7 +68,7 @@ public:
     VectorTarget vec = VectorTarget::Column) const {
     return convert(m_world_to_c_to_device_h, from, to, vec);
   }
- 
+
   Mat4 view(Handness from = Handness::Right, Handness to = Handness::Right,
     VectorTarget vec = VectorTarget::Column) const {
     return world_to_camera(from, to, vec);
@@ -86,10 +86,10 @@ public:
     return world_to_device_halfz(from, to, vec);
   }
 
-
   // Misc query
   Vec3 bln() const {
-    return m_position - right() * (std::tan(angle * degree / 2) * znear) + m_direction * znear - m_up * (std::tan(angle * degree / 2) * znear / m_aspect);
+    return m_position - right() * (std::tan(angle * degree / 2) * znear) + m_direction * znear
+           - m_up * (std::tan(angle * degree / 2) * znear / m_aspect);
   }
 
   // Visibility query
@@ -107,17 +107,20 @@ private:
   double m_aspect = 4.0 / 3.0;             // width / height
   double znear = 1.0, zfar = 1000.0;       // distance of two planes of the frustrum
 
-  Mat4 m_world_to_camera;             // defined by position and direction/up
-  Mat4 m_camera_to_device;            //  projection and normalization
-  Mat4 m_camera_to_device_h;            //  projection and normalization, but with narrower z-range ([0, 1]) in device space
-  Mat4 m_world_to_c_to_device;        // composed from above 2
-  Mat4 m_world_to_c_to_device_h;        // composed from above 2, but with narrower z-range ([0, 1]) in device space
+  Mat4 m_world_to_camera;    // defined by position and direction/up
+  Mat4 m_camera_to_device;   //  projection and normalization
+  Mat4 m_camera_to_device_h; //  projection and normalization, but with narrower z-range ([0, 1]) in
+                             //  device space
+  Mat4 m_world_to_c_to_device;   // composed from above 2
+  Mat4 m_world_to_c_to_device_h; // composed from above 2, but with narrower z-range ([0, 1]) in
+                                 // device space
   Mat4 m_world_to_c_to_d_to_viewport; // above combined with a static normalized->viewport step
 
   // helper for interface
-  static inline Mat4 convert(const Mat4& mat, Handness from = Handness::Right, Handness to = Handness::Right,
-    VectorTarget vec = VectorTarget::Column) {
-    return convention_convert(mat, from != Handness::Right, to != Handness::Right, vec != VectorTarget::Column);
+  static inline Mat4 convert(const Mat4& mat, Handness from = Handness::Right,
+    Handness to = Handness::Right, VectorTarget vec = VectorTarget::Column) {
+    return convention_convert(
+      mat, from != Handness::Right, to != Handness::Right, vec != VectorTarget::Column);
   }
 
   // helpers to update transforms

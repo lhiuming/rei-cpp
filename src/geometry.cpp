@@ -151,8 +151,8 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
   // icosahedron surface NOTE supporting upto 16-times subdivision
   struct BarycentricID {
     uint8_t toplevel_index[4];
-    uint16_t v1; // coordinate on axis index0->index1
-    uint16_t v2; // coordinate on axis index0->index2
+    uint16_t v1;          // coordinate on axis index0->index1
+    uint16_t v2;          // coordinate on axis index0->index2
     uint16_t subdiv_size; // number of segmentation on the edge
 
     void step01() {
@@ -165,7 +165,7 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
       v2++;
     }
 
-    void step12() { 
+    void step12() {
       REI_ASSERT(v1 > 0);
       REI_ASSERT(v2 < subdiv_size);
       v1--;
@@ -311,7 +311,7 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
     }
   };
 
-  // Generating mini-strips in a quadrilateral-shape 
+  // Generating mini-strips in a quadrilateral-shape
   auto fill_quadrilateral = [&](int i[4]) {
     BarycentricID b0
       = {{uint16_t(i[0]), uint16_t(i[1]), uint16_t(i[2]), uint16_t(i[3])}, 0, 0, subdiv_size};
