@@ -122,7 +122,6 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
   ComPtr<ID3DBlob> vs_bytecode = compile("VS", "vs_5_1");
   ComPtr<ID3DBlob> ps_bytecode = compile("PS", "ps_5_1");
 
-
   result = {vs_bytecode, ps_bytecode};
 
   return;
@@ -180,6 +179,9 @@ void DeviceResources::get_pso(
     return;
   }
 
+  REI_ASSERT(vs_bytecode);
+  REI_ASSERT(ps_bytecode);
+
   // some default value
   UINT rt_num = 1;                            // TODO maybe check this
 
@@ -199,9 +201,8 @@ void DeviceResources::get_pso(
     desc.DepthStencilState = meta.depth_stencil;
     desc.InputLayout = meta.input_layout;
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    desc.NumRenderTargets = rt_num; // used in the array below
-    desc.RTVFormats[0] = target_spec.dxgi_rt_format;
-    desc.DSVFormat = meta.is_depth_stencil_null ? DXGI_FORMAT_UNKNOWN : target_spec.dxgi_ds_format;
+    desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
+    desc.DSVFormat = meta.get_dsv_format();
     desc.SampleDesc = target_spec.sample_desc;
     desc.NodeMask = 0; // single GPU
     desc.CachedPSO.pCachedBlob

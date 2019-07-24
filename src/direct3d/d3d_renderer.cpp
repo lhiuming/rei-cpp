@@ -37,8 +37,7 @@ namespace d3d {
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
-    : hinstance(hinstance),
-      is_dxr_enabled(opt.enable_realtime_raytracing) {
+    : hinstance(hinstance), is_dxr_enabled(opt.enable_realtime_raytracing) {
   DeviceResources::Options dev_opt;
   dev_opt.is_dxr_enabled = is_dxr_enabled;
   device_resources = std::make_shared<DeviceResources>(hinstance, dev_opt);
@@ -74,6 +73,34 @@ BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle hand
   return BufferHandle(swapchain->res->m_rt_buffers[curr_rt_index]);
 }
 
+BufferHandle Renderer::create_texture_2d(size_t width, size_t height, ResourceFormat format, wstring&& name) {
+  auto device = device_resources->device();
+  DXGI_FORMAT dxgi_format = to_dxgi_format(format);
+
+  auto texture = make_shared<DefaultBufferData>(this);
+  {
+    BufferDesc meta;
+    meta.dimension = ResourceDimension::Texture2D;
+    meta.format = format;
+    texture->meta = meta;
+  }
+  { ComPtr<ID3D12Resource> tex;
+    auto tex_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, width, height);
+    // TODO add to input config
+    tex_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    auto heap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+    auto flags = D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
+    auto init_state = D3D12_RESOURCE_STATE_COMMON;
+    HRESULT hr = device->CreateCommittedResource(
+      &heap_desc, flags, &tex_desc, init_state, nullptr, IID_PPV_ARGS(&tex));
+    REI_ASSERT(SUCCEEDED(hr));
+    tex->SetName(name.c_str());
+    texture->buffer = tex;
+  }
+
+  return BufferHandle(texture);
+}
+
 BufferHandle Renderer::create_unordered_access_buffer_2d(
   size_t width, size_t height, ResourceFormat format) {
   auto device = device_resources->device();
@@ -82,8 +109,6 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
   DefaultBufferFormat meta;
   meta.dimension = ResourceDimension::Texture2D;
   meta.format = format;
-
-  HRESULT hr;
 
   // Create buffer
   ComPtr<ID3D12Resource> buffer;
@@ -95,7 +120,7 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
     D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
     D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    hr = device->CreateCommittedResource(
+    HRESULT hr = device->CreateCommittedResource(
       &heap_prop, heap_flags, &uav_buffer_desc, init_state, nullptr, IID_PPV_ARGS(&buffer));
     REI_ASSERT(SUCCEEDED(hr));
   }
@@ -110,7 +135,7 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
 BufferHandle Renderer::create_const_buffer(const ConstBufferLayout& layout, size_t num) {
   auto device = device_resources->device();
 
-  auto buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, 1);
+  auto buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, num);
 
   auto buffer_data = make_shared<ConstBufferData>(this);
   buffer_data->state = buffer->init_state();
@@ -134,9 +159,14 @@ ShaderHandle Renderer::create_shader(
   auto shader = make_shared<RasterizationShaderData>(this);
 
   // compile and retrive root signature
-  shader->meta.fill(std::move(*meta));
+  shader->meta.init(std::move(*meta));
   device_resources->compile_shader(shader_path, shader->compiled_data);
   device_resources->get_root_signature(shader->root_signature, shader->meta);
+
+  if (!(shader->compiled_data.ps_bytecode && shader->compiled_data.vs_bytecode)) {
+    REI_ERROR("Shader compilation faild");
+    return c_empty_handle;
+  }
 
   return ShaderHandle(shader);
 }
@@ -145,7 +175,7 @@ ShaderHandle Renderer::create_raytracing_shader(
   const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
   auto shader = make_shared<RaytracingShaderData>(this);
 
-  shader->meta.fill(std::move(*meta));
+  shader->meta.init(std::move(*meta));
   d3d::RayTracingShaderMetaDesc& d3d_meta = shader->meta;
   device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
   device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
@@ -189,10 +219,13 @@ ShaderArgumentHandle Renderer::create_shader_argument(
   UINT cnv_srv_descriptor_size = device_resources->cnv_srv_descriptor_size();
   CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_descriptor = base_cpu_descriptor;
 
-  for (auto& h : arg_value.const_buffers) {
-    auto b = to_buffer<ConstBufferData>(h);
+  const int cb_count = arg_value.const_buffers.size();
+  REI_ASSERT(arg_value.const_buffer_offsets.size() == cb_count);
+  for (size_t i = 0; i < cb_count; i++) {
+    auto b = to_buffer<ConstBufferData>(arg_value.const_buffers[i]);
+    size_t offset = arg_value.const_buffer_offsets[i];
     D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
-    desc.BufferLocation = b->buffer->buffer_address();
+    desc.BufferLocation = b->buffer->buffer_address(UINT(offset));
     desc.SizeInBytes = b->buffer->effective_bytewidth();
     device->CreateConstantBufferView(&desc, cpu_descriptor);
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
@@ -231,7 +264,7 @@ ShaderArgumentHandle Renderer::create_shader_argument(
     auto b = to_buffer<DefaultBufferData>(h);
     auto meta = b->meta;
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
-    // desc.Format = to_dxgi_format(meta.format);
+    desc.Format = to_dxgi_format(meta.format);
     desc.ViewDimension = to_usv_dimension(meta.dimension);
     switch (desc.ViewDimension) {
       case D3D12_UAV_DIMENSION_TEXTURE2D:
@@ -350,14 +383,12 @@ void Renderer::update_hitgroup_shader_record(BufferHandle shader_table_h, ModelH
   auto geometry = std::static_pointer_cast<MeshData>(model->geometry);
 
   const size_t cnv_srv_descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
-  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu, cnv_srv_descriptor_size,
-    model->tlas_instance_id, 0);
+  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu,
+    cnv_srv_descriptor_size, model->tlas_instance_id, 0);
 }
 
-void Renderer::begin_render_pass(BufferHandle render_target_h, BufferHandle depth_stencil_h,
-  RenderArea area, bool clear_rt, bool clear_ds) {
-  shared_ptr<DefaultBufferData> rt_texture = to_buffer<DefaultBufferData>(render_target_h);
-  shared_ptr<DefaultBufferData> ds_texture = to_buffer<DefaultBufferData>(depth_stencil_h);
+void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
+  const RenderArea& area = cmd.area;
 
   auto cmd_list = device_resources->prepare_command_list();
 
@@ -388,31 +419,37 @@ void Renderer::begin_render_pass(BufferHandle render_target_h, BufferHandle dept
   const FLOAT clear_depth = 0;
   const FLOAT clear_stentil = 0;
 
-  UINT rt_num = 0;
-  D3D12_RENDER_PASS_RENDER_TARGET_DESC* rt_desc_ptr = nullptr;
-  D3D12_RENDER_PASS_RENDER_TARGET_DESC rt_desc = {};
-  if (rt_texture != c_empty_handle) {
-    rt_desc.cpuDescriptor = get_rtv_cpu(rt_texture->get_res());
-    REI_ASSERT(rt_desc.cpuDescriptor.ptr);
-    if (clear_rt) {
-      rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
-      rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-      fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
-    } else {
-      rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
-    }
-    rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+  FixedVec<D3D12_RENDER_PASS_RENDER_TARGET_DESC, 8> rt_descs = {};
+  REI_ASSERT(cmd.render_targets.max_size() <= rt_descs.max_size());
+  if (cmd.render_targets.size() > 0) {
+    for (size_t i = 0; i < cmd.render_targets.size(); i++) {
+      BufferHandle render_target_h = cmd.render_targets[i];
+      REI_ASSERT(render_target_h != c_empty_handle);
+      shared_ptr<DefaultBufferData> rt_texture = to_buffer<DefaultBufferData>(render_target_h);
+      REI_ASSERT(rt_texture);
 
-    rt_desc_ptr = &rt_desc;
-    rt_num = 1;
+      auto& rt_desc = rt_descs.emplace_back();
+      rt_desc.cpuDescriptor = get_rtv_cpu(rt_texture->get_res());
+      REI_ASSERT(rt_desc.cpuDescriptor.ptr);
+      if (cmd.clear_rt) {
+        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
+        rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
+      } else {
+        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+      }
+      rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
+    }
   }
 
   D3D12_RENDER_PASS_DEPTH_STENCIL_DESC* ds_desc_ptr = nullptr;
   D3D12_RENDER_PASS_DEPTH_STENCIL_DESC ds_desc {};
-  if (ds_texture != c_empty_handle) {
+  if (cmd.depth_stencil != c_empty_handle) {
+    shared_ptr<DefaultBufferData> ds_texture = to_buffer<DefaultBufferData>(cmd.depth_stencil);
+    REI_ASSERT(ds_texture);
     ds_desc.cpuDescriptor = get_dsv_cpu(ds_texture->get_res());
     REI_ASSERT(ds_desc.cpuDescriptor.ptr);
-    if (clear_ds) {
+    if (cmd.clear_ds) {
       ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
       ds_desc.DepthBeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
       ds_desc.DepthBeginningAccess.Clear.ClearValue.DepthStencil.Depth = clear_depth;
@@ -429,7 +466,7 @@ void Renderer::begin_render_pass(BufferHandle render_target_h, BufferHandle dept
 
   D3D12_RENDER_PASS_FLAGS flag = D3D12_RENDER_PASS_FLAG_NONE; // TODO check this what is other enum
 
-  cmd_list->BeginRenderPass(rt_num, rt_desc_ptr, ds_desc_ptr, flag);
+  cmd_list->BeginRenderPass(rt_descs.size(), rt_descs.data(), ds_desc_ptr, flag);
 }
 
 void Renderer::end_render_pass() {
@@ -454,12 +491,14 @@ void Renderer::transition(BufferHandle buffer_h, ResourceState state) {
 void Renderer::draw(const DrawCommand& cmd) {
   auto cmd_list = device_resources->prepare_command_list();
 
+  // validate
+  REI_ASSERT(cmd.shader);
+  shared_ptr<RasterizationShaderData> shader = to_shader<RasterizationShaderData>(cmd.shader);
+
   // shared setup
   cmd_list->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
   // Check root signature
-  REI_ASSERT(cmd.shader);
-  shared_ptr<RasterizationShaderData> shader = to_shader<RasterizationShaderData>(cmd.shader);
   ID3D12RootSignature* this_root_sign = shader->root_signature.Get();
   cmd_list->SetGraphicsRootSignature(this_root_sign);
 
@@ -471,10 +510,10 @@ void Renderer::draw(const DrawCommand& cmd) {
   // Bind shader arguments
   {
     for (UINT i = 0; i < cmd.arguments.size(); i++) {
+      if (cmd.arguments[i] == c_empty_handle) continue;
       const auto shader_arg = to_argument(cmd.arguments[i]);
-      if (shader_arg) {
-        cmd_list->SetGraphicsRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
-      }
+      REI_ASSERT(shader_arg);
+      cmd_list->SetGraphicsRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
     }
   }
 
@@ -762,6 +801,10 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
 void Renderer::set_const_buffer(
   BufferHandle handle, size_t index, size_t member, const void* value, size_t width) {
   shared_ptr<ConstBufferData> buffer = to_buffer<ConstBufferData>(handle);
+  // validate
+  REI_ASSERT(member < buffer->layout.size());
+  REI_ASSERT(width == get_width(buffer->layout[member]));
+  // update
   unsigned int local_offset = get_offset(buffer->layout, member);
   buffer->buffer->update(value, width, index, local_offset);
 }

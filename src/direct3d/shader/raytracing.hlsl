@@ -1,3 +1,4 @@
+#include "common.hlsl"
 #include "halton.hlsl"
 
 #define PI 3.141592653589793238462643383279502884197169399375105820974f
@@ -170,10 +171,6 @@ float3 sample_lambertian_brdf(float3 normal, float rnd0, float rnd1, out float p
 }
 
 [shader("miss")] void miss_shader(inout RayPayload payload) {
-  float3 ayanami_blue = {129.0 / 255, 187.0 / 255, 235.0 / 255};
-  float3 asuka_red = {156.0 / 255, 0, 0};
-  float3 origin = WorldRayDirection();
-  float mixing = clamp(1 - origin.y, 0, 2) / 2;
-  mixing = pow(mixing, 3);
-  payload.color = float4(lerp(ayanami_blue, asuka_red, mixing), 1.0);
+  float3 dir = WorldRayDirection();
+  payload.color = float4(gradiant_sky_eva(dir), 1.0f);
 }

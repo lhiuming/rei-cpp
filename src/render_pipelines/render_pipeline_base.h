@@ -27,11 +27,13 @@ public:
   virtual ViewportHandle register_viewport(ViewportConfig conf) = 0;
   virtual void remove_viewport(ViewportHandle viewport) = 0;
 
+  virtual void transform_viewport(ViewportHandle handle, const Camera& camera) = 0;
+
   virtual SceneHandle register_scene(SceneConfig conf) = 0;
   virtual void remove_scene(SceneHandle scene) = 0;
-  virtual void add_model(SceneHandle scene, ModelHandle model) = 0;
 
-  virtual void transform_viewport(ViewportHandle handle, const Camera& camera) = 0;
+  virtual void add_model(SceneHandle scene, ModelHandle model) = 0;
+  virtual void update_model(SceneHandle scene, const Model& model) = 0;
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) = 0;
 };

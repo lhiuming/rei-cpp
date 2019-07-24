@@ -9,12 +9,13 @@ namespace rei {
 
 namespace d3d {
 
+// ref: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-scalar
 inline static UINT get_width(ShaderDataType dtype) {
   switch (dtype) {
     case rei::Float4:
-      return sizeof(float) * 4;
+      return sizeof(UINT32) * 4;
     case rei::Float4x4:
-      return sizeof(float) * 16;
+      return sizeof(UINT32) * 16;
     default:
       REI_ERROR("Unhandled data type");
       return 0;

@@ -5,10 +5,13 @@
 
 namespace rei {
 
+// Restriting types to make life easier
+// ref: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-packing-rules
 enum ShaderDataType {
   Float4,
   Float4x4,
 };
+
 
 struct ShaderTableEntry {
   size_t buffer_count;
@@ -27,11 +30,6 @@ struct ConstBufferLayout {
     return m_members[i];
   }
   ShaderDataType operator[](size_t i) const { return const_cast<ConstBufferLayout*>(this)->operator[](i); }
-};
-
-struct DefaultBufferFormat {
-  ResourceFormat format;
-  ResourceDimension dimension;
 };
 
 } // namespace rei

@@ -1,34 +1,48 @@
+#include "deferred_common.hlsl"
+
 // constant buffer to hold the projection transforming matrix
 cbuffer cbPerObject : register(b0, space0) {
   float4x4 WVP;
   float4x4 World;
 };
-cbuffer cbPerFrame : register(b0, space1) {
-  //Light light;
-  float4x4 camera_world_trans;
-  float4 camera_pos;
+
+ConstantBuffer<ConstBufferPerRender> g_per_render : register(b0, space1);
+
+struct VertexData {
+  float4 pos : POSITION;
+  float4 color : COLOR;
+  float3 normal : NORMAL;
 };
 
 // Yes, you actually need to define this truct
-struct VS_OUTPUT {
-  float4 Pos : SV_POSITION; // TODO: what re these two modifier?
+struct RasterAttr {
+  float4 pos : SV_POSITION; // TODO: what re these two modifier?
   float3 pos_w : POSITION1;
-  float4 Color : COLOR;
-  float3 Normal : NORMAL;
+  float4 color : COLOR;
+  float3 w_normal : NORMAL;
 };
 
-VS_OUTPUT VS(float4 inPos : POSITION, float4 inColor : COLOR, float3 normal : NORMAL) {
-  VS_OUTPUT output;
+struct GBufferPixel {
+  float4 normal : SV_TARGET0;
+  float4 albedo_smoothness : SV_TARGET1;
+};
 
-  output.Pos = mul(WVP, inPos);
-  output.Color = inColor;
-  output.Normal = mul(World, float4(normal.xyz, 0)).xyz;
-  float4 pos_w = mul(World, inPos);
+RasterAttr VS(VertexData vert) {
+  RasterAttr output;
+
+  output.pos= mul(WVP, vert.pos);
+  output.color = vert.color;
+  output.w_normal = mul(World, float4(vert.normal.xyz, 0)).xyz;
+  float4 pos_w = mul(World, vert.pos);
   output.pos_w = pos_w.xyz / pos_w.w;
 
   return output;
 }
 
-float4 PS(VS_OUTPUT input) : SV_TARGET {
-  return float4(0, 0, 0, 0);
+GBufferPixel PS(RasterAttr input) {
+  GBufferPixel rt;
+  rt.normal.xyz = normalize(input.w_normal);
+  rt.albedo_smoothness.xyz = input.color.xyz;
+  rt.albedo_smoothness.w = 0.5f;
+  return rt;
 }

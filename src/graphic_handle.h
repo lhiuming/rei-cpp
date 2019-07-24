@@ -36,6 +36,7 @@ enum class ResourceState {
   Present,
   RenderTarget,
   DeptpWrite,
+  PixelShaderResource,
   UnorderedAccess,
 };
 

@@ -198,6 +198,11 @@ void WinApp::render() {
 void WinApp::on_render() {
   // update camera
   m_pipeline->transform_viewport(m_viewport_h, *m_camera);
+  // update model transform
+  for (ModelPtr& m : m_scene->get_models()) {
+    // TODO may be we need some transform mark-dirty mechanics?
+    m_pipeline->update_model(m_scene_h, *m);
+  }
   // render
   m_pipeline->render(m_viewport_h, m_scene_h);
 

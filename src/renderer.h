@@ -86,6 +86,7 @@ struct ConstBuffer {};
 struct ShaderResource {};
 struct UnorderedAccess {};
 struct Sampler {};
+struct StaticSampler {};
 
 // Represent a descriptor table / descriptor set, in a defined space
 struct ShaderParameter {
@@ -95,13 +96,14 @@ struct ShaderParameter {
   std::vector<ShaderResource> shader_resources;
   std::vector<UnorderedAccess> unordered_accesses;
   std::vector<Sampler> samplers;
+  rei::FixedVec<StaticSampler, 8> static_samplers;
 };
+
 
 // Represent the set of shader resources to be bound by a list of shader arguments
 struct ShaderSignature {
   // index as implicit register space
   std::vector<ShaderParameter> param_table;
-  // TODO  support static samplers
 };
 
 struct ShaderArgumentValue {
@@ -118,8 +120,13 @@ struct ShaderArgumentValue {
   }
 };
 
+struct RenderTargetDesc {
+  ResourceFormat format = ResourceFormat::B8G8R8A8_UNORM;
+};
+
 struct RasterizationShaderMetaInfo {
-  ShaderSignature signature;
+  ShaderSignature signature {};
+  FixedVec<RenderTargetDesc, 8> render_target_descs {RenderTargetDesc()};
   bool is_depth_stencil_disabled = false;
 };
 
@@ -137,11 +144,32 @@ struct RaytracingShaderMetaInfo {
   std::wstring miss_name;
 };
 
+struct BufferDesc {
+  ResourceFormat format;
+  ResourceDimension dimension;
+};
+
+// TODO deprecated
+using DefaultBufferFormat = BufferDesc;
+
 using ShaderArguments = FixedVec<ShaderArgumentHandle, 8>;
 struct DrawCommand {
   GeometryHandle geo;
   ShaderHandle shader;
   ShaderArguments arguments;
+};
+  
+struct RenderArea {
+    size_t width;
+    size_t height;
+};
+
+struct RenderPassCommand {
+  FixedVec<BufferHandle, 8> render_targets;
+  BufferHandle depth_stencil;
+  RenderArea area;
+  bool clear_rt;
+  bool clear_ds;
 };
 
 class Renderer : private NoCopy {

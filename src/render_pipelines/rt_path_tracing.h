@@ -34,6 +34,7 @@ public:
 
   SceneHandle register_scene(SceneConfig conf) override;
   void remove_scene(SceneHandle scene) override { /* TODO */ }
+  void update_model(SceneHandle scene, const Model& model) override {}
   void add_model(SceneHandle scene, ModelHandle model) override;
 
   void render(ViewportHandle viewport, SceneHandle scene) override;

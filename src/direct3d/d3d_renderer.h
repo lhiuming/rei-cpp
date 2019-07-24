@@ -46,6 +46,7 @@ public:
   BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
+  BufferHandle create_texture_2d(size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name);
   BufferHandle create_unordered_access_buffer_2d(
     size_t width, size_t height, ResourceFormat format);
   BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num);
@@ -71,13 +72,7 @@ public:
   // void update_raygen_shader_record();
   void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
 
-  // TODO add clear options?
-  struct RenderArea {
-    size_t width;
-    size_t height;
-  };
-  void begin_render_pass(BufferHandle render_target, BufferHandle depth_stencil, RenderArea area,
-    bool clear_rt, bool clear_ds);
+  void begin_render_pass(const RenderPassCommand& cmd);
   void end_render_pass();
 
   void transition(BufferHandle buffer, ResourceState state);

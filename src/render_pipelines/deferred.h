@@ -25,21 +25,22 @@ public:
 
   virtual ViewportHandle register_viewport(ViewportConfig conf) override;
   virtual void remove_viewport(ViewportHandle viewport) override {}
+  virtual void transform_viewport(ViewportHandle handle, const Camera& camera) override;
 
   virtual SceneHandle register_scene(SceneConfig conf) override;
   virtual void remove_scene(SceneHandle scene) override {}
-  virtual void add_model(SceneHandle scene, ModelHandle model) override {}
 
-  virtual void transform_viewport(ViewportHandle handle, const Camera& camera) override;
+  virtual void update_model(SceneHandle scene, const Model& model) override;
+  virtual void add_model(SceneHandle scene, ModelHandle model) override {}
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
 private:
-
   // FIXME should be material handle
   ShaderHandle m_default_shader;
   ShaderHandle m_lighting_shader;
 
+  BufferHandle m_per_render_buffer;
 };
 
 } // namespace rei
