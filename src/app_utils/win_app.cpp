@@ -63,14 +63,6 @@ WinApp::~WinApp() {
   log("WinApp terminated.");
 }
 
-void WinApp::setup(Scene&& scene, Camera&& camera) {
-  if (is_started) {
-    REI_WARNING("App setup is called after started");
-    return;
-  }
-  initialize_scene();
-}
-
 void WinApp::initialize_scene() {
   for (ModelPtr& m : this->m_scene->get_models()) {
     REI_ASSERT(m);

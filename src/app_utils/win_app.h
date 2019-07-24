@@ -39,8 +39,6 @@ public:
   WinApp(Config config);
   virtual ~WinApp();
 
-  [[deprecated]] void setup(Scene&& scene, Camera&& camera);
-
   void run();
 
   // init helper
