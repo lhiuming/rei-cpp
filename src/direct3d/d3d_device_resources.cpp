@@ -87,7 +87,14 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
 
-void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
+void DeviceResources::compile_shader(const wstring& shader_path, const ShaderCompileConfig& conf, ShaderCompileResult& result) {
+  FixedVec<D3D_SHADER_MACRO, conf.defines.max_size + 1> shader_defines {};
+  for (auto& d : conf.defines) {
+    D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
+    shader_defines.push_back(m);
+  }
+  shader_defines.push_back({NULL, NULL});
+
   // routine for bytecode compilation
   auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
     UINT compile_flags = 0;
@@ -97,9 +104,8 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
     ComPtr<ID3DBlob> return_bytecode;
     ComPtr<ID3DBlob> error_msg;
 
-    D3D_SHADER_MACRO* shader_defines = NULL;
     HRESULT hr = D3DCompileFromFile(shader_path.c_str(), // shader file path
-      shader_defines,                                    // preprocessors
+      shader_defines.data(),                             // preprocessors
       D3D_COMPILE_STANDARD_FILE_INCLUDE,                 // "include file with relative path"
       entrypoint.c_str(),                                // e.g. "VS" or "PS" or "main" or others
       target.c_str(),                                    // "vs_5_0" or "ps_5_0" or similar
@@ -164,22 +170,12 @@ void DeviceResources::create_root_signature(
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void DeviceResources::get_pso(const RasterizationShaderData& shader,
-  const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
+void DeviceResources::create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso) {
   // inputs
-  const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
   const RasterizationShaderMetaDesc& meta = shader.meta;
   ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
-
-  // Try to retried from cache
-  const PSOKey cache_key {root_sign.Get(), target_spec};
-  auto cached_entry = pso_cache.find(cache_key);
-  if (cached_entry != pso_cache.end()) {
-    pso = cached_entry->second;
-    return;
-  }
 
   REI_ASSERT(vs_bytecode);
   REI_ASSERT(ps_bytecode);
@@ -205,7 +201,7 @@ void DeviceResources::get_pso(const RasterizationShaderData& shader,
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
     desc.DSVFormat = meta.get_dsv_format();
-    desc.SampleDesc = target_spec.sample_desc;
+    desc.SampleDesc = DXGI_SAMPLE_DESC {1, 0};
     desc.NodeMask = 0; // single GPU
     desc.CachedPSO.pCachedBlob
       = nullptr; // TODO cache in disk; see
@@ -219,8 +215,6 @@ void DeviceResources::get_pso(const RasterizationShaderData& shader,
   };
 
   pso = create();
-  auto inserted = pso_cache.insert({cache_key, pso});
-  REI_ASSERT(inserted.second);
 }
 
 void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {

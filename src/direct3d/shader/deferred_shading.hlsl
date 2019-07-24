@@ -1,6 +1,12 @@
 #include "common.hlsl"
 #include "deferred_common.hlsl"
-//cbuffer cbPerLight : register(b0, space0) {}
+
+struct Light {
+  float4 pos_dir;
+  float4 color;
+};
+
+ConstantBuffer<Light> g_light : register(b0, space0);
 
 ConstantBuffer<ConstBufferPerRender> g_render : register(b0, space1);
 
@@ -80,17 +86,28 @@ float4 PS(float4 pos : SV_POSITION) : SV_TARGET {
   float4 w_coord = mul(g_render.camera_view_proj_inv, ndc);
   float3 w_pos = w_coord.xyz / w_coord.w;
 
-  // get background color from sky 
   float3 view_dir = normalize(w_pos - g_render.camera_pos.xyz);
-  float4 bg_color = float4(gradiant_sky_eva(view_dir), 1);
 
+  // get background color from sky 
+#if BASE_SHADING
+  float3 bg_color = gradiant_sky_eva(view_dir);
   float3 ambient = gradiant_sky_eva(surf.normal) * 0.3f;
+#else
+  float3 bg_color = float3(0, 0, 0);
+  float3 ambient = float3(0, 0, 0);
+#endif
 
   PunctualLight light;
-  light.color = float3(1, 1, 1) * 0.6;
-  light.dir = normalize(float3(0.6, 0.8, 0.3));
-  
+  if (g_light.pos_dir.w > 0.5) { // position
+    light.dir = normalize(w_pos - g_light.pos_dir.xyz);
+  } else { // direction
+    light.dir = g_light.pos_dir.xyz;
+  }
+  light.color = g_light.color.xyz;
+
   // Bliin-Phong reflection with Lambertian Diffuse
   float3 radiance = blinn_phong(surf, light, ambient, -view_dir);
-  return lerp(float4(radiance, 1.f), bg_color, is_background);
+
+  float3 final_color = lerp(radiance, bg_color, is_background);
+  return float4(final_color, 1.0f);
 }

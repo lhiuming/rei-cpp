@@ -105,6 +105,16 @@ struct ShaderSignature {
   std::vector<ShaderParameter> param_table;
 };
 
+struct ShaderCompileConfig {
+  struct Macro {
+    std::string name;
+    std::string definition;
+    Macro() = default;
+    Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
+  };
+  FixedVec<Macro, 16> defines;
+};
+
 struct ShaderArgumentValue {
   constexpr static size_t c_buf_max = 8;
   // TODO make this inplace memory
@@ -127,6 +137,7 @@ struct RasterizationShaderMetaInfo {
   ShaderSignature signature {};
   FixedVec<RenderTargetDesc, 8> render_target_descs {RenderTargetDesc()};
   bool is_depth_stencil_disabled = false;
+  bool is_blending_addictive = false;
 };
 
 // Shader info for the entire raytracing pipeline

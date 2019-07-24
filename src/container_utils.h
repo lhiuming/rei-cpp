@@ -27,6 +27,8 @@ public:
   using C::value_type;
   // TODO iterator
 
+  static constexpr size_type max_size = N;
+
   class const_iterator { // iterator for nonmutable array
     using Self = const_iterator;
 
@@ -134,7 +136,6 @@ public:
   }
 
   size_type size() const { return m_size; }
-  constexpr size_type max_size() const { return N; }
 
   using Base::data;
 

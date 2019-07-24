@@ -159,24 +159,26 @@ void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t mem
 }
 
 ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, unique_ptr<RasterizationShaderMetaInfo>&& meta) {
+  const std::wstring& shader_path, unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<RasterizationShaderData>(this);
 
-  // compile and retrive root signature
   shader->meta.init(std::move(*meta));
-  device_resources->compile_shader(shader_path, shader->compiled_data);
-  device_resources->get_root_signature(shader->root_signature, shader->meta);
 
-  if (!(shader->compiled_data.ps_bytecode && shader->compiled_data.vs_bytecode)) {
+  // compile and retrive root signature
+  ShaderCompileResult compiled_data;
+  device_resources->compile_shader(shader_path, config, compiled_data);
+  if (!(compiled_data.ps_bytecode && compiled_data.vs_bytecode)) {
     REI_ERROR("Shader compilation faild");
     return c_empty_handle;
   }
+  device_resources->get_root_signature(shader->root_signature, shader->meta);
+  device_resources->create_pso(*shader, compiled_data, shader->pso);
 
   return ShaderHandle(shader);
 }
 
 ShaderHandle Renderer::create_raytracing_shader(
-  const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
+  const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<RaytracingShaderData>(this);
 
   shader->meta.init(std::move(*meta));
@@ -208,10 +210,7 @@ ShaderHandle Renderer::create_raytracing_shader(
   return ShaderHandle(shader);
 }
 
-ShaderArgumentHandle Renderer::create_shader_argument(
-  ShaderHandle shader_h, ShaderArgumentValue arg_value) {
-  // TODO carry validation using shader information
-  // auto shader = to_shader<ShaderData>(shader_h);
+ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_value) {
 
   size_t buf_count = arg_value.total_buffer_count();
   CD3DX12_GPU_DESCRIPTOR_HANDLE base_gpu_descriptor;
@@ -424,7 +423,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   const FLOAT clear_stentil = 0;
 
   FixedVec<D3D12_RENDER_PASS_RENDER_TARGET_DESC, 8> rt_descs = {};
-  REI_ASSERT(cmd.render_targets.max_size() <= rt_descs.max_size());
+  REI_ASSERT(cmd.render_targets.max_size <= rt_descs.max_size);
   if (cmd.render_targets.size() > 0) {
     for (size_t i = 0; i < cmd.render_targets.size(); i++) {
       BufferHandle render_target_h = cmd.render_targets[i];
@@ -507,9 +506,8 @@ void Renderer::draw(const DrawCommand& cmd) {
   cmd_list->SetGraphicsRootSignature(this_root_sign);
 
   // Check Pipeline state
-  ComPtr<ID3D12PipelineState> this_pso;
-  device_resources->get_pso(*shader, curr_target_spec, this_pso);
-  cmd_list->SetPipelineState(this_pso.Get());
+  ID3D12PipelineState* this_pso = shader->pso.Get();
+  cmd_list->SetPipelineState(this_pso);
 
   // Bind shader arguments
   {

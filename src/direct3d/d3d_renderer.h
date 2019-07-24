@@ -48,19 +48,20 @@ public:
 
   BufferHandle create_texture_2d(
     size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name);
-  BufferHandle create_unordered_access_buffer_2d(
-    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name = L"Unnamed UA Buffer");
-  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num, std::wstring&& debug_name = L"Unnamed ConstBuffer");
+  BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height, ResourceFormat format,
+    std::wstring&& debug_name = L"Unnamed UA Buffer");
+  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num,
+    std::wstring&& debug_name = L"Unnamed ConstBuffer");
 
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
 
-  ShaderHandle create_shader(
-    const std::wstring& shader_path, std::unique_ptr<RasterizationShaderMetaInfo>&& meta);
-  ShaderHandle create_raytracing_shader(
-    const std::wstring& shader_path, std::unique_ptr<RaytracingShaderMetaInfo>&& meta);
+  ShaderHandle create_shader(const std::wstring& shader_path,
+    std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {});
+  ShaderHandle create_raytracing_shader(const std::wstring& shader_path,
+    std::unique_ptr<RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {});
 
-  ShaderArgumentHandle create_shader_argument(ShaderHandle shader, ShaderArgumentValue arg_value);
+  ShaderArgumentHandle create_shader_argument(ShaderArgumentValue arg_value);
   void update_shader_argument(
     ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
 

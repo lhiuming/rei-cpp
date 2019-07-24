@@ -354,6 +354,12 @@ struct RasterizationShaderMetaDesc {
       rt_formats.push_back(to_dxgi_format(rt_desc.format));
     }
     is_depth_stencil_null = meta.is_depth_stencil_disabled;
+    if (meta.is_blending_addictive) { 
+      blend_state.RenderTarget[0].BlendEnable = true;
+      blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+    }
   }
 
   UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const {
@@ -433,7 +439,7 @@ struct ShaderArgumentData : BaseShaderArgument {
 struct RasterizationShaderData : ShaderData {
   using ShaderData::ShaderData;
   RasterizationShaderMetaDesc meta;
-  ShaderCompileResult compiled_data;
+  ComPtr<ID3D12PipelineState> pso;
 };
 
 struct RaytracingShaderData : ShaderData {

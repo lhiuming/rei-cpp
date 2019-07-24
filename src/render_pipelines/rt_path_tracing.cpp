@@ -172,7 +172,7 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
       args.const_buffer_offsets = {0};
       args.shader_resources = {scene->tlas_buffer};
       args.unordered_accesses = {viewport->raytracing_output_buffer};
-      pathtracing_argument = renderer->create_shader_argument(pathtracing_shader, args);
+      pathtracing_argument = renderer->create_shader_argument(args);
     }
 
     cmd_list->raytrace(pathtracing_shader, {pathtracing_argument}, scene->shader_table,

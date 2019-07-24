@@ -36,11 +36,15 @@ public:
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
+  constexpr static size_t max_light_count = 8;
+
 private:
   // FIXME should be material handle
   ShaderHandle m_default_shader;
-  ShaderHandle m_lighting_shader;
+  ShaderHandle m_lighting_shader_base;
+  ShaderHandle m_lighting_shader_add;
 
+  BufferHandle m_per_light_buffer;
   BufferHandle m_per_render_buffer;
 };
 

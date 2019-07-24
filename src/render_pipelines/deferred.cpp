@@ -16,7 +16,9 @@ struct ViewportData {
   SwapchainHandle swapchain;
   BufferHandle normal_buffer;
   BufferHandle albedo_buffer;
-  ShaderArgumentHandle shading_pass_argument;
+  ShaderArgumentHandle shading_pass_per_render_arg;
+  // Max 8 light pass
+  FixedVec<ShaderArgumentHandle, DeferredPipeline::max_light_count> shading_pass_per_light_args;
 
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
@@ -58,7 +60,8 @@ struct DeferredBaseMeta : RasterizationShaderMetaInfo {
 
 struct DeferredShadingMeta : RasterizationShaderMetaInfo {
   DeferredShadingMeta() {
-    ShaderParameter space0 {}; // light data?
+    ShaderParameter space0 {};
+    space0.const_buffers = {ConstBuffer()};
     ShaderParameter space1 {};
     space1.const_buffers = {ConstBuffer()};
     space1.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource()};
@@ -69,22 +72,39 @@ struct DeferredShadingMeta : RasterizationShaderMetaInfo {
     render_target_descs = {rt_color};
 
     is_depth_stencil_disabled = true;
+    is_blending_addictive = true;
   }
 };
 
 DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(renderer) {
   Renderer* r = get_renderer();
+
   m_default_shader
     = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
-  m_lighting_shader = r->create_shader(
+  ShaderCompileConfig lighting_shader_config {};
+  lighting_shader_config.defines = { {"BASE_SHADING", "1"}, };
+  m_lighting_shader_base = r->create_shader(L"CoreData/shader/deferred_shading.hlsl",
+    std::make_unique<DeferredShadingMeta>(), lighting_shader_config);
+  m_lighting_shader_add = r->create_shader(
     L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
-  ConstBufferLayout lo = {
-    ShaderDataType::Float4,   // screen size
-    ShaderDataType::Float4x4, // camera view_proj
-    ShaderDataType::Float4x4, // camera view_proj inverse
-    ShaderDataType::Float4,   // camera pos
-  };
-  m_per_render_buffer = r->create_const_buffer(lo, 1);
+
+  {
+    ConstBufferLayout lo = {
+      ShaderDataType::Float4,   // screen size
+      ShaderDataType::Float4x4, // camera view_proj
+      ShaderDataType::Float4x4, // camera view_proj inverse
+      ShaderDataType::Float4,   // camera pos
+    };
+    m_per_render_buffer = r->create_const_buffer(lo, 1, L"ShadingPass PerRender CB");
+  }
+
+  {
+    ConstBufferLayout lo = {
+      ShaderDataType::Float4, // light pos/dir
+      ShaderDataType::Float4, // light color
+    };
+    m_per_light_buffer = r->create_const_buffer(lo, max_light_count, L"ShadingPass PerLight CB");
+  }
 }
 
 DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportConfig conf) {
@@ -104,7 +124,14 @@ DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportCon
     v.const_buffers = {m_per_render_buffer};
     v.const_buffer_offsets = {0}; // assume only one viewport
     v.shader_resources = {ds_buf, proxy.normal_buffer, proxy.albedo_buffer};
-    proxy.shading_pass_argument = r->create_shader_argument(m_lighting_shader, v);
+    proxy.shading_pass_per_render_arg = r->create_shader_argument(v);
+  }
+  { ShaderArgumentValue v {};
+    v.const_buffers = {m_per_light_buffer};
+    for (size_t i = 0; i < proxy.shading_pass_per_light_args.max_size; i++) {
+      v.const_buffer_offsets = {i}; // assume only one viewport using the buffer at the same time
+      proxy.shading_pass_per_light_args.push_back(r->create_shader_argument(v));
+    }
   }
 
   return add_viewport(std::move(proxy));
@@ -145,7 +172,7 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
     for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
       arg_value.const_buffer_offsets[0] = i;
-      ShaderArgumentHandle arg = r->create_shader_argument(m_default_shader, arg_value);
+      ShaderArgumentHandle arg = r->create_shader_argument(arg_value);
       proxy.models.insert({
         model->get_rendering_handle(),                                                // key
         {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
@@ -236,11 +263,16 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     shading_pass.area = {viewport->width, viewport->height};
   }
   cmd_list->begin_render_pass(shading_pass);
-  {
+  std::vector<Vec4> light_pos = {{0.5, 0.6, 0.9, 0}, {0.5, 0.6, 0.8, 0}};
+  for (int light_i = 0; light_i < 2; light_i++) {
+    // Run a screen-pass for each light
+    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 0, light_pos[light_i]); // pos
+    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 1, Vec4(0.7, 0.65, 0.6, 0)); // color
+
     DrawCommand cmd = {};
     cmd.geo = c_empty_handle;
-    cmd.shader = m_lighting_shader;
-    cmd.arguments = {viewport->shading_pass_argument};
+    cmd.shader = (light_i == 0) ? m_lighting_shader_base : m_lighting_shader_add;
+    cmd.arguments = {viewport->shading_pass_per_light_args[light_i], viewport->shading_pass_per_render_arg};
     cmd_list->draw(cmd);
   }
   cmd_list->end_render_pass();

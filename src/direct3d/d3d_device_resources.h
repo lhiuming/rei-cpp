@@ -25,30 +25,6 @@ namespace d3d {
 
 using Microsoft::WRL::ComPtr;
 
-// PSO caching
-struct PSOKey {
-  ID3D12RootSignature* p_root_sign;
-  RenderTargetSpec rt_spec;
-
-  // PSOKey(ID3D12RootSignature* p_root_sign, const RenderTargetSpec& rt_spect) :
-  // p_root_sign(p_root_sign), rt_spec(rt_spec) {}
-
-  bool operator==(const PSOKey& other) const {
-    return p_root_sign == other.p_root_sign && rt_spec == other.rt_spec;
-  }
-};
-
-struct PSOKeyHasher {
-  std::size_t operator()(PSOKey const& k) const noexcept {
-    std::size_t hash0 = (uintptr_t)k.p_root_sign;
-    std::size_t hash1 = k.rt_spec.simple_hash();
-    // TODO use some better hash combine scheme
-    return hash0 ^ hash1;
-  }
-};
-
-using PSOCache = std::unordered_map<PSOKey, ComPtr<ID3D12PipelineState>, PSOKeyHasher>;
-
 class DeviceResources : NoCopy {
 public:
   struct Options {
@@ -74,7 +50,8 @@ public:
   ID3D12DescriptorHeap* const* cbv_srv_heap_addr() const { return m_cbv_srv_heap.get_ptr_addr(); }
   UINT cnv_srv_descriptor_size() const { return m_cbv_srv_heap.cnv_srv_descriptor_size(); };
 
-  void compile_shader(const std::wstring& shader_path, ShaderCompileResult& result);
+  void compile_shader(const std::wstring& shader_path, const ShaderCompileConfig& config,
+    ShaderCompileResult& result);
   // void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
   void get_root_signature(
     ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta);
@@ -82,8 +59,7 @@ public:
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-  void get_pso(const RasterizationShaderData& shader, const RenderTargetSpec& target_spec,
-    ComPtr<ID3D12PipelineState>& pso);
+  void create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
 
@@ -120,8 +96,6 @@ private:
   NaiveDescriptorHeap m_cbv_srv_heap;
   NaiveDescriptorHeap m_rtv_heap;
   NaiveDescriptorHeap m_dsv_heap;
-
-  PSOCache pso_cache;
 };
 
 } // namespace d3d
