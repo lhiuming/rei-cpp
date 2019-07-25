@@ -266,7 +266,7 @@ Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   // Material name
   aiString mater_name;
   mater.Get(AI_MATKEY_NAME, mater_name);
-  ret.name = string(mater_name.C_Str());
+  //ret.name = string(mater_name.C_Str());
 
   // Shading model
   int shading_model;
@@ -283,10 +283,13 @@ Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   mater.Get(AI_MATKEY_COLOR_SPECULAR, spec);
   mater.Get(AI_MATKEY_SHININESS, shine);
 
+  REI_NOT_IMPLEMENTED
+  /*
   ret.diffuse = Color(dif.r, dif.g, dif.b);
   ret.ambient = Color(amb.r, amb.g, amb.b);
   ret.specular = Color(spec.r, spec.g, spec.b);
   ret.shineness = shine;
+  */
 
   return ret;
 }

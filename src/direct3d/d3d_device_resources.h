@@ -15,7 +15,6 @@
 
 #include "../algebra.h"
 #include "../common.h"
-#include "../model.h"
 #include "../scene.h"
 #include "d3d_common_resources.h"
 

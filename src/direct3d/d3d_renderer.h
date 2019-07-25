@@ -9,7 +9,6 @@
 #include "../algebra.h"
 #include "../camera.h"
 #include "../common.h"
-#include "../model.h"
 #include "../renderer.h"
 #include "../scene.h"
 

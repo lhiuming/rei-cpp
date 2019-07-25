@@ -17,7 +17,7 @@
 #include "../camera.h"
 #include "../color.h"
 #include "../common.h"
-#include "../model.h"
+#include "..//scene.h"
 #include "../renderer.h"
 #include "d3d_utils.h"
 

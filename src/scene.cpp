@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "algebra.h"
-#include "model.h"
 
 using namespace std;
 
