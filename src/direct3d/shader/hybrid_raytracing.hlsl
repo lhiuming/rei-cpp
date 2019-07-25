@@ -1,6 +1,6 @@
 #include "common.hlsl"
-#include "hybrid_common.hlsl"
 #include "halton.hlsl"
+#include "hybrid_common.hlsl"
 
 struct Vertex {
   // NOTE: see VertexElement in cpp code
@@ -17,7 +17,9 @@ RWTexture2D<float4> g_render_target : register(u0, space0);
 // Scene TLAS
 RaytracingAccelerationStructure g_scene : register(t0, space0);
 // G-Buffer
-Texture2D<float4> g_normal_buffer : register(t1, space0);
+Texture2D<float> g_depth : register(t1, space0);
+Texture2D<float4> g_normal : register(t2, space0);
+Texture2D<float4> g_albedo : register(t3, space0);
 
 // Per-render CB
 ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
@@ -27,7 +29,6 @@ ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
 //  mesh data
 ByteAddressBuffer g_indicies : register(t0, space1);
 StructuredBuffer<Vertex> g_vertices : register(t1, space1);
-
 
 // Raytracing Structs //
 
@@ -67,24 +68,108 @@ uint3 Load3x16BitIndices(uint offsetBytes) {
   return indices;
 }
 
-[shader("raygeneration")]
-void raygen_shader() {
-  float2 lerp_values = (float2)DispatchRaysIndex() / (float2)DispatchRaysDimensions();
-  float4 ndc = float4(lerp_values * 2.0f - 1.0f, 0.0f, 1.0f);
-  ndc.y = -ndc.y; // default ray index counts from top-left
-  float4 pixel_world_homo = mul(g_per_render.proj_to_world, ndc);
-  float3 pixel_world_pos = pixel_world_homo.xyz / pixel_world_homo.w;
+float4 sample_sky(float3 dir) {
+  return float4(gradiant_sky_eva(dir), 1.0f);
+}
+
+void output(float4 color) {
+  g_render_target[DispatchRaysIndex().xy] = color;
+}
+
+void output(float3 color) {
+  output(float4(color, 1.0));
+}
+
+struct Surface {
+  float3 normal;
+  float smoothness;
+  float3 albedo;
+};
+
+struct BRDFSample {
+  float3 wi;
+  float weight;
+};
+
+void sample_blinn_phong_brdf(Surface surf, float3 wo, float rnd0, float rnd1, out BRDFSample ret) {
+  // compute local random direction
+  float theta = rnd1 * (PI * 2.0f);
+  float phi = rnd0 * (PI * 0.5f);
+  float sin_phi = sin(phi);
+  float3 dir = {sin_phi * cos(theta), cos(phi), sin_phi * sin(theta)};
+
+  // rotate to world space
+  float3 normal = surf.normal;
+  float3 tangent = wo;
+  if (dot(normal, tangent) > (1 - c_epsilon)) tangent = float3(normal.z, 0, -normal.x);
+  float3 bitangent = cross(tangent, normal);
+  tangent = cross(normal, bitangent);
+  ret.wi = dir.x * tangent + dir.y * normal + dir.z * bitangent;
+
+  // consine weighted
+  ret.weight = dir.y;
+}
+
+float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float recur_depth) {
+  HaltonState halton;
+  uint3 dispatch_index = DispatchRaysIndex();
+  halton_init(halton, dispatch_index.xyz);
 
   RayDesc ray;
-  ray.Origin = g_per_render.camera_pos.xyz;
-  ray.Direction = normalize(pixel_world_pos - ray.Origin);
+  ray.Origin = pos;
   ray.TMin = 0.001;
   ray.TMax = 10000.0;
 
-  RayPayload payload = {{0, 0, 0, 0}, 0};
-  TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
+  float3 accumulated = float3(0, 0, 0);
+  float weight_sum = 0;
 
-  g_render_target[DispatchRaysIndex().xy] = payload.color;
+  const uint c_sample = max(4, MAX_HALTON_SAMPLE / 2);
+  BRDFSample samp;
+  RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
+  for (int i = 0; i < c_sample; i++) {
+    float rnd0 = frac(halton_next(halton));
+    float rnd1 = frac(halton_next(halton));
+    sample_blinn_phong_brdf(surf, wo, rnd0, rnd1, samp);
+
+    ray.Direction = samp.wi;
+    TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
+
+    accumulated += samp.weight * payload.color.xyz;
+    weight_sum += samp.weight;
+  }
+
+  return (accumulated / weight_sum) * surf.albedo;
+}
+
+[shader("raygeneration")] void raygen_shader() {
+  uint2 id = DispatchRaysIndex().xy;
+  float depth = g_depth[id];
+
+  float2 uv = float2(id) / float2(DispatchRaysDimensions().xy);
+  float4 ndc = float4(uv * 2.f - 1.f, depth, 1.0f);
+  ndc.y = -ndc.y;
+  float4 world_pos_h = mul(g_per_render.proj_to_world, ndc);
+  float3 world_pos = world_pos_h.xyz / world_pos_h.w;
+
+  float3 wo = normalize(g_per_render.camera_pos.xyz - world_pos);
+
+  // reject on background
+  if (depth <= c_epsilon) {
+    float3 view_dir = -wo;
+    output(sample_sky(view_dir));
+    return;
+  }
+
+  float4 normal = g_normal[id];
+  float4 albedo_smoothness = g_albedo[id];
+
+  Surface s;
+  s.normal = g_normal[id].xyz;
+  s.smoothness = albedo_smoothness.w;
+  s.albedo = albedo_smoothness.xyz;
+  float3 radiance = integrate_blinn_phong(world_pos, wo, s, 0);
+
+  output(radiance);
 }
 
 // TODO add tangent to vertex data
@@ -105,13 +190,7 @@ float3 sample_lambertian_brdf(float3 normal, float rnd0, float rnd1, out float p
   return dir.x * tangent + dir.y * normal + dir.z * bitangent;
 }
 
-  [shader("closesthit")] 
-  void closest_hit_shader(inout RayPayload payload, in HitAttr attr) {
-  // hardcoded
-  float3 light_dir = {2, 2, 1.5};
-  float3 light_color = {0.6, 0.6, 0.6};
-  float3 albedo = {0.7, 0.7, 0.7};
-
+[shader("closesthit")] void closest_hit_shader(inout RayPayload payload, in HitAttr attr) {
   // Get hitpoint normal from mesh data
   uint indexSizeInBytes = 2;
   uint indicesPerTriangle = 3;
@@ -128,49 +207,29 @@ float3 sample_lambertian_brdf(float3 normal, float rnd0, float rnd1, out float p
   float3 n = n0 + bary.x * (n1 - n0) + bary.y * (n2 - n0);
   n = normalize(n);
 
-  // Get hitpoint world pos
-  float3 world_pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-
-  // diffusive direct lighting
-  float3 l = normalize(light_dir);
-  float n_dot_l = max(0.0, dot(n, l));
-  float3 direct_light = n_dot_l * light_color;
-
   // collect bounced irradiance
-  float3 bounced = {0, 0, 0};
+  float3 radiance;
   if (payload.depth < 2) {
-    HaltonState halton;
-    uint3 dispatch_index = DispatchRaysIndex();
-    halton_init(halton, dispatch_index.xyz);
+    // Bounc around the scene !
+    float3 world_pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+    float3 wo = -WorldRayDirection();
 
-    float weight_sum = 0;
-    const uint c_sample = max(MAX_HALTON_SAMPLE / 2, 4);
-    for (int i = 0; i < c_sample; i++) {
+    // TODO read material from shader table
+    Surface surf;
+    surf.normal = n;
+    surf.smoothness = 1;
+    surf.albedo = float3(.7, .7, .7);
 
-      float rnd0 = frac(halton_next(halton));
-      float rnd1 = frac(halton_next(halton));
-      float weight;
-      float3 dir = sample_lambertian_brdf(n, rnd0, rnd1, weight);
-
-      RayDesc ray;
-      ray.Origin = world_pos;
-      ray.Direction = dir;
-      ray.TMin = 0.001;
-      ray.TMax = 10000.0;
-      RayPayload bounced_payload = {{0, 0, 0, 0}, payload.depth + 1};
-      TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, bounced_payload);
-
-      bounced += weight * bounced_payload.color.xyz;
-      weight_sum += weight;
-    }
-    bounced /= weight_sum;
+    radiance = integrate_blinn_phong(world_pos, wo, surf, payload.depth);
+  } else {
+    // kill the path
+    radiance = float3(0, 0, 0);
   }
 
-  payload.color.xyz = (direct_light + bounced) * albedo;
+  payload.color.xyz = radiance;
 }
 
-[shader("miss")] 
-void miss_shader(inout RayPayload payload) {
+  [shader("miss")] void miss_shader(inout RayPayload payload) {
   float3 dir = WorldRayDirection();
   payload.color = float4(gradiant_sky_eva(dir), 1.0f);
-  }
+}

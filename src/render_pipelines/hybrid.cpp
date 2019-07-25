@@ -66,7 +66,7 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
   HybridRaytracingShaderDesc() {
     ShaderParameter space0 = {};
     space0.const_buffers = {ConstBuffer()};                         // Per-render CN
-    space0.shader_resources = {ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
+    space0.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
     space0.unordered_accesses = {UnorderedAccess()};                // output buffer
     global_signature.param_table = {space0};
 
@@ -105,7 +105,7 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
   }
 
   {
-    m_raytracing_shader
+    m_raytraced_lighting_shader
       = r->create_shader(L"CoreData/shader/hybrid_raytracing.hlsl", HybridRaytracingShaderDesc());
   }
 
@@ -196,7 +196,7 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
   // Build Acceleration structure and shader table
   {
     proxy.tlas = r->create_raytracing_accel_struct(*scene);
-    proxy.shader_table = r->create_shader_table(*scene, m_raytracing_shader);
+    proxy.shader_table = r->create_shader_table(*scene, m_raytraced_lighting_shader);
   }
 
   return add_scene(std::move(proxy));
@@ -273,10 +273,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     }
   }
 
-  // Raytracing
+  // Raytraced lighting
   {
     RaytraceCommand cmd {};
-    cmd.raytrace_shader = m_raytracing_shader;
+    cmd.raytrace_shader = m_raytraced_lighting_shader;
     cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
     cmd.shader_table = scene->shader_table;
     cmd.width = viewport->width;
@@ -287,7 +287,6 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // Blit raytracing result for debug
   BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
   cmd_list->transition(render_target, ResourceState::RenderTarget);
-  //cmd_list->barrier(viewport->raytracing_output_buffer);
   cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::PixelShaderResource);
   {
     RenderPassCommand render_pass {};
@@ -354,7 +353,9 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   val.const_buffer_offsets = {0};
   val.shader_resources = {
     scene->tlas,             // t0 TLAS
-    viewport->normal_buffer, // t0 G-Buffer::normal
+    r->fetch_swapchain_depth_stencil_buffer(viewport->swapchain), // t1 G-buffer depth
+    viewport->normal_buffer, // t2 G-Buffer::normal
+    viewport->albedo_buffer , // t3 G-Buffer::albedo
   };
   val.unordered_accesses = {viewport->raytracing_output_buffer};
   ShaderArgumentHandle arg = r->create_shader_argument(val);
