@@ -158,11 +158,12 @@ void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t mem
   set_const_buffer(buffer, index, member, &converted, sizeof(converted));
 }
 
-ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config) {
+ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
+  RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
+
   auto shader = make_shared<RasterizationShaderData>(this);
 
-  shader->meta.init(std::move(*meta));
+  shader->meta.init(std::move(meta));
 
   // compile and retrive root signature
   ShaderCompileResult compiled_data;
@@ -177,11 +178,12 @@ ShaderHandle Renderer::create_shader(
   return ShaderHandle(shader);
 }
 
-ShaderHandle Renderer::create_raytracing_shader(
-  const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config) {
+ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
+  RaytracingShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
+
   auto shader = make_shared<RaytracingShaderData>(this);
 
-  shader->meta.init(std::move(*meta));
+  shader->meta.init(std::move(meta));
   d3d::RayTracingShaderMetaDesc& d3d_meta = shader->meta;
   device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
   device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
@@ -264,7 +266,9 @@ ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_va
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
   for (auto& h : arg_value.unordered_accesses) {
+    REI_ASSERT(h);
     auto b = to_buffer<DefaultBufferData>(h);
+    REI_ASSERT(b);
     auto meta = b->meta;
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
     desc.Format = to_dxgi_format(meta.format);
@@ -491,6 +495,14 @@ void Renderer::transition(BufferHandle buffer_h, ResourceState state) {
   buffer->state = to_state;
 }
 
+void Renderer::barrier(BufferHandle buffer_h) {
+  shared_ptr<BufferData> buffer = to_buffer<BufferData>(buffer_h);
+  REI_ASSERT(buffer);
+
+  auto cmd_list = device_resources->prepare_command_list();
+  cmd_list->ResourceBarrier( 1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->get_res()));
+}
+
 void Renderer::draw(const DrawCommand& cmd) {
   auto cmd_list = device_resources->prepare_command_list();
 
@@ -534,10 +546,11 @@ void Renderer::draw(const DrawCommand& cmd) {
   }
 }
 
-void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments arguments,
-  BufferHandle shader_table_h, size_t width, size_t height, size_t depth) {
-  auto shader = to_shader<RaytracingShaderData>(raytrace_shader_h);
-  auto shader_table = to_buffer<RaytracingShaderTableData>(shader_table_h);
+void Renderer::raytrace(const RaytraceCommand& cmd) {
+  auto shader = to_shader<RaytracingShaderData>(cmd.raytrace_shader);
+  auto shader_table = to_buffer<RaytracingShaderTableData>(cmd.shader_table);
+  REI_ASSERT(shader);
+  REI_ASSERT(shader_table);
 
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
@@ -549,8 +562,8 @@ void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments argument
 
   // Bing global resource
   {
-    for (UINT i = 0; i < arguments.size(); i++) {
-      const auto shader_arg = to_argument(arguments[i]);
+    for (UINT i = 0; i < cmd.arguments.size(); i++) {
+      const auto shader_arg = to_argument(cmd.arguments[i]);
       if (shader_arg) {
         cmd_list->SetComputeRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
       }
@@ -572,9 +585,9 @@ void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments argument
     desc.HitGroupTable.StartAddress = hitgroup->buffer_address();
     desc.HitGroupTable.SizeInBytes = hitgroup->effective_bytewidth();
     desc.HitGroupTable.StrideInBytes = hitgroup->element_bytewidth();
-    desc.Width = width;
-    desc.Height = height;
-    desc.Depth = depth;
+    desc.Width = UINT(cmd.width);
+    desc.Height = UINT(cmd.height);
+    desc.Depth = UINT(cmd.depth);
     cmd_list->DispatchRays(&desc);
   }
 }

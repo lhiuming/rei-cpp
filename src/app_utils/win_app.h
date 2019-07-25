@@ -22,6 +22,7 @@ public:
   enum class RenderMode {
     Rasterization,
     RealtimeRaytracing,
+    Hybrid,
   };
 
   struct Config {

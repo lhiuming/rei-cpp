@@ -169,6 +169,15 @@ struct DrawCommand {
   ShaderArguments arguments;
 };
 
+struct RaytraceCommand {
+  ShaderHandle raytrace_shader;
+  ShaderArguments arguments;
+  BufferHandle shader_table;
+  size_t width;
+  size_t height;
+  size_t depth = 1;
+};
+
 struct RenderArea {
   size_t width;
   size_t height;

@@ -1,0 +1,176 @@
+#include "common.hlsl"
+#include "hybrid_common.hlsl"
+#include "halton.hlsl"
+
+struct Vertex {
+  // NOTE: see VertexElement in cpp code
+  float4 pos;
+  float4 color;
+  float3 normal;
+};
+
+// Global //
+
+// Output buffer
+RWTexture2D<float4> g_render_target : register(u0, space0);
+
+// Scene TLAS
+RaytracingAccelerationStructure g_scene : register(t0, space0);
+// G-Buffer
+Texture2D<float4> g_normal_buffer : register(t1, space0);
+
+// Per-render CB
+ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
+
+// Local: Hit Group //
+
+//  mesh data
+ByteAddressBuffer g_indicies : register(t0, space1);
+StructuredBuffer<Vertex> g_vertices : register(t1, space1);
+
+
+// Raytracing Structs //
+
+typedef BuiltInTriangleIntersectionAttributes HitAttr;
+
+struct RayPayload {
+  float4 color;
+  int depth;
+};
+
+// REMARK: copy from dx-sample tutorial
+uint3 Load3x16BitIndices(uint offsetBytes) {
+  uint3 indices;
+
+  // ByteAdressBuffer loads must be aligned at a 4 byte boundary.
+  // Since we need to read three 16 bit indices: { 0, 1, 2 }
+  // aligned at a 4 byte boundary as: { 0 1 } { 2 0 } { 1 2 } { 0 1 } ...
+  // we will load 8 bytes (~ 4 indices { a b | c d }) to handle two possible index triplet layouts,
+  // based on first index's offsetBytes being aligned at the 4 byte boundary or not:
+  //  Aligned:     { 0 1 | 2 - }
+  //  Not aligned: { - 0 | 1 2 }
+  const uint dwordAlignedOffset = offsetBytes & ~3;
+  const uint2 four16BitIndices = g_indicies.Load2(dwordAlignedOffset);
+
+  // Aligned: { 0 1 | 2 - } => retrieve first three 16bit indices
+  if (dwordAlignedOffset == offsetBytes) {
+    indices.x = four16BitIndices.x & 0xffff;
+    indices.y = (four16BitIndices.x >> 16) & 0xffff;
+    indices.z = four16BitIndices.y & 0xffff;
+  } else // Not aligned: { - 0 | 1 2 } => retrieve last three 16bit indices
+  {
+    indices.x = (four16BitIndices.x >> 16) & 0xffff;
+    indices.y = four16BitIndices.y & 0xffff;
+    indices.z = (four16BitIndices.y >> 16) & 0xffff;
+  }
+
+  return indices;
+}
+
+[shader("raygeneration")]
+void raygen_shader() {
+  float2 lerp_values = (float2)DispatchRaysIndex() / (float2)DispatchRaysDimensions();
+  float4 ndc = float4(lerp_values * 2.0f - 1.0f, 0.0f, 1.0f);
+  ndc.y = -ndc.y; // default ray index counts from top-left
+  float4 pixel_world_homo = mul(g_per_render.proj_to_world, ndc);
+  float3 pixel_world_pos = pixel_world_homo.xyz / pixel_world_homo.w;
+
+  RayDesc ray;
+  ray.Origin = g_per_render.camera_pos.xyz;
+  ray.Direction = normalize(pixel_world_pos - ray.Origin);
+  ray.TMin = 0.001;
+  ray.TMax = 10000.0;
+
+  RayPayload payload = {{0, 0, 0, 0}, 0};
+  TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
+
+  g_render_target[DispatchRaysIndex().xy] = payload.color;
+}
+
+// TODO add tangent to vertex data
+// TODO importance sampling
+float3 sample_lambertian_brdf(float3 normal, float rnd0, float rnd1, out float probability) {
+  // compute local random direction
+  float theta = rnd1 * (PI * 2.0f);
+  float phi = rnd0 * (PI * 0.5f);
+  float sin_phi = sin(phi);
+  float3 dir = {sin_phi * cos(theta), cos(phi), sin_phi * sin(theta)};
+  // consine weighted
+  probability = dir.y;
+  // rotate to world space
+  float3 tangent = {0, 1, 0};
+  if (abs(normal.y) > 0.995f) tangent = float3(normal.z, 0, -normal.x);
+  float3 bitangent = cross(tangent, normal);
+  tangent = cross(normal, bitangent);
+  return dir.x * tangent + dir.y * normal + dir.z * bitangent;
+}
+
+  [shader("closesthit")] 
+  void closest_hit_shader(inout RayPayload payload, in HitAttr attr) {
+  // hardcoded
+  float3 light_dir = {2, 2, 1.5};
+  float3 light_color = {0.6, 0.6, 0.6};
+  float3 albedo = {0.7, 0.7, 0.7};
+
+  // Get hitpoint normal from mesh data
+  uint indexSizeInBytes = 2;
+  uint indicesPerTriangle = 3;
+  uint triangleIndexStride = indicesPerTriangle * indexSizeInBytes;
+  uint baseIndex = PrimitiveIndex() * triangleIndexStride;
+  // load up 3 16 bit indices for the triangle.
+  const uint3 indices = Load3x16BitIndices(baseIndex);
+  // retrieve corresponding vertex normals for the triangle vertices.
+  float3 n0 = g_vertices[indices[0]].normal.xyz;
+  float3 n1 = g_vertices[indices[1]].normal.xyz;
+  float3 n2 = g_vertices[indices[2]].normal.xyz;
+
+  float2 bary = attr.barycentrics.xy;
+  float3 n = n0 + bary.x * (n1 - n0) + bary.y * (n2 - n0);
+  n = normalize(n);
+
+  // Get hitpoint world pos
+  float3 world_pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+
+  // diffusive direct lighting
+  float3 l = normalize(light_dir);
+  float n_dot_l = max(0.0, dot(n, l));
+  float3 direct_light = n_dot_l * light_color;
+
+  // collect bounced irradiance
+  float3 bounced = {0, 0, 0};
+  if (payload.depth < 2) {
+    HaltonState halton;
+    uint3 dispatch_index = DispatchRaysIndex();
+    halton_init(halton, dispatch_index.xyz);
+
+    float weight_sum = 0;
+    const uint c_sample = max(MAX_HALTON_SAMPLE / 2, 4);
+    for (int i = 0; i < c_sample; i++) {
+
+      float rnd0 = frac(halton_next(halton));
+      float rnd1 = frac(halton_next(halton));
+      float weight;
+      float3 dir = sample_lambertian_brdf(n, rnd0, rnd1, weight);
+
+      RayDesc ray;
+      ray.Origin = world_pos;
+      ray.Direction = dir;
+      ray.TMin = 0.001;
+      ray.TMax = 10000.0;
+      RayPayload bounced_payload = {{0, 0, 0, 0}, payload.depth + 1};
+      TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, bounced_payload);
+
+      bounced += weight * bounced_payload.color.xyz;
+      weight_sum += weight;
+    }
+    bounced /= weight_sum;
+  }
+
+  payload.color.xyz = (direct_light + bounced) * albedo;
+}
+
+[shader("miss")] 
+void miss_shader(inout RayPayload payload) {
+  float3 dir = WorldRayDirection();
+  payload.color = float4(gradiant_sky_eva(dir), 1.0f);
+  }

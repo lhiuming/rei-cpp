@@ -35,8 +35,11 @@ WinApp::WinApp(Config config) : config(config) {
         m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
         break;
       case RenderMode::RealtimeRaytracing:
-      default:
         m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
+        break;
+      case RenderMode::Hybrid:
+      default:
+        m_pipeline = make_shared<HybridPipeline>(d3d_renderer);
         break;
     }
   }

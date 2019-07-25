@@ -3,6 +3,7 @@
 
 #include "render_pipelines/deferred.h"
 #include "render_pipelines/forward.h"
+#include "render_pipelines/hybrid.h"
 #include "render_pipelines/render_pipeline_base.h"
 #include "render_pipelines/rt_path_tracing.h"
 

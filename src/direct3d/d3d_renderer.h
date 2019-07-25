@@ -56,10 +56,19 @@ public:
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
 
+  ShaderHandle create_shader(const std::wstring& shader_path, RasterizationShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
   ShaderHandle create_shader(const std::wstring& shader_path,
-    std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {});
+    std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
+    return create_shader(shader_path, std::move(*meta), config);
+  }
+
+  ShaderHandle create_shader(const std::wstring& shader_path, RaytracingShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
   ShaderHandle create_raytracing_shader(const std::wstring& shader_path,
-    std::unique_ptr<RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {});
+    std::unique_ptr<RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
+    return create_shader(shader_path, std::move(*meta), config);
+  }
 
   ShaderArgumentHandle create_shader_argument(ShaderArgumentValue arg_value);
   void update_shader_argument(
@@ -78,11 +87,22 @@ public:
   void end_render_pass();
 
   void transition(BufferHandle buffer, ResourceState state);
+  void barrier(BufferHandle buffer);
 
   void draw(const DrawCommand& cmd);
 
+  void raytrace(const RaytraceCommand& cmd);
   void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table,
-    size_t width, size_t height, size_t depth = 1);
+    size_t width, size_t height, size_t depth = 1) {
+    RaytraceCommand cmd {};
+    cmd.raytrace_shader = raytrace_shader;
+    cmd.arguments = std::move(arguments);
+    cmd.shader_table = std::move(shader_table);
+    cmd.width = width;
+    cmd.height = height;
+    cmd.depth = depth;
+    raytrace(cmd);
+  }
   void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
 
   // TODO return a command list object

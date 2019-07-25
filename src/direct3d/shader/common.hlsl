@@ -3,6 +3,9 @@
 
 #define c_epsilon 1E-38
 
+#define PI 3.141592653589793238462643383279502884197169399375105820974f
+#define c_pi PI
+
 float3 gradiant_sky_eva(float3 view_direction) {
   float3 ayanami_blue = {129.0 / 255, 187.0 / 255, 235.0 / 255};
   float3 asuka_red = {156.0 / 255, 0, 0};

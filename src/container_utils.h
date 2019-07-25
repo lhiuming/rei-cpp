@@ -144,8 +144,8 @@ private:
 };
 
 // TODO fast hashmap
-template <typename TKey, typename TVal>
-class Hashmap : public std::unordered_map<TKey, TVal> {
+template <typename TKey, typename TVal, typename Hasher = std::hash<TKey>>
+class Hashmap : public std::unordered_map<TKey, TVal, Hasher> {
 public:
   TVal* try_get(TKey key) {
     auto found = this->find(key);
