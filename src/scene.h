@@ -2,6 +2,7 @@
 #define REI_SCENE_H
 
 #include <memory>
+#include <set>
 
 #include "algebra.h"
 #include "graphic_handle.h"
@@ -88,16 +89,23 @@ public:
 
   void add_model(const Mat4& trans, GeometryPtr geometry, MaterialPtr material, const Name& name) {
     ModelPtr new_model = std::make_shared<Model>(name, trans, geometry, material);
-    models.emplace_back(new_model);
+    if (material) m_materials.insert(material);
+    m_models.emplace_back(new_model);
   }
   void add_model(const Mat4& trans, GeometryPtr geometry, const Name& name) {
     add_model(trans, geometry, nullptr, name);
   }
-  void add_model(Model&& mi) { models.emplace_back(std::make_shared<Model>(mi)); }
+  void add_model(Model&& mi) { 
+    auto mat = mi.get_material();
+    if (mat) m_materials.insert(mat);
+    m_models.emplace_back(std::make_shared<Model>(mi)); 
+  }
 
   // TODO convert to iterator
-  virtual ModelsConstRef get_models() const { return models; }
-  virtual ModelsRef get_models() { return models; }
+  virtual ModelsConstRef get_models() const { return m_models; }
+  virtual ModelsRef get_models() { return m_models; }
+
+  virtual const std::set<MaterialPtr> materials() const { return m_materials; }
 
   // Debug info
   virtual std::wstring summary() const { return L"Base Scene"; }
@@ -106,9 +114,11 @@ public:
 
 protected:
   using ModelContainer = std::vector<ModelPtr>;
+  using MaterialContainer = std::set<MaterialPtr>;
 
   Name name = L"Scene-Un-Named";
-  ModelContainer models;
+  ModelContainer m_models;
+  MaterialContainer m_materials;
 };
 
 } // namespace rei

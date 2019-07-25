@@ -28,14 +28,25 @@ struct ViewportProxy {
 
 struct SceneProxy {
   // holding for default material
-  BufferHandle objects_const_buf;
+  BufferHandle objects_cb;
+  BufferHandle materials_cb;
+  struct MaterialData {
+    ShaderArgumentHandle arg;
+    Vec4 albedo;
+    Vec4 smoothness_metalness_zw;
+    size_t cb_index;
+  };
   struct ModelData {
     GeometryHandle geometry;
     // TODO support root cb offseting
     ShaderArgumentHandle arg;
     size_t cb_index;
     Mat4 trans;
+
+    // JUST COPY THAT
+    MaterialData mat;
   };
+  Hashmap<MaterialPtr, MaterialData> materials;
   Hashmap<ModelHandle, ModelData> models;
 
   // Accelration structure and shader table
@@ -53,6 +64,8 @@ struct HybridGPassShaderDesc : RasterizationShaderMetaInfo {
     space0.const_buffers = {ConstBuffer()};
     ShaderParameter space1 {};
     space1.const_buffers = {ConstBuffer()};
+    ShaderParameter space2 {};
+    space2.const_buffers = {ConstBuffer()};
 
     RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
     RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
@@ -65,9 +78,10 @@ struct HybridGPassShaderDesc : RasterizationShaderMetaInfo {
 struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
   HybridRaytracingShaderDesc() {
     ShaderParameter space0 = {};
-    space0.const_buffers = {ConstBuffer()};                         // Per-render CN
-    space0.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
-    space0.unordered_accesses = {UnorderedAccess()};                // output buffer
+    space0.const_buffers = {ConstBuffer()}; // Per-render CN
+    space0.shader_resources = {
+      ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
+    space0.unordered_accesses = {UnorderedAccess()};                           // output buffer
     global_signature.param_table = {space0};
 
     ShaderParameter space1 = {};
@@ -164,31 +178,61 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
   Renderer* r = get_renderer();
   REI_ASSERT(r);
 
-  const int model_count = scene->get_models().size();
+  const size_t model_count = scene->get_models().size();
+  const size_t material_count = scene->materials().size();
 
-  // Initialize Geometry and assign per-object c-buffer
   SceneProxy proxy = {};
+  // Initialize Models
+  {
+    ConstBufferLayout mat_lo = {
+      ShaderDataType::Float4, // albedo
+      ShaderDataType::Float4, // metalness and smoothness
+    };
+    proxy.materials_cb = r->create_const_buffer(mat_lo, material_count, L"Scene Material CB");
+
+    proxy.materials.reserve(material_count);
+    size_t index = 0;
+    ShaderArgumentValue v {};
+    v.const_buffers = {proxy.materials_cb}; // currenlty, materials are just somt value config
+    v.const_buffer_offsets = {0};
+    for (const MaterialPtr& mat : scene->materials()) {
+      v.const_buffer_offsets[0] = index;
+      ShaderArgumentHandle mat_arg = r->create_shader_argument(v);
+      REI_ASSERT(mat_arg);
+      SceneProxy::MaterialData data {};
+      data.arg = mat_arg;
+      data.cb_index = index;
+      data.albedo = Vec4(mat->get<Color>(L"albedo").value_or(Colors::magenta));
+      data.smoothness_metalness_zw.x = mat->get<double>(L"smoothness").value_or(0);
+      data.smoothness_metalness_zw.y = mat->get<double>(L"metalness").value_or(0);
+      proxy.materials.insert({mat, data});
+      index++;
+    }
+  }
+
+  // Initialize Geometry, Material, and assign per-object c-buffer
   {
     ConstBufferLayout cb_lo = {
       ShaderDataType::Float4x4, // WVP
       ShaderDataType::Float4x4, // World
     };
-    proxy.objects_const_buf = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
-  }
-  {
+    proxy.objects_cb = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
+
     proxy.models.reserve(model_count);
     ShaderArgumentValue arg_value = {};
     { // init
-      arg_value.const_buffers = {proxy.objects_const_buf};
+      arg_value.const_buffers = {proxy.objects_cb};
       arg_value.const_buffer_offsets = {0};
     }
     for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
       arg_value.const_buffer_offsets[0] = i;
       ShaderArgumentHandle arg = r->create_shader_argument(arg_value);
+      auto mat = proxy.materials.try_get(model->get_material());
+      REI_WARNINGIF(mat == nullptr);
       proxy.models.insert({
-        model->get_rendering_handle(),                                                // key
-        {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
+        model->get_rendering_handle(),                                                      // key
+        {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform(), *mat} // value
       });
     }
   }
@@ -227,6 +271,15 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->cam_pos);
   }
 
+  // Update material buffer
+  {
+    for (auto& pair : scene->materials) {
+      auto& mat = pair.second;
+      renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 0, mat.albedo);
+      renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 1, mat.smoothness_metalness_zw);
+    }
+  }
+
   // Update per-object const buffer
   {
     for (auto& pair : scene->models) {
@@ -234,8 +287,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       size_t index = model.cb_index;
       Mat4& m = model.trans;
       Mat4 mvp = viewport->view_proj * m;
-      renderer->update_const_buffer(scene->objects_const_buf, index, 0, mvp);
-      renderer->update_const_buffer(scene->objects_const_buf, index, 1, m);
+      renderer->update_const_buffer(scene->objects_cb, index, 0, mvp);
+      renderer->update_const_buffer(scene->objects_cb, index, 1, m);
     }
   }
 
@@ -259,7 +312,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     for (auto pair : scene->models) {
       auto& model = pair.second;
       draw_cmd.geo = model.geometry;
-      draw_cmd.arguments = {model.arg};
+      draw_cmd.arguments = {model.arg, model.mat.arg};
       cmd_list->draw(draw_cmd);
     }
   }
@@ -267,7 +320,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // Update shader Tables
   {
-    for (auto& pair: scene->models) {
+    for (auto& pair : scene->models) {
       ModelHandle h = pair.first;
       cmd_list->update_hitgroup_shader_record(scene->shader_table, h);
     }
@@ -352,10 +405,10 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   val.const_buffers = {m_per_render_buffer};
   val.const_buffer_offsets = {0};
   val.shader_resources = {
-    scene->tlas,             // t0 TLAS
+    scene->tlas,                                                  // t0 TLAS
     r->fetch_swapchain_depth_stencil_buffer(viewport->swapchain), // t1 G-buffer depth
-    viewport->normal_buffer, // t2 G-Buffer::normal
-    viewport->albedo_buffer , // t3 G-Buffer::albedo
+    viewport->normal_buffer,                                      // t2 G-Buffer::normal
+    viewport->albedo_buffer,                                      // t3 G-Buffer::albedo
   };
   val.unordered_accesses = {viewport->raytracing_output_buffer};
   ShaderArgumentHandle arg = r->create_shader_argument(val);

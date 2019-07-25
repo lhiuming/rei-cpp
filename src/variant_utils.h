@@ -1,9 +1,9 @@
 #ifndef REI_VARIANT_UTILS_H
 #define REI_VARIANT_UTILS_H
 
-//#include <optional>
 #include <type_traits>
 #include <variant>
+#include <optional>
 #include <ostream>
 
 namespace rei {
@@ -33,10 +33,17 @@ struct Var : std::variant<Args...> {
   using Base = std::variant<Args...>;
   using Base::Base;
 
-friend std::wostream& operator<<(std::wostream& os, const Var<Args...>& v) {
-  std::visit([&](const auto& arg) { os << arg; }, v);
-  return os;
-}
+  static constexpr std::size_t variant_size = std::variant_size_v<Base>;
+
+  template <typename T>
+  static inline constexpr size_t get_index() {
+    return alternative_index_v<T, Base>;
+  }
+
+  friend std::wostream& operator<<(std::wostream& os, const Var<Args...>& v) {
+    std::visit([&](const auto& arg) { os << arg; }, v);
+    return os;
+  }
 };
 
 } // namespace rei

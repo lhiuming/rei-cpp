@@ -44,6 +44,13 @@ public:
     return value ? *value : MaterialProperty();
   }
 
+  template<typename T>
+  std::optional<T> get(const Name& prop_name) const {
+    const MaterialProperty* value = m_properties.try_get(prop_name);
+    const T* ptr = std::get_if<T>(value);
+    return ptr ? *ptr : std::optional<T>();
+  }
+
   // void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
   // MaterialHandle get_graphic_handle() const { return graphic_handle; }
 

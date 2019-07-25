@@ -1,12 +1,13 @@
 #include "hybrid_common.hlsl"
 
-// constant buffer to hold the projection transforming matrix
 cbuffer cbPerObject : register(b0, space0) {
   float4x4 WVP;
   float4x4 World;
 };
 
-ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space1);
+ConstantBuffer<PerMaterialConstBuffer> g_per_material : register(b0, space1);
+
+//ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space2);
 
 struct VertexData {
   float4 pos : POSITION;
@@ -22,8 +23,8 @@ struct RasterAttr {
 };
 
 struct GBufferPixel {
-  float4 normal : SV_TARGET0;
-  float4 albedo_smoothness : SV_TARGET1;
+  float4 normal_smoothness : SV_TARGET0;
+  float4 albedo_metalness: SV_TARGET1;
 };
 
 RasterAttr VS(VertexData vert) {
@@ -40,8 +41,9 @@ RasterAttr VS(VertexData vert) {
 
 GBufferPixel PS(RasterAttr input) {
   GBufferPixel rt;
-  rt.normal.xyz = normalize(input.w_normal);
-  rt.albedo_smoothness.xyz = input.color.xyz;
-  rt.albedo_smoothness.w = 0.5f;
+  rt.normal_smoothness.xyz = normalize(input.w_normal);
+  rt.normal_smoothness.w = g_per_material.smoothness_metalness_zw.x;
+  rt.albedo_metalness.xyz = g_per_material.albedo;
+  rt.albedo_metalness.w = g_per_material.smoothness_metalness_zw.y;
   return rt;
 }

@@ -8,4 +8,9 @@ struct PerRenderConstBuffer {
   float4 camera_pos;
 };
 
+struct PerMaterialConstBuffer {
+  float4 albedo;
+  float4 smoothness_metalness_zw;
+};
+
 #endif

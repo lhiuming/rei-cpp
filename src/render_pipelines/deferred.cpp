@@ -27,7 +27,7 @@ struct ViewportData {
 
 struct SceneData {
   // holding for default material
-  BufferHandle objects_const_buf;
+  BufferHandle objects_cb;
   struct ModelData {
     GeometryHandle geometry;
     // TODO should use an offset in cb instead, rather than a brand-new descriptor
@@ -35,7 +35,7 @@ struct SceneData {
     size_t cb_index;
     Mat4 trans;
   };
-  Hashmap<ModelHandle, ModelData> models;
+  Hashmap<ModelHandle, ModelData> m_models;
 };
 
 } // namespace deferred
@@ -160,20 +160,20 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
       ShaderDataType::Float4x4, // WVP
       ShaderDataType::Float4x4, // World
     };
-    proxy.objects_const_buf = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
+    proxy.objects_cb = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
   }
   {
-    proxy.models.reserve(model_count);
+    proxy.m_models.reserve(model_count);
     ShaderArgumentValue arg_value = {};
     { // init
-      arg_value.const_buffers = {proxy.objects_const_buf};
+      arg_value.const_buffers = {proxy.objects_cb};
       arg_value.const_buffer_offsets = {0};
     }
     for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
       arg_value.const_buffer_offsets[0] = i;
       ShaderArgumentHandle arg = r->create_shader_argument(arg_value);
-      proxy.models.insert({
+      proxy.m_models.insert({
         model->get_rendering_handle(),                                                // key
         {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
       });
@@ -186,7 +186,7 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
 void DeferredPipeline::update_model(SceneHandle scene_handle, const Model& model) {
   SceneProxy* scene = get_scene(scene_handle);
   REI_ASSERT(scene);
-  auto* data = scene->models.try_get(model.get_rendering_handle());
+  auto* data = scene->m_models.try_get(model.get_rendering_handle());
   data->geometry = model.get_geometry()->get_graphic_handle();
   data->trans = model.get_transform();
 }
@@ -211,13 +211,13 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // Update per-object const buffer
   {
-    for (auto& pair : scene->models) {
+    for (auto& pair : scene->m_models) {
       auto& model = pair.second;
       size_t index = model.cb_index;
       Mat4& m = model.trans;
       Mat4 mvp = viewport->view_proj * m;
-      renderer->update_const_buffer(scene->objects_const_buf, index, 0, mvp);
-      renderer->update_const_buffer(scene->objects_const_buf, index, 1, m);
+      renderer->update_const_buffer(scene->objects_cb, index, 0, mvp);
+      renderer->update_const_buffer(scene->objects_cb, index, 1, m);
     }
   }
 
@@ -238,7 +238,7 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   {
     DrawCommand draw_cmd = {};
     draw_cmd.shader = m_default_shader;
-    for (auto pair : scene->models) {
+    for (auto pair : scene->m_models) {
       auto& model = pair.second;
       draw_cmd.geo = model.geometry;
       draw_cmd.shader = m_default_shader;
