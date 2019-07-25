@@ -147,11 +147,15 @@ private:
 template <typename TKey, typename TVal, typename Hasher = std::hash<TKey>>
 class Hashmap : public std::unordered_map<TKey, TVal, Hasher> {
 public:
-  TVal* try_get(TKey key) {
+  bool has(const TKey& key) const { return find(key) != end(); }
+
+  TVal* try_get(const TKey& key) {
     auto found = this->find(key);
     if (found != this->end()) { return &(found->second); }
     return nullptr;
   }
+
+  const TVal* try_get(const TKey& key) const { return const_cast<Hashmap*>(this)->try_get(key); }
 };
 
 } // namespace rei

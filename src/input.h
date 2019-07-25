@@ -2,29 +2,12 @@
 #define REI_INTPUT_H
 
 #include <array>
-#include <optional>
-#include <type_traits>
-#include <variant>
 #include <vector>
 
+#include "variant_utils.h"
 #include "algebra.h"
 
 namespace rei {
-
-// Utility for variant
-// TODO maybe move to somewhere like type_utils.h or enum.h
-template <typename T>
-struct tag {};
-
-template <typename T, typename V>
-struct alternative_index; // not defined
-
-template <typename T, typename... Ts>
-struct alternative_index<T, std::variant<Ts...> >
-    : std::integral_constant<std::size_t, std::variant<tag<Ts>...>(tag<T>()).index()> {};
-
-template <typename T, typename... Ts>
-inline constexpr std::size_t alternative_index_v = alternative_index<T, Ts...>::value;
 
 struct _CursorPointData {
   Vec3 coord;
