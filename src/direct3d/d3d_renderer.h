@@ -179,7 +179,6 @@ protected:
   std::shared_ptr<ShaderArgumentData> to_argument(ShaderArgumentHandle h) {
     return get_data<ShaderArgumentHandle, ShaderArgumentData>(h);
   }
-
 };
 
 } // namespace d3d

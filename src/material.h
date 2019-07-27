@@ -3,16 +3,16 @@
 
 #include <memory>
 
+#include "container_utils.h"
 #include "string_utils.h"
 #include "variant_utils.h"
-#include "container_utils.h"
 
 #include "color.h"
 
 namespace rei {
 
 /*
- * General material property data. 
+ * General material property data.
  * Basically a bunch of hashmaps, storing limited amount of data types.
  */
 class Material {
@@ -44,7 +44,7 @@ public:
     return value ? *value : MaterialProperty();
   }
 
-  template<typename T>
+  template <typename T>
   std::optional<T> get(const Name& prop_name) const {
     const MaterialProperty* value = m_properties.try_get(prop_name);
     const T* ptr = std::get_if<T>(value);

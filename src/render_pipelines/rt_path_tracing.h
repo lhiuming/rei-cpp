@@ -37,8 +37,12 @@ public:
   SceneHandle register_scene(SceneConfig conf) override;
   void remove_scene(SceneHandle scene) override { /* TODO */
   }
-  void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override { REI_NOT_IMPLEMENTED }
-  void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override { REI_NOT_IMPLEMENTED }
+  void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {
+    REI_NOT_IMPLEMENTED
+  }
+  void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {
+    REI_NOT_IMPLEMENTED
+  }
 
   void render(ViewportHandle viewport, SceneHandle scene) override;
 

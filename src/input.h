@@ -4,8 +4,8 @@
 #include <array>
 #include <vector>
 
-#include "variant_utils.h"
 #include "algebra.h"
+#include "variant_utils.h"
 
 namespace rei {
 

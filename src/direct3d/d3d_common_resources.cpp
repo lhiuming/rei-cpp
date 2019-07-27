@@ -37,8 +37,8 @@ const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
 
 ID3D12Resource* BufferData::get_res() {
-  return res.match(//
-    [](const TextureBuffer& tex) { return tex.buffer.Get(); }, 
+  return res.match( //
+    [](const TextureBuffer& tex) { return tex.buffer.Get(); },
     [](const BlasBuffer& blas) { return blas.buffer.Get(); },
     [](const auto& b) {
       REI_NOT_IMPLEMENT();

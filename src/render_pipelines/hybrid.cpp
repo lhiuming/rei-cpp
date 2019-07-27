@@ -91,7 +91,7 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
 
     ShaderParameter space1 {};
     space1.shader_resources = {ShaderResource(), ShaderResource()}; // indices and vertices
-    space1.const_buffers = {ConstantBuffer()};                         // material
+    space1.const_buffers = {ConstantBuffer()};                      // material
     hitgroup_signature.param_table = {{}, space1};
 
     hitgroup_name = L"hit_group0";
@@ -248,22 +248,24 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
       raytrace_arg_value.const_buffers = {proxy.materials_cb};
       raytrace_arg_value.const_buffer_offsets = {SIZE_T_ERROR};
     }
-    for (size_t i = 0; i < model_count; i++) {
-      auto model = scene->get_models()[i];
+    for (size_t model_index = 0; model_index < model_count; model_index++) {
+      auto model = scene->get_models()[model_index];
       auto mat = proxy.materials.try_get(conf.scene->get_id(model->get_material()));
       REI_ASSERT(mat);
       auto geo = proxy.geometries.try_get(conf.scene->get_id(model->get_geometry()));
       REI_ASSERT(geo);
+      const size_t material_index = mat->cb_index;
       // raster
-      raster_arg_value.const_buffer_offsets[0] = i;
+      raster_arg_value.const_buffer_offsets[0] = model_index;
       ShaderArgumentHandle raster_arg = r->create_shader_argument(raster_arg_value);
       // raytrace
       raytrace_arg_value.shader_resources = {geo->index_buffer, geo->vertex_buffer};
-      raytrace_arg_value.const_buffer_offsets[0] = i;
+      raytrace_arg_value.const_buffer_offsets[0] = material_index;
       ShaderArgumentHandle raytrace_arg = r->create_shader_argument(raytrace_arg_value);
       // record
-      SceneProxy::ModelData data {
-        *geo, raster_arg, raytrace_arg, i, i, model->get_transform(), *mat};
+      size_t tlas_instance_id = model_index;
+      SceneProxy::ModelData data {*geo, raster_arg, raytrace_arg, model_index, tlas_instance_id,
+        model->get_transform(), *mat};
       proxy.models.insert({conf.scene->get_id(model), std::move(data)});
     }
   }
@@ -419,7 +421,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     }
     cmd_list->begin_render_pass(shading_pass);
     DrawCommand cmd = {};
-    //cmd.geo = c_empty_handle;
+    // cmd.geo = c_empty_handle;
     cmd.shader = c_empty_handle;
     cmd.arguments = {};
     cmd_list->draw(cmd);
@@ -449,10 +451,10 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   val.const_buffers = {m_per_render_buffer};
   val.const_buffer_offsets = {0};
   val.shader_resources = {
-    scene->tlas,                                                  // t0 TLAS
+    scene->tlas,                    // t0 TLAS
     viewport->depth_stencil_buffer, // t1 G-buffer depth
-    viewport->normal_buffer,                                      // t2 G-Buffer::normal
-    viewport->albedo_buffer,                                      // t3 G-Buffer::albedo
+    viewport->normal_buffer,        // t2 G-Buffer::normal
+    viewport->albedo_buffer,        // t3 G-Buffer::albedo
   };
   val.unordered_accesses = {viewport->raytracing_output_buffer};
   ShaderArgumentHandle arg = r->create_shader_argument(val);

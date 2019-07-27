@@ -266,7 +266,7 @@ Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   // Material name
   aiString mater_name;
   mater.Get(AI_MATKEY_NAME, mater_name);
-  //ret.name = string(mater_name.C_Str());
+  // ret.name = string(mater_name.C_Str());
 
   // Shading model
   int shading_model;

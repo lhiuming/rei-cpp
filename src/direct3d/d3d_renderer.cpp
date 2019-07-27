@@ -392,7 +392,7 @@ GeometryBuffers Renderer::create_geometry(const GeometryDesc& desc) {
     ib.buffer = res.ind_buffer;
     ib.index_count = res.index_num;
     ib.bytesize = res.index_num * sizeof(uint16_t); // FIXME really ?
-    ib.format = c_index_format; 
+    ib.format = c_index_format;
     auto data = new_buffer();
     data->res = move(ib);
     data->state = D3D12_RESOURCE_STATE_INDEX_BUFFER;

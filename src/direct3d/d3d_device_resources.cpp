@@ -87,7 +87,8 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
 
-void DeviceResources::compile_shader(const wstring& shader_path, const ShaderCompileConfig& conf, ShaderCompileResult& result) {
+void DeviceResources::compile_shader(
+  const wstring& shader_path, const ShaderCompileConfig& conf, ShaderCompileResult& result) {
   FixedVec<D3D_SHADER_MACRO, conf.defines.max_size + 1> shader_defines {};
   for (auto& d : conf.defines) {
     D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
@@ -170,7 +171,8 @@ void DeviceResources::create_root_signature(
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void DeviceResources::create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso) {
+void DeviceResources::create_pso(const RasterizationShaderData& shader,
+  const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso) {
   // inputs
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
@@ -218,7 +220,7 @@ void DeviceResources::create_pso(const RasterizationShaderData& shader, const Sh
 }
 
 void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res) {
- // Collect the source data
+  // Collect the source data
   // TODO pool this vectors
   vector<VertexElement> vertices;
   vector<std::uint16_t> indices;
@@ -321,7 +323,6 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res
     res.blas_buffer = blas_buffer;
     res.scratch_buffer = scratch_buffer;
   }
-
 }
 
 ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {

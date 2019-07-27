@@ -1,10 +1,10 @@
 #ifndef REI_VARIANT_UTILS_H
 #define REI_VARIANT_UTILS_H
 
-#include <type_traits>
-#include <variant>
 #include <optional>
 #include <ostream>
+#include <type_traits>
+#include <variant>
 
 namespace rei {
 
@@ -40,7 +40,7 @@ inline std::wostream& operator<<(std::wostream& os, const std::monostate& mono) 
 }
 
 // std::variant with additional useful methods
-template<typename... Args>
+template <typename... Args>
 struct Var : std::variant<Args...> {
   using Base = std::variant<Args...>;
   using Base::Base;
@@ -52,17 +52,17 @@ struct Var : std::variant<Args...> {
     return variant_utils::alternative_index_v<T, Base>;
   }
 
-  template<typename T>
+  template <typename T>
   bool holds() const {
     return this->index() == get_index<T>();
   }
 
-  template<typename T0, typename... Ts>
+  template <typename T0, typename... Ts>
   bool holds_any() const {
     return holds<T0>() || holds_any<Ts...>();
   }
 
-  template<typename T0>
+  template <typename T0>
   bool holds_any() const {
     return holds<T0>();
   }
@@ -71,12 +71,12 @@ struct Var : std::variant<Args...> {
   Var& self_reference() { return *this; }
   const Var& self_reference() const { return *this; }
 
-  template<typename T>
+  template <typename T>
   std::remove_reference_t<T>& get() {
     return std::get<T>(self_reference());
   }
 
-  template<typename... Lmbds>
+  template <typename... Lmbds>
   auto match(Lmbds... lambds) {
     return std::visit(variant_utils::overloaded {lambds...}, self_reference());
   }

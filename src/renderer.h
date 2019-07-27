@@ -15,8 +15,8 @@
 #include "color.h"
 #include "scene.h"
 
-#include "shader_struct.h"
 #include "graphic_handle.h"
+#include "shader_struct.h"
 
 /*
  * renderer.h
@@ -216,9 +216,7 @@ struct UpdateShaderTable {
   size_t index;
   ShaderArguments arguments;
 
-  static UpdateShaderTable hitgroup() {
-    return {TableType::Hitgroup};
-  }
+  static UpdateShaderTable hitgroup() { return {TableType::Hitgroup}; }
 };
 
 struct RaytraceCommand {

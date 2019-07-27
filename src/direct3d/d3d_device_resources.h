@@ -58,7 +58,8 @@ public:
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-  void create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso);
+  void create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled,
+    ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res);
 

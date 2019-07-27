@@ -239,7 +239,7 @@ struct BufferData : BaseBufferData {
   using ResourceVariant = Var<std::monostate, IndexBuffer, VertexBuffer, TextureBuffer, ConstBuffer,
     BlasBuffer, TlasBuffer, ShaderTableBuffer>;
 
-  ResourceVariant  res;
+  ResourceVariant res;
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
 
   ID3D12Resource* get_res();

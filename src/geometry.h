@@ -101,7 +101,6 @@ public:
 private:
   std::vector<Vertex> m_vertices;
   std::vector<Triangle> m_triangles;
-
 };
 
 typedef std::shared_ptr<Mesh> MeshPtr;

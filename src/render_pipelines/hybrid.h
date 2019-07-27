@@ -40,7 +40,6 @@ public:
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
 private:
-
   ShaderHandle m_gpass_shader;
   ShaderHandle m_raytraced_lighting_shader;
   ShaderHandle m_blit_shader;
@@ -54,7 +53,7 @@ private:
     void combine(size_t& seed, size_t v) const {
       seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
-    size_t operator()(const RaytracingArgumentKey& key) const { 
+    size_t operator()(const RaytracingArgumentKey& key) const {
       size_t seed = 0;
       combine(seed, std::hash_value(key.first));
       combine(seed, std::hash_value(key.second));

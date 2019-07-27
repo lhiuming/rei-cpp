@@ -31,8 +31,10 @@ public:
   virtual SceneHandle register_scene(SceneConfig conf) override;
   virtual void remove_scene(SceneHandle scene) override {}
 
-  virtual void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override;
-  virtual void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {}
+  virtual void update_model(
+    SceneHandle scene, const Model& model, Scene::ModelUID model_id) override;
+  virtual void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {
+  }
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
