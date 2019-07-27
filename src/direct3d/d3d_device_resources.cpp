@@ -217,8 +217,8 @@ void DeviceResources::create_pso(const RasterizationShaderData& shader, const Sh
   pso = create();
 }
 
-void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
-  // Collect the source data
+void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res) {
+ // Collect the source data
   // TODO pool this vectors
   vector<VertexElement> vertices;
   vector<std::uint16_t> indices;
@@ -243,69 +243,24 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   ComPtr<ID3D12Resource> vert_upload_buffer
     = upload_to_default_buffer(device, cmd_list, p_vertices, vert_bytesize, vert_buffer.Get());
 
-  // make a view for vertice buffer, for later use
-  D3D12_VERTEX_BUFFER_VIEW vbv;
-  vbv.BufferLocation = vert_buffer->GetGPUVirtualAddress();
-  vbv.StrideInBytes = sizeof(VertexElement);
-  vbv.SizeInBytes = vert_bytesize;
-
   // Create indices buffer and update data
   ComPtr<ID3D12Resource> ind_buffer = create_default_buffer(device, ind_bytesize);
   ComPtr<ID3D12Resource> ind_upload_buffer
     = upload_to_default_buffer(device, cmd_list, p_indices, ind_bytesize, ind_buffer.Get());
 
-  // make a view for indicew buffer, for later use
-  D3D12_INDEX_BUFFER_VIEW ibv;
-  ibv.BufferLocation = ind_buffer->GetGPUVirtualAddress();
-  ibv.Format = c_index_format;
-  ibv.SizeInBytes = ind_bytesize;
-
   // populate the result
-  mesh_res.vert_buffer = vert_buffer;
-  mesh_res.vert_upload_buffer = vert_upload_buffer;
-  mesh_res.vbv = vbv;
-  mesh_res.vertex_num = vertices.size();
-  mesh_res.ind_buffer = ind_buffer;
-  mesh_res.ind_upload_buffer = ind_upload_buffer;
-  mesh_res.ibv = ibv;
-  mesh_res.index_num = indices.size();
+  res.vert_buffer = vert_buffer;
+  res.vert_upload_buffer = vert_upload_buffer;
+  res.vertex_num = vertices.size();
+
+  res.ind_buffer = ind_buffer;
+  res.ind_upload_buffer = ind_upload_buffer;
+  res.index_num = indices.size();
 
   if (is_dxr_enabled) {
-    // Using srv to allow hit-group shader acessing the geometry attributes
-    CD3DX12_GPU_DESCRIPTOR_HANDLE vertex_srv_gpu;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE vertex_srv_cpu;
-    CD3DX12_GPU_DESCRIPTOR_HANDLE index_srv_gpu;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE index_srv_cpu;
-
-    // index first
-    auto i_index = m_cbv_srv_heap.alloc(&index_srv_cpu, &index_srv_gpu);
-    auto v_index = m_cbv_srv_heap.alloc(&vertex_srv_cpu, &vertex_srv_gpu);
-    REI_ASSERT(v_index = i_index + 1);
-
     D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
     common_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
     common_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-    // vertex srv
-    {
-      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
-      desc.Format = DXGI_FORMAT_UNKNOWN;
-      desc.Buffer.NumElements = vert_bytesize / sizeof(VertexElement);
-      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-      desc.Buffer.StructureByteStride = vbv.StrideInBytes;
-      device->CreateShaderResourceView(vert_buffer.Get(), &desc, vertex_srv_cpu);
-    }
-
-    // index src
-    {
-      // FIXME why the sample do it this way; should be okay to just use a ConstantBuffer<uint>
-      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
-      desc.Format = DXGI_FORMAT_R32_TYPELESS;
-      desc.Buffer.NumElements = ind_bytesize / sizeof(int32_t); // pack to R32
-      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-      desc.Buffer.StructureByteStride = 0;
-      device->CreateShaderResourceView(ind_buffer.Get(), &desc, index_srv_cpu);
-    }
 
     // Build BLAS for this mesh
     ComPtr<ID3D12Resource> blas_buffer;
@@ -325,7 +280,7 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
       geo_desc.Triangles.VertexCount = vertices.size();
       geo_desc.Triangles.IndexBuffer = ind_buffer->GetGPUVirtualAddress();
       geo_desc.Triangles.VertexBuffer.StartAddress = vert_buffer->GetGPUVirtualAddress();
-      geo_desc.Triangles.VertexBuffer.StrideInBytes = vbv.StrideInBytes;
+      geo_desc.Triangles.VertexBuffer.StrideInBytes = sizeof(VertexElement);
       if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
 
       const UINT c_mesh_count = 1;
@@ -363,14 +318,10 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
     }
 
     // populate the result
-    mesh_res.vert_srv_cpu = vertex_srv_cpu;
-    mesh_res.vert_srv_gpu = vertex_srv_gpu;
-    mesh_res.ind_srv_cpu = index_srv_cpu;
-    mesh_res.ind_srv_gpu = index_srv_gpu;
-
-    mesh_res.blas_buffer = blas_buffer;
-    mesh_res.scratch_buffer = scratch_buffer;
+    res.blas_buffer = blas_buffer;
+    res.scratch_buffer = scratch_buffer;
   }
+
 }
 
 ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {

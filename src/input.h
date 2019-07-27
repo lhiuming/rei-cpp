@@ -43,7 +43,7 @@ struct Zoom {
 };
 
 // clang-format off
-typedef std::variant<
+typedef Var<
   CursorPress
   , CursorRelease
   , CursorMove
@@ -54,14 +54,6 @@ typedef std::variant<
 
 // Type-safe input data
 struct Input : InputVariant {
-  using Index = std::size_t;
-  static constexpr std::size_t variant_size = std::variant_size_v<InputVariant>;
-
-  template <typename T>
-  static inline constexpr Index get_index() {
-    return alternative_index_v<T, InputVariant>;
-  }
-
   template <typename T>
   inline constexpr const T* get() const {
     return std::get_if<T>(this);
@@ -86,7 +78,7 @@ public:
 
   template <typename T>
   const InputBucket& get() const {
-    Input::Index index = Input::get_index<T>();
+    size_t index = Input::get_index<T>();
     return inputs[index];
   }
 

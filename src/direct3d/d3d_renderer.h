@@ -42,11 +42,15 @@ public:
 
   SwapchainHandle create_swapchain(
     SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
-  BufferHandle fetch_swapchain_depth_stencil_buffer(SwapchainHandle swapchain);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
   BufferHandle create_texture_2d(
-    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name);
+    const TextureDesc& desc, ResourceState init_state, std::wstring&& debug_name);
+  [[deprecated]] BufferHandle create_texture_2d(
+    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name) {
+    TextureDesc desc {width, height, format};
+    return create_texture_2d(desc, ResourceState::Undefined, std::move(debug_name));
+  }
   BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height, ResourceFormat format,
     std::wstring&& debug_name = L"Unnamed UA Buffer");
   BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num,
@@ -73,14 +77,12 @@ public:
   void update_shader_argument(
     ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
 
-  GeometryHandle create_geometry(const Geometry& geometry) override;
-  ModelHandle create_model(const Model& model) override;
-
-  BufferHandle create_raytracing_accel_struct(const Scene& scene);
+  GeometryBuffers create_geometry(const GeometryDesc& geometry);
+  BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene);
   BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
   // void update_raygen_shader_record();
-  void update_hitgroup_shader_record(BufferHandle shader_table, ModelHandle model);
+  void update_shader_table(const UpdateShaderTable& cmd);
 
   void begin_render_pass(const RenderPassCommand& cmd);
   void end_render_pass();
@@ -121,6 +123,7 @@ protected:
 
   // TODO make unique
   std::shared_ptr<DeviceResources> device_resources;
+  std::vector<ComPtr<ID3D12Resource>> m_delayed_release;
 
   bool is_uploading_resources = false;
 
@@ -138,7 +141,14 @@ protected:
 
   void build_raytracing_pso(const std::wstring& shader_path,
     const d3d::RaytracingShaderData& shader_data, ComPtr<ID3D12StateObject>& pso);
-  void build_dxr_acceleration_structure(ModelData* models, std::size_t m_count,
+
+  struct BuildAccelStruct {
+    size_t instance_count;
+    ID3D12Resource* const* blas;
+    const UINT* instance_id;
+    const Mat4* transform;
+  };
+  void build_dxr_acceleration_structure(BuildAccelStruct&& desc,
     ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
 
   void set_const_buffer(
@@ -148,20 +158,17 @@ protected:
   D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(ID3D12Resource* texture);
   D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(ID3D12Resource* texture);
 
-  // Handle conversion
+  // Handle createtions
+  std::shared_ptr<BufferData> new_buffer() { return std::make_shared<BufferData>(this); }
 
-  std::shared_ptr<ViewportData> to_viewport(ScreenTransformHandle h) {
-    return get_data<ScreenTransformHandle, ViewportData>(h);
-  }
+  // Handle conversion
 
   std::shared_ptr<SwapchainData> to_swapchain(SwapchainHandle h) {
     return get_data<SwapchainHandle, SwapchainData>(h);
   }
 
-  std::shared_ptr<ModelData> to_model(ModelHandle h) { return get_data<ModelHandle, ModelData>(h); }
-  template <typename BufferType>
-  std::shared_ptr<BufferType> to_buffer(BufferHandle h) {
-    return get_data<BufferHandle, BufferType>(h);
+  std::shared_ptr<BufferData> to_buffer(BufferHandle h) {
+    return get_data<BufferHandle, BufferData>(h);
   }
 
   template <typename T>
@@ -173,13 +180,6 @@ protected:
     return get_data<ShaderArgumentHandle, ShaderArgumentData>(h);
   }
 
-  template <typename DataType>
-  std::shared_ptr<DataType> to_geometry(GeometryHandle h) {
-    return get_data<GeometryHandle, DataType>(h);
-  }
-  std::shared_ptr<GeometryData> to_geometry(GeometryHandle h) {
-    return get_data<GeometryHandle, GeometryData>(h);
-  }
 };
 
 } // namespace d3d

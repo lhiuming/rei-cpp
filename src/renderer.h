@@ -8,12 +8,15 @@
 #include <windows.h>
 #endif
 
+#include "container_utils.h"
+#include "type_utils.h"
+
 #include "camera.h"
 #include "color.h"
-#include "container_utils.h"
-#include "graphic_handle.h"
+#include "scene.h"
+
 #include "shader_struct.h"
-#include "type_utils.h"
+#include "graphic_handle.h"
 
 /*
  * renderer.h
@@ -82,7 +85,7 @@ namespace rei {
 
 // Pramater types
 // NOTE: each represent a range type in descriptor table
-struct ConstBuffer {};
+struct ConstantBuffer {};
 struct ShaderResource {};
 struct UnorderedAccess {};
 struct Sampler {};
@@ -92,7 +95,7 @@ struct StaticSampler {};
 struct ShaderParameter {
   // TODO make this inplace memory
   // index as implicit shader register
-  std::vector<ConstBuffer> const_buffers;
+  std::vector<ConstantBuffer> const_buffers;
   std::vector<ShaderResource> shader_resources;
   std::vector<UnorderedAccess> unordered_accesses;
   std::vector<Sampler> samplers;
@@ -154,19 +157,68 @@ struct RaytracingShaderMetaInfo {
   std::wstring miss_name;
 };
 
+// TODO make this type safe
 struct BufferDesc {
-  ResourceFormat format;
-  ResourceDimension dimension;
+  ResourceFormat format = ResourceFormat::Undefined;
+  ResourceDimension dimension = ResourceDimension::Undefined;
+  size_t width = 1;
+  size_t height = 1;
 };
 
-// TODO deprecated
-using DefaultBufferFormat = BufferDesc;
+struct TextureDesc {
+  size_t width;
+  size_t height;
+  ResourceFormat format;
+  bool allow_render_target;
+  bool allow_depth_stencil;
+
+  static TextureDesc render_target(size_t width, size_t height, ResourceFormat format) {
+    return {width, height, format, true, false};
+  }
+  static TextureDesc depth_stencil(
+    size_t width, size_t height, ResourceFormat format = ResourceFormat::D24_UNORM_S8_UINT) {
+    return {width, height, format, false, true};
+  }
+};
+
+struct GeometryDesc {
+  GeometryPtr geometry;
+};
+
+struct GeometryBuffers {
+  BufferHandle vertex_buffer;
+  BufferHandle index_buffer;
+  BufferHandle blas_buffer;
+};
+
+struct RaytraceSceneDesc {
+  std::vector<BufferHandle> blas_buffer;
+  std::vector<Mat4> transform;
+  std::vector<uint32_t> instance_id;
+};
 
 using ShaderArguments = FixedVec<ShaderArgumentHandle, 8>;
 struct DrawCommand {
-  GeometryHandle geo;
-  ShaderHandle shader;
+  BufferHandle vertex_buffer = c_empty_handle;
+  BufferHandle index_buffer = c_empty_handle;
+  ShaderHandle shader = c_empty_handle;
   ShaderArguments arguments;
+};
+
+struct UpdateShaderTable {
+  enum class TableType {
+    Raygen,
+    Hitgroup,
+    Miss,
+  } const table_type;
+  ShaderHandle shader;
+  BufferHandle shader_table;
+  size_t index;
+  ShaderArguments arguments;
+
+  static UpdateShaderTable hitgroup() {
+    return {TableType::Hitgroup};
+  }
 };
 
 struct RaytraceCommand {
@@ -195,9 +247,6 @@ class Renderer : private NoCopy {
 public:
   Renderer() {}
   virtual ~Renderer() {}
-
-  virtual GeometryHandle create_geometry(const Geometry& geo) = 0;
-  virtual ModelHandle create_model(const Model& model) = 0;
 
   virtual bool is_depth_range_01() const = 0;
 

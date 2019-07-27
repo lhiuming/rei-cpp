@@ -14,6 +14,7 @@ struct ViewportData {
   size_t width = 1;
   size_t height = 1;
   SwapchainHandle swapchain;
+  BufferHandle depth_stencil_buffer;
   BufferHandle normal_buffer;
   BufferHandle albedo_buffer;
   ShaderArgumentHandle shading_pass_per_render_arg;
@@ -29,13 +30,14 @@ struct SceneData {
   // holding for default material
   BufferHandle objects_cb;
   struct ModelData {
-    GeometryHandle geometry;
+    GeometryBuffers geometry;
     // TODO should use an offset in cb instead, rather than a brand-new descriptor
     ShaderArgumentHandle arg;
     size_t cb_index;
     Mat4 trans;
   };
-  Hashmap<ModelHandle, ModelData> m_models;
+  Hashmap<Scene::GeometryUID, GeometryBuffers> geometries;
+  Hashmap<Scene::ModelUID, ModelData> m_models;
 };
 
 } // namespace deferred
@@ -46,9 +48,9 @@ using SceneProxy = deferred::SceneData;
 struct DeferredBaseMeta : RasterizationShaderMetaInfo {
   DeferredBaseMeta() {
     ShaderParameter space0 {};
-    space0.const_buffers = {ConstBuffer()};
+    space0.const_buffers = {ConstantBuffer()};
     ShaderParameter space1 {};
-    space1.const_buffers = {ConstBuffer()};
+    space1.const_buffers = {ConstantBuffer()};
 
     RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
     RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
@@ -61,9 +63,9 @@ struct DeferredBaseMeta : RasterizationShaderMetaInfo {
 struct DeferredShadingMeta : RasterizationShaderMetaInfo {
   DeferredShadingMeta() {
     ShaderParameter space0 {};
-    space0.const_buffers = {ConstBuffer()};
+    space0.const_buffers = {ConstantBuffer()};
     ShaderParameter space1 {};
-    space1.const_buffers = {ConstBuffer()};
+    space1.const_buffers = {ConstantBuffer()};
     space1.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource()};
     space1.static_samplers = {StaticSampler()};
     signature.param_table = {space0, space1};
@@ -82,7 +84,9 @@ DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(rende
   m_default_shader
     = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
   ShaderCompileConfig lighting_shader_config {};
-  lighting_shader_config.defines = { {"BASE_SHADING", "1"}, };
+  lighting_shader_config.defines = {
+    {"BASE_SHADING", "1"},
+  };
   m_lighting_shader_base = r->create_shader(L"CoreData/shader/deferred_shading.hlsl",
     std::make_unique<DeferredShadingMeta>(), lighting_shader_config);
   m_lighting_shader_add = r->create_shader(
@@ -119,14 +123,17 @@ DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportCon
   proxy.albedo_buffer = r->create_texture_2d(
     conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM, L"Albedo Buffer");
   {
-    auto ds_buf = r->fetch_swapchain_depth_stencil_buffer(proxy.swapchain);
+    TextureDesc ds_desc = TextureDesc::depth_stencil(conf.width, conf.height);
+    proxy.depth_stencil_buffer
+      = r->create_texture_2d(ds_desc, ResourceState::DeptpWrite, L"Depth Stencil");
     ShaderArgumentValue v {};
     v.const_buffers = {m_per_render_buffer};
     v.const_buffer_offsets = {0}; // assume only one viewport
-    v.shader_resources = {ds_buf, proxy.normal_buffer, proxy.albedo_buffer};
+    v.shader_resources = {proxy.depth_stencil_buffer, proxy.normal_buffer, proxy.albedo_buffer};
     proxy.shading_pass_per_render_arg = r->create_shader_argument(v);
   }
-  { ShaderArgumentValue v {};
+  {
+    ShaderArgumentValue v {};
     v.const_buffers = {m_per_light_buffer};
     for (size_t i = 0; i < proxy.shading_pass_per_light_args.max_size; i++) {
       v.const_buffer_offsets = {i}; // assume only one viewport using the buffer at the same time
@@ -163,6 +170,12 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
     proxy.objects_cb = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
   }
   {
+    for (auto& g : scene->geometries()) {
+      auto geo = r->create_geometry({g});
+      proxy.geometries.insert({scene->get_id(g), geo});
+    }
+  }
+  {
     proxy.m_models.reserve(model_count);
     ShaderArgumentValue arg_value = {};
     { // init
@@ -171,11 +184,11 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
     }
     for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
+      auto* geo = proxy.geometries.try_get(scene->get_id(model->get_geometry()));
       arg_value.const_buffer_offsets[0] = i;
       ShaderArgumentHandle arg = r->create_shader_argument(arg_value);
       proxy.m_models.insert({
-        model->get_rendering_handle(),                                                // key
-        {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
+        scene->get_id(model), {*geo, arg, i, model->get_transform()} // value
       });
     }
   }
@@ -183,11 +196,11 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
   return add_scene(std::move(proxy));
 }
 
-void DeferredPipeline::update_model(SceneHandle scene_handle, const Model& model) {
+void DeferredPipeline::update_model(
+  SceneHandle scene_handle, const Model& model, Scene::ModelUID model_id) {
   SceneProxy* scene = get_scene(scene_handle);
   REI_ASSERT(scene);
-  auto* data = scene->m_models.try_get(model.get_rendering_handle());
-  data->geometry = model.get_geometry()->get_graphic_handle();
+  auto* data = scene->m_models.try_get(model_id);
   data->trans = model.get_transform();
 }
 
@@ -222,14 +235,13 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   }
 
   // Geometry pass
-  BufferHandle ds_buffer = renderer->fetch_swapchain_depth_stencil_buffer(viewport->swapchain);
   cmd_list->transition(viewport->normal_buffer, ResourceState::RenderTarget);
   cmd_list->transition(viewport->albedo_buffer, ResourceState::RenderTarget);
-  cmd_list->transition(ds_buffer, ResourceState::DeptpWrite);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::DeptpWrite);
   RenderPassCommand gpass = {};
   {
     gpass.render_targets = {viewport->normal_buffer, viewport->albedo_buffer};
-    gpass.depth_stencil = ds_buffer;
+    gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
     gpass.area = {viewport->width, viewport->height};
@@ -240,7 +252,8 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     draw_cmd.shader = m_default_shader;
     for (auto pair : scene->m_models) {
       auto& model = pair.second;
-      draw_cmd.geo = model.geometry;
+      draw_cmd.index_buffer = model.geometry.index_buffer;
+      draw_cmd.vertex_buffer = model.geometry.vertex_buffer;
       draw_cmd.shader = m_default_shader;
       draw_cmd.arguments = {model.arg};
       cmd_list->draw(draw_cmd);
@@ -253,7 +266,7 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->transition(render_target, ResourceState::RenderTarget);
   cmd_list->transition(viewport->normal_buffer, ResourceState::PixelShaderResource);
   cmd_list->transition(viewport->albedo_buffer, ResourceState::PixelShaderResource);
-  cmd_list->transition(ds_buffer, ResourceState::PixelShaderResource);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::PixelShaderResource);
   RenderPassCommand shading_pass = {};
   {
     shading_pass.render_targets = {render_target};
@@ -266,13 +279,13 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   std::vector<Vec4> light_pos = {{0.5, 0.6, 0.9, 0}, {0.5, 0.6, 0.8, 0}};
   for (int light_i = 0; light_i < 2; light_i++) {
     // Run a screen-pass for each light
-    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 0, light_pos[light_i]); // pos
+    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 0, light_pos[light_i]);      // pos
     cmd_list->update_const_buffer(m_per_light_buffer, light_i, 1, Vec4(0.7, 0.65, 0.6, 0)); // color
 
     DrawCommand cmd = {};
-    cmd.geo = c_empty_handle;
     cmd.shader = (light_i == 0) ? m_lighting_shader_base : m_lighting_shader_add;
-    cmd.arguments = {viewport->shading_pass_per_light_args[light_i], viewport->shading_pass_per_render_arg};
+    cmd.arguments
+      = {viewport->shading_pass_per_light_args[light_i], viewport->shading_pass_per_render_arg};
     cmd_list->draw(cmd);
   }
   cmd_list->end_render_pass();

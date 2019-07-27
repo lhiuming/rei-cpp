@@ -13,11 +13,11 @@
 #include <windows.h>
 #include <wrl.h>
 
+#include "..//scene.h"
 #include "../algebra.h"
 #include "../camera.h"
 #include "../color.h"
 #include "../common.h"
-#include "..//scene.h"
 #include "../renderer.h"
 #include "d3d_utils.h"
 
@@ -109,6 +109,8 @@ inline static constexpr D3D12_UAV_DIMENSION to_usv_dimension(ResourceDimension d
 
 inline static constexpr D3D12_RESOURCE_STATES to_res_state(ResourceState state) {
   switch (state) {
+    case ResourceState::Undefined:
+      return D3D12_RESOURCE_STATE_COMMON;
     case ResourceState::Present:
       return D3D12_RESOURCE_STATE_PRESENT;
     case ResourceState::RenderTarget:
@@ -179,82 +181,81 @@ struct RenderTargetSpec {
   }
 };
 
-class ViewportResources;
 struct SwapchainData : BaseSwapchainData {
   using BaseSwapchainData::BaseSwapchainData;
   // TODO deelete the viewport-resource class
-  std::shared_ptr<ViewportResources> res;
+  ComPtr<IDXGISwapChain3> res_object;
+  FixedVec<BufferHandle, 8> render_targets;
+  UINT curr_rt_index = 0;
+
+  BufferHandle get_curr_render_target() const { return render_targets[curr_rt_index]; }
+  void advance_curr_rt() { curr_rt_index = (curr_rt_index + 1) % render_targets.size(); }
 };
 
-struct BufferData : BaseBufferData {
-  using BaseBufferData::BaseBufferData;
-  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
-  virtual ID3D12Resource* get_res() const = 0;
-};
-
-// Texture
-struct DefaultBufferData : BufferData {
-  using BufferData::BufferData;
+struct IndexBuffer {
   ComPtr<ID3D12Resource> buffer;
-  DefaultBufferFormat meta;
-
-  ID3D12Resource* get_res() const { return buffer.Get(); }
+  UINT index_count;
+  UINT bytesize;
+  DXGI_FORMAT format;
 };
 
-// Buffer
-struct ConstBufferData : BufferData {
-  using BufferData::BufferData;
+struct VertexBuffer {
+  ComPtr<ID3D12Resource> buffer;
+  UINT vertex_count;
+  UINT bytesize;
+  UINT stride;
+};
+
+struct TextureBuffer {
+  ComPtr<ID3D12Resource> buffer;
+  ResourceFormat format;
+  ResourceDimension dimension;
+};
+
+struct ConstBuffer {
   std::unique_ptr<UploadBuffer> buffer;
   ConstBufferLayout layout;
-  ID3D12Resource* get_res() const { return buffer->resource(); }
 };
 
-struct GeometryData : BaseGeometryData {
-  using BaseGeometryData::BaseGeometryData;
+struct BlasBuffer {
+  ComPtr<ID3D12Resource> buffer;
 };
 
-struct MeshData : GeometryData {
-  using GeometryData::GeometryData;
-  bool is_dummy = false;
+struct TlasBuffer {
+  ComPtr<ID3D12Resource> buffer;
+};
+
+struct RaytracingShaderData; // see below
+struct ShaderTableBuffer {
+  std::shared_ptr<RaytracingShaderData> shader;
+  std::shared_ptr<ShaderTable> raygen;
+  std::shared_ptr<ShaderTable> hitgroup;
+  std::shared_ptr<ShaderTable> miss;
+};
+
+// Holds a variant of buffer/texture resources
+struct BufferData : BaseBufferData {
+  using BaseBufferData::BaseBufferData;
+  using ResourceVariant = Var<std::monostate, IndexBuffer, VertexBuffer, TextureBuffer, ConstBuffer,
+    BlasBuffer, TlasBuffer, ShaderTableBuffer>;
+
+  ResourceVariant  res;
+  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+
+  ID3D12Resource* get_res();
+};
+
+struct MeshUploadResult {
   ComPtr<ID3D12Resource> vert_buffer;
   ComPtr<ID3D12Resource> vert_upload_buffer;
-  D3D12_VERTEX_BUFFER_VIEW vbv = {NULL, UINT_MAX, UINT_MAX};
   UINT vertex_num = UINT_MAX;
-
-  CD3DX12_GPU_DESCRIPTOR_HANDLE vert_srv_gpu = {D3D12_DEFAULT};
-  CD3DX12_CPU_DESCRIPTOR_HANDLE vert_srv_cpu = {D3D12_DEFAULT};
 
   ComPtr<ID3D12Resource> ind_buffer;
   ComPtr<ID3D12Resource> ind_upload_buffer;
-  D3D12_INDEX_BUFFER_VIEW ibv = {NULL, UINT_MAX, DXGI_FORMAT_UNKNOWN};
   UINT index_num = UINT_MAX;
-
-  CD3DX12_GPU_DESCRIPTOR_HANDLE ind_srv_gpu = {D3D12_DEFAULT};
-  CD3DX12_CPU_DESCRIPTOR_HANDLE ind_srv_cpu = {D3D12_DEFAULT};
 
   ComPtr<ID3D12Resource> blas_buffer;
   ComPtr<ID3D12Resource> scratch_buffer;
-};
-
-class ViewportResources;
-
-struct ViewportData : BaseScreenTransformData {
-  using BaseScreenTransformData::BaseScreenTransformData;
-  Vec3 pos = {};
-  Mat4 view = Mat4::I();
-  Mat4 view_proj = Mat4::I();
-  std::array<FLOAT, 4> clear_color;
-  FLOAT clear_depth;
-  FLOAT clear_stencil;
-  D3D12_VIEWPORT d3d_viewport;
-  D3D12_RECT scissor;
-
-  void update_camera_transform(const Camera& cam) {
-    REI_ASSERT(is_right_handed);
-    pos = cam.position();
-    view = cam.view();
-    view_proj = cam.view_proj_halfz();
-  }
 };
 
 struct RootSignatureDescMemory {
@@ -354,7 +355,7 @@ struct RasterizationShaderMetaDesc {
       rt_formats.push_back(to_dxgi_format(rt_desc.format));
     }
     is_depth_stencil_null = meta.is_depth_stencil_disabled;
-    if (meta.is_blending_addictive) { 
+    if (meta.is_blending_addictive) {
       blend_state.RenderTarget[0].BlendEnable = true;
       blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
       blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
@@ -455,30 +456,6 @@ struct RaytracingShaderData : ShaderData {
   LocalShaderData miss;
 
   ComPtr<ID3D12StateObject> pso;
-};
-
-struct RaytracingShaderTableData : BaseBufferData {
-  using BaseBufferData ::BaseBufferData;
-  std::shared_ptr<RaytracingShaderData> shader;
-  std::shared_ptr<ShaderTable> raygen;
-  std::shared_ptr<ShaderTable> hitgroup;
-  std::shared_ptr<ShaderTable> miss;
-};
-
-struct ModelData : BaseModelData {
-  using BaseModelData::BaseModelData;
-  // Bound aabb;
-  std::shared_ptr<GeometryData> geometry;
-  UINT const_buffer_index = UINT_MAX; // in shader cb buffer
-  UINT cbv_index = UINT_MAX;          // in device shared heap
-
-  UINT tlas_instance_id = UINT_MAX;
-
-  void update_transform(Model& model) {
-    // NOTE: check how ViewportData store the transforms
-    REI_ASSERT(is_right_handed);
-    this->transform = model.get_transform();
-  }
 };
 
 } // namespace d3d

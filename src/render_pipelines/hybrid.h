@@ -27,15 +27,15 @@ class HybridPipeline
 public:
   HybridPipeline(RendererPtr renderer);
 
-  virtual ViewportHandle register_viewport(ViewportConfig conf) override;
-  virtual void remove_viewport(ViewportHandle viewport) override {}
-  virtual void transform_viewport(ViewportHandle handle, const Camera& camera) override;
+  ViewportHandle register_viewport(ViewportConfig conf) override;
+  void remove_viewport(ViewportHandle viewport) override {}
+  void transform_viewport(ViewportHandle handle, const Camera& camera) override;
 
-  virtual SceneHandle register_scene(SceneConfig conf) override;
-  virtual void remove_scene(SceneHandle scene) override {}
+  SceneHandle register_scene(SceneConfig conf) override;
+  void remove_scene(SceneHandle scene) override {}
 
-  virtual void update_model(SceneHandle scene, const Model& model) override;
-  virtual void add_model(SceneHandle scene, ModelHandle model) override {}
+  void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {}
+  void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override;
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 

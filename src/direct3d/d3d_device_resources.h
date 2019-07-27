@@ -60,7 +60,7 @@ public:
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso);
 
-  void create_mesh_buffer(const Mesh& mesh, MeshData& mesh_data);
+  void create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res);
 
   ID3D12GraphicsCommandList4* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
   // TODO remove this, just use the new prepare_cmd_list

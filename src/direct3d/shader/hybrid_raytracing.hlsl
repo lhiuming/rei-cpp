@@ -30,6 +30,9 @@ ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
 ByteAddressBuffer g_indicies : register(t0, space1);
 StructuredBuffer<Vertex> g_vertices : register(t1, space1);
 
+// inplace material data
+ConstantBuffer<PerMaterialConstBuffer> g_material : register(b0, space1);
+
 // Raytracing Structs //
 
 typedef BuiltInTriangleIntersectionAttributes HitAttr;
