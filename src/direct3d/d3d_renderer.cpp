@@ -19,11 +19,11 @@
 #include "d3d_device_resources.h"
 #include "d3d_shader_struct.h"
 #include "d3d_utils.h"
-#include "d3d_viewport_resources.h"
 
 using std::array;
 using std::make_shared;
 using std::make_unique;
+using std::move;
 using std::shared_ptr;
 using std::unique_ptr;
 using std::unordered_set;
@@ -34,6 +34,18 @@ using std::wstring;
 namespace rei {
 
 namespace d3d {
+
+// Default rt buffer name for convinience
+constexpr static array<const wchar_t*, 8> c_rt_buffer_names {
+  L"Render Target [0]",
+  L"Render Target [1]",
+  L"Render Target [2]",
+  L"Render Target [3]",
+  L"Render Target [4]",
+  L"Render Target [5]",
+  L"Render Target [6]",
+  L"Render Target [7]",
+};
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
@@ -48,75 +60,131 @@ SwapchainHandle Renderer::create_swapchain(
   REI_ASSERT(window_id.platform == SystemWindowID::Win);
   HWND hwnd = window_id.value.hwnd;
 
-  REI_ASSERT(rendertarget_count <= 4);
-  FixedVec<std::shared_ptr<DefaultBufferData>, 4> rt_buffers(rendertarget_count);
-  for (size_t i = 0; i < rendertarget_count; i++) {
-    rt_buffers[i] = make_shared<DefaultBufferData>(this);
+  auto device = device_resources->device();
+
+  // Create the Swapchain object
+  ComPtr<IDXGISwapChain3> swapchain_obj;
+  {
+    /*
+     * NOTE: In DX12, IDXGIDevice is not available anymore, so IDXGIFactory/IDXGIAdaptor has to be
+     * created/specified, rather than being found through IDXGIDevice.
+     */
+
+    auto dxgi_factory = device_resources->dxgi_factory();
+    auto cmd_queue = device_resources->command_queue();
+
+    HRESULT hr;
+
+    ComPtr<IDXGISwapChain1> base_swapchain_obj;
+    DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc = {}; // use it if you need fullscreen
+    fullscreen_desc.RefreshRate.Numerator = 60;
+    fullscreen_desc.RefreshRate.Denominator = 1;
+    fullscreen_desc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+    fullscreen_desc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+    DXGI_SWAP_CHAIN_DESC1 chain_desc = {};
+    chain_desc.Width = width;
+    chain_desc.Height = height;
+    chain_desc.Format = curr_target_spec.dxgi_rt_format;
+    chain_desc.Stereo = FALSE;
+    chain_desc.SampleDesc = curr_target_spec.sample_desc;
+    chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    chain_desc.BufferCount = rendertarget_count; // total frame buffer count
+    chain_desc.Scaling = DXGI_SCALING_STRETCH;
+    chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; // TODO DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
+    chain_desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
+    chain_desc.Flags = 0;
+    hr = dxgi_factory->CreateSwapChainForHwnd(cmd_queue, hwnd, &chain_desc,
+      NULL, // windowed app
+      NULL, // optional
+      &base_swapchain_obj);
+    REI_ASSERT(SUCCEEDED(hr));
+
+    hr = base_swapchain_obj.As(&swapchain_obj);
+    REI_ASSERT(SUCCEEDED(hr));
   }
-  std::shared_ptr<DefaultBufferData> ds_buffer = make_shared<DefaultBufferData>(this);
-  auto vp_res = std::make_shared<ViewportResources>(
-    device_resources, hwnd, width, height, rt_buffers, ds_buffer);
+
+  // Create handle for each render target
+  FixedVec<BufferHandle, 8> render_target_handles;
+  {
+    D3D12_RENDER_TARGET_VIEW_DESC* default_rtv_desc = nullptr; // default initialization
+    for (UINT i = 0; i < rendertarget_count; i++) {
+      ComPtr<ID3D12Resource> rt_buffer;
+      HRESULT hr = swapchain_obj->GetBuffer(i, IID_PPV_ARGS(&rt_buffer));
+      REI_ASSERT(SUCCEEDED(hr));
+      hr = rt_buffer->SetName(c_rt_buffer_names[i]);
+      REI_ASSERT(SUCCEEDED(hr));
+
+      TextureBuffer render_target;
+      render_target.buffer = rt_buffer;
+      render_target.dimension = ResourceDimension::Texture2D;
+      auto rt_data = make_shared<BufferData>(this);
+      rt_data->res = std::move(render_target);
+      rt_data->state = D3D12_RESOURCE_STATE_PRESENT; // TODO is this alway correct ?
+      render_target_handles.emplace_back(std::move(rt_data));
+    }
+  }
 
   auto swapchain = make_shared<SwapchainData>(this);
-  swapchain->res = vp_res;
+  swapchain->curr_rt_index = 0;
+  swapchain->res_object = std::move(swapchain_obj);
+  swapchain->render_targets = std::move(render_target_handles);
   return SwapchainHandle(swapchain);
-}
-
-BufferHandle Renderer::fetch_swapchain_depth_stencil_buffer(SwapchainHandle handle) {
-  auto swapchain = to_swapchain(handle);
-  return BufferHandle(swapchain->res->m_ds_buffer);
 }
 
 BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle handle) {
   auto swapchain = to_swapchain(handle);
-  UINT curr_rt_index = swapchain->res->get_current_rt_index();
-  return BufferHandle(swapchain->res->m_rt_buffers[curr_rt_index]);
+  UINT curr_rt_index = swapchain->curr_rt_index;
+  return swapchain->render_targets[curr_rt_index];
 }
 
 BufferHandle Renderer::create_texture_2d(
-  size_t width, size_t height, ResourceFormat format, wstring&& name) {
+  const TextureDesc& desc, ResourceState init_state, std::wstring&& debug_name) {
   auto device = device_resources->device();
-  DXGI_FORMAT dxgi_format = to_dxgi_format(format);
+  DXGI_FORMAT dxgi_format = to_dxgi_format(desc.format);
+  D3D12_RESOURCE_STATES d3d_init_state = to_res_state(init_state);
 
-  auto texture = make_shared<DefaultBufferData>(this);
-  {
-    BufferDesc meta;
-    meta.dimension = ResourceDimension::Texture2D;
-    meta.format = format;
-    texture->meta = meta;
-  }
+  TextureBuffer texture;
+  texture.dimension = ResourceDimension::Texture2D; // TODO may be more in future
+  texture.format = desc.format;
   {
     ComPtr<ID3D12Resource> tex;
-    auto tex_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, width, height);
+    auto res_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, UINT(desc.width), UINT(desc.height));
     // TODO add to input config
-    tex_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    if (desc.allow_depth_stencil) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    if (desc.allow_render_target) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
     auto heap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto flags = D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
-    auto init_state = D3D12_RESOURCE_STATE_COMMON;
+    auto heap_flags = D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
+    D3D12_CLEAR_VALUE _optimized_clear = {}; // special clear value; usefull for framebuffer types
+    D3D12_CLEAR_VALUE* optimized_clear_ptr = NULL;
+    if (desc.allow_depth_stencil) {
+      _optimized_clear.Format = dxgi_format;
+      _optimized_clear.DepthStencil = curr_target_spec.ds_clear;
+      optimized_clear_ptr = &_optimized_clear;
+    }
     HRESULT hr = device->CreateCommittedResource(
-      &heap_desc, flags, &tex_desc, init_state, nullptr, IID_PPV_ARGS(&tex));
+      &heap_desc, heap_flags, &res_desc, d3d_init_state, optimized_clear_ptr, IID_PPV_ARGS(&tex));
     REI_ASSERT(SUCCEEDED(hr));
-    tex->SetName(name.c_str());
-    texture->buffer = tex;
+    hr = tex->SetName(debug_name.c_str());
+    REI_ASSERT(SUCCEEDED(hr));
+    texture.buffer = tex;
   }
 
-  return BufferHandle(texture);
+  auto res_data = make_shared<BufferData>(this);
+  res_data->res = std::move(texture);
+  res_data->state = d3d_init_state;
+  return BufferHandle(res_data);
 }
 
 BufferHandle Renderer::create_unordered_access_buffer_2d(
-  size_t width, size_t height, ResourceFormat format) {
-  auto device = device_resources->device();
-  DXGI_FORMAT buffer_format = to_dxgi_format(format);
-
-  DefaultBufferFormat meta;
-  meta.dimension = ResourceDimension::Texture2D;
-  meta.format = format;
+  size_t width, size_t height, ResourceFormat format, wstring&& name) {
+  DXGI_FORMAT dxgi_format = to_dxgi_format(format);
 
   // Create buffer
   ComPtr<ID3D12Resource> buffer;
   {
-    D3D12_RESOURCE_DESC uav_buffer_desc
-      = CD3DX12_RESOURCE_DESC::Tex2D(buffer_format, width, height);
+    auto device = device_resources->device();
+
+    D3D12_RESOURCE_DESC uav_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, width, height);
     uav_buffer_desc.MipLevels = 1;
     uav_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
@@ -125,24 +193,30 @@ BufferHandle Renderer::create_unordered_access_buffer_2d(
     HRESULT hr = device->CreateCommittedResource(
       &heap_prop, heap_flags, &uav_buffer_desc, init_state, nullptr, IID_PPV_ARGS(&buffer));
     REI_ASSERT(SUCCEEDED(hr));
+    buffer->SetName(name.c_str());
   }
 
-  auto buffer_data = make_shared<DefaultBufferData>(this);
+  TextureBuffer tex;
+  tex.buffer = buffer;
+  tex.dimension = ResourceDimension::Texture2D;
+  tex.format = format;
+  auto buffer_data = make_shared<BufferData>(this);
   buffer_data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  buffer_data->buffer = buffer;
-  buffer_data->meta = meta;
+  buffer_data->res = std::move(tex);
   return BufferHandle(buffer_data);
 }
 
-BufferHandle Renderer::create_const_buffer(const ConstBufferLayout& layout, size_t num) {
+BufferHandle Renderer::create_const_buffer(
+  const ConstBufferLayout& layout, size_t num, wstring&& name) {
   auto device = device_resources->device();
 
-  auto buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, num);
-
-  auto buffer_data = make_shared<ConstBufferData>(this);
-  buffer_data->state = buffer->init_state();
-  buffer_data->buffer = std::move(buffer);
-  buffer_data->layout = layout;
+  ConstBuffer cb;
+  cb.buffer = make_unique<UploadBuffer>(*device, get_width(layout), true, num);
+  cb.buffer->resource()->SetName(name.c_str());
+  cb.layout = layout;
+  auto buffer_data = make_shared<BufferData>(this);
+  buffer_data->state = cb.buffer->init_state();
+  buffer_data->res = std::move(cb);
   return BufferHandle(buffer_data);
 }
 
@@ -156,28 +230,30 @@ void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t mem
   set_const_buffer(buffer, index, member, &converted, sizeof(converted));
 }
 
-ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, unique_ptr<RasterizationShaderMetaInfo>&& meta) {
+ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
+  RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<RasterizationShaderData>(this);
 
-  // compile and retrive root signature
-  shader->meta.init(std::move(*meta));
-  device_resources->compile_shader(shader_path, shader->compiled_data);
-  device_resources->get_root_signature(shader->root_signature, shader->meta);
+  shader->meta.init(std::move(meta));
 
-  if (!(shader->compiled_data.ps_bytecode && shader->compiled_data.vs_bytecode)) {
+  // compile and retrive root signature
+  ShaderCompileResult compiled_data;
+  device_resources->compile_shader(shader_path, config, compiled_data);
+  if (!(compiled_data.ps_bytecode && compiled_data.vs_bytecode)) {
     REI_ERROR("Shader compilation faild");
     return c_empty_handle;
   }
+  device_resources->get_root_signature(shader->root_signature, shader->meta);
+  device_resources->create_pso(*shader, compiled_data, shader->pso);
 
   return ShaderHandle(shader);
 }
 
-ShaderHandle Renderer::create_raytracing_shader(
-  const std::wstring& shader_path, unique_ptr<::rei::RaytracingShaderMetaInfo>&& meta) {
+ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
+  RaytracingShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<RaytracingShaderData>(this);
 
-  shader->meta.init(std::move(*meta));
+  shader->meta.init(std::move(meta));
   d3d::RayTracingShaderMetaDesc& d3d_meta = shader->meta;
   device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
   device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
@@ -206,11 +282,7 @@ ShaderHandle Renderer::create_raytracing_shader(
   return ShaderHandle(shader);
 }
 
-ShaderArgumentHandle Renderer::create_shader_argument(
-  ShaderHandle shader_h, ShaderArgumentValue arg_value) {
-  // TODO carry validation using shader information
-  // auto shader = to_shader<ShaderData>(shader_h);
-
+ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_value) {
   size_t buf_count = arg_value.total_buffer_count();
   CD3DX12_GPU_DESCRIPTOR_HANDLE base_gpu_descriptor;
   CD3DX12_CPU_DESCRIPTOR_HANDLE base_cpu_descriptor;
@@ -221,61 +293,82 @@ ShaderArgumentHandle Renderer::create_shader_argument(
   UINT cnv_srv_descriptor_size = device_resources->cnv_srv_descriptor_size();
   CD3DX12_CPU_DESCRIPTOR_HANDLE cpu_descriptor = base_cpu_descriptor;
 
+  // Constsant Buffer Views
   const int cb_count = arg_value.const_buffers.size();
   REI_ASSERT(arg_value.const_buffer_offsets.size() == cb_count);
   for (size_t i = 0; i < cb_count; i++) {
-    auto b = to_buffer<ConstBufferData>(arg_value.const_buffers[i]);
+    auto buffer = to_buffer(arg_value.const_buffers[i]);
     size_t offset = arg_value.const_buffer_offsets[i];
-    D3D12_CONSTANT_BUFFER_VIEW_DESC desc = {};
-    desc.BufferLocation = b->buffer->buffer_address(UINT(offset));
-    desc.SizeInBytes = b->buffer->effective_bytewidth();
+    REI_ASSERT(buffer);
+    REI_ASSERT(buffer->res.holds<ConstBuffer>());
+    ConstBuffer& cb = buffer->res.get<ConstBuffer>();
+    D3D12_CONSTANT_BUFFER_VIEW_DESC desc {};
+    desc.BufferLocation = cb.buffer->buffer_address(UINT(offset));
+    desc.SizeInBytes = cb.buffer->element_bytewidth();
     device->CreateConstantBufferView(&desc, cpu_descriptor);
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
+
+  // Shader Resource Views
   for (auto& h : arg_value.shader_resources) {
-    auto b = to_buffer<DefaultBufferData>(h);
-    auto meta = b->meta;
-    D3D12_SHADER_RESOURCE_VIEW_DESC desc;
-    desc.Format = to_dxgi_format_srv(meta.format);
-    desc.ViewDimension = to_srv_dimension(meta.dimension);
+    auto buffer = to_buffer(h);
+    ID3D12Resource* create_ptr;
+    D3D12_SHADER_RESOURCE_VIEW_DESC desc {};
     desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    // FIXME handle other cases and options
-    bool is_accel_struct = false;
-    switch (desc.ViewDimension) {
-      case D3D12_SRV_DIMENSION_TEXTURE2D:
+    buffer->res.match( // TODO handle other cases
+      [](auto& arg) { REI_NOT_IMPLEMENTED },
+      [&](IndexBuffer& ind) {
+        create_ptr = ind.buffer.Get();
+        // Raw/typeless buffer view
+        desc.Format = DXGI_FORMAT_R32_TYPELESS; // TODO really?
+        desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        desc.Buffer.FirstElement = 0;
+        desc.Buffer.NumElements = ind.bytesize / sizeof(int32_t); // pack as R32 typeless
+        desc.Buffer.StructureByteStride = 0;                      // Typeless?
+        desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+      },
+      [&](VertexBuffer& vert) {
+        create_ptr = vert.buffer.Get();
+        desc.Format = DXGI_FORMAT_UNKNOWN; // TODO really?
+        desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        desc.Buffer.FirstElement = 0;
+        desc.Buffer.NumElements = vert.vertex_count;
+        desc.Buffer.StructureByteStride = vert.stride;
+        desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+      },
+      [&](TextureBuffer& tex) {
+        create_ptr = tex.buffer.Get();
+        desc.Format = to_dxgi_format_srv(tex.format);
+        desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         desc.Texture2D.MostDetailedMip = 0;
         desc.Texture2D.MipLevels = 1;
         desc.Texture2D.PlaneSlice = 0;
         desc.Texture2D.ResourceMinLODClamp = 0;
-        break;
-      case D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE:
-        desc.RaytracingAccelerationStructure.Location = b->buffer->GetGPUVirtualAddress();
-        is_accel_struct = true;
-        break;
-      default:
-        REI_ERROR("Unhandled case detected");
-        break;
-    }
-    if (is_accel_struct)
-      device->CreateShaderResourceView(NULL, &desc, cpu_descriptor);
-    else
-      device->CreateShaderResourceView(b->buffer.Get(), &desc, cpu_descriptor);
+      },
+      [&](TlasBuffer& tlas) {
+        create_ptr = NULL;
+        desc.Format = DXGI_FORMAT_UNKNOWN;
+        desc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+        desc.RaytracingAccelerationStructure.Location = tlas.buffer->GetGPUVirtualAddress();
+      });
+    device->CreateShaderResourceView(create_ptr, &desc, cpu_descriptor);
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
+
+  // Unordered Access Views
   for (auto& h : arg_value.unordered_accesses) {
-    auto b = to_buffer<DefaultBufferData>(h);
-    auto meta = b->meta;
+    auto buffer = to_buffer(h);
+    REI_ASSERT(buffer);
+    ID3D12Resource* create_ptr;
     D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
-    desc.Format = to_dxgi_format(meta.format);
-    desc.ViewDimension = to_usv_dimension(meta.dimension);
-    switch (desc.ViewDimension) {
-      case D3D12_UAV_DIMENSION_TEXTURE2D:
+    buffer->res.match( // TODO handle other cases
+      [](auto& arg) { REI_NOT_IMPLEMENTED },
+      [&](TextureBuffer& tex) {
+        create_ptr = tex.buffer.Get();
+        desc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
         desc.Texture2D = {};
-      default:
-        REI_ASSERT("Unhandled case detected");
-        break;
-    }
-    device->CreateUnorderedAccessView(b->buffer.Get(), nullptr, &desc, cpu_descriptor);
+      });
+    device->CreateUnorderedAccessView(create_ptr, nullptr, &desc, cpu_descriptor);
     cpu_descriptor.Offset(1, cnv_srv_descriptor_size);
   }
 
@@ -288,70 +381,82 @@ ShaderArgumentHandle Renderer::create_shader_argument(
   return ShaderArgumentHandle(arg_data);
 }
 
-GeometryHandle Renderer::create_geometry(const Geometry& geometry) {
+GeometryBuffers Renderer::create_geometry(const GeometryDesc& desc) {
   // TODO currently only support mesh type
-  auto& mesh = dynamic_cast<const Mesh&>(geometry);
-  auto mesh_data = make_shared<MeshData>(this);
-  device_resources->create_mesh_buffer(mesh, *mesh_data);
-  return GeometryHandle(mesh_data);
+  auto& mesh = dynamic_cast<const Mesh&>(*(desc.geometry));
+  MeshUploadResult res;
+  device_resources->create_mesh_buffer(mesh, res);
+  GeometryBuffers ret {};
+  {
+    IndexBuffer ib;
+    ib.buffer = res.ind_buffer;
+    ib.index_count = res.index_num;
+    ib.bytesize = res.index_num * sizeof(uint16_t); // FIXME really ?
+    ib.format = c_index_format;
+    auto data = new_buffer();
+    data->res = move(ib);
+    data->state = D3D12_RESOURCE_STATE_INDEX_BUFFER;
+    ret.index_buffer = std::move(data);
+  }
+  {
+    VertexBuffer vb;
+    vb.buffer = res.vert_buffer;
+    vb.vertex_count = res.vertex_num;
+    vb.bytesize = res.vertex_num * sizeof(VertexElement);
+    vb.stride = sizeof(VertexElement);
+    auto data = new_buffer();
+    data->res = move(vb);
+    data->state = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
+    ret.vertex_buffer = std::move(data);
+  }
+  {
+    BlasBuffer blas;
+    blas.buffer = res.blas_buffer;
+    auto data = new_buffer();
+    data->res = move(blas);
+    ret.blas_buffer = move(data);
+  }
+  m_delayed_release.emplace_back(std::move(res.ind_upload_buffer));
+  m_delayed_release.emplace_back(std::move(res.vert_upload_buffer));
+  m_delayed_release.emplace_back(std::move(res.scratch_buffer));
+  return ret;
 }
 
-ModelHandle Renderer::create_model(const Model& model) {
-  if (REI_WARNINGIF(model.get_geometry() == nullptr)) { return nullptr; }
+BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& desc) {
+  const size_t model_count = desc.blas_buffer.size();
 
-  auto model_data = make_shared<ModelData>(this);
-
-  // set up reference
-  model_data->geometry = to_geometry(model.get_geometry()->get_graphic_handle());
-  REI_ASSERT(model_data->geometry);
-  /*
-  if (!model.get_material()) {
-    log("model has no material; use deafult mat");
-    model_data->material = default_material;
-  } else {
-    model_data->material = to_material(model.get_material()->get_graphic_handle());
-  }
-  */
-
-  // assign a tlas instance id
-  model_data->tlas_instance_id = generate_tlas_instance_id();
-
-  model_data->transform = model.get_transform(); // not necessary
-
-  return ModelHandle(model_data);
-}
-
-BufferHandle Renderer::create_raytracing_accel_struct(const Scene& scene) {
-  // collect geometries and models for AS building
-  const auto& scene_models = scene.get_models();
-  vector<ModelData> models {};
-  models.reserve(scene_models.size());
-  for (auto& m : scene_models) {
-    ModelData& m_data = *to_model(m->get_rendering_handle());
-    GeometryData& g_data = *to_geometry(m->get_geometry()->get_graphic_handle());
-    models.push_back(m_data);
+  // Collect geometries and models for AS building
+  vector<ID3D12Resource*> blas;
+  blas.reserve(model_count);
+  for (auto& handle : desc.blas_buffer) {
+    auto buffer = to_buffer(handle);
+    REI_ASSERT(buffer->res.holds<BlasBuffer>());
+    blas.push_back(buffer->get_res());
   }
 
-  ComPtr<ID3D12Resource> tlas, scratch;
-  build_dxr_acceleration_structure(models.data(), models.size(), scratch, tlas);
+  // Create
+  TlasBuffer tlas;
+  {
+    BuildAccelStruct scene;
+    scene.instance_count = model_count;
+    scene.blas = blas.data();
+    scene.instance_id = desc.instance_id.data();
+    scene.transform = desc.transform.data();
+    ComPtr<ID3D12Resource> scratch;
+    build_dxr_acceleration_structure(std::move(scene), scratch, tlas.buffer);
+    // scratch buffer is released after build is finished, e.g. just before next render call
+    m_delayed_release.emplace_back(std::move(scratch));
+  }
 
-  DefaultBufferFormat meta;
-  meta.dimension = ResourceDimension::AccelerationStructure;
-  meta.format = ResourceFormat::AcclerationStructure;
-
-  // NOTE scratch buffer is discared
-  auto data = make_shared<DefaultBufferData>(this);
+  auto data = new_buffer();
+  data->res = move(tlas);
   data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  data->buffer = tlas;
-  data->meta = meta;
   return BufferHandle(data);
 }
 
 BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
   auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
   const auto& meta = shader->meta;
-
-  auto tables = make_shared<RaytracingShaderTableData>(this);
 
   size_t model_count = scene.get_models().size();
 
@@ -370,23 +475,46 @@ BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle rayt
   size_t hitgroup_arg_width = get_root_arguments_size(meta.hitgroup.desc);
   size_t miss_arg_width = get_root_arguments_size(meta.miss.desc);
 
-  build(raygen_arg_width, 1, shader->raygen.shader_id, tables->raygen);
-  build(hitgroup_arg_width, model_count, shader->hitgroup.shader_id, tables->hitgroup);
-  build(miss_arg_width, model_count, shader->miss.shader_id, tables->miss);
-  tables->shader = shader;
+  ShaderTableBuffer tables;
+  tables.shader = shader;
+  build(raygen_arg_width, 1, shader->raygen.shader_id, tables.raygen);
+  build(hitgroup_arg_width, model_count, shader->hitgroup.shader_id, tables.hitgroup);
+  build(miss_arg_width, model_count, shader->miss.shader_id, tables.miss);
 
-  return BufferHandle(tables);
+  auto data = new_buffer();
+  data->res = move(tables);
+  data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS; // FIXME really?
+  return BufferHandle(data);
 }
 
-void Renderer::update_hitgroup_shader_record(BufferHandle shader_table_h, ModelHandle model_h) {
-  auto tables = to_buffer<RaytracingShaderTableData>(shader_table_h);
-  auto shader = tables->shader;
-  auto model = to_model(model_h);
-  auto geometry = std::static_pointer_cast<MeshData>(model->geometry);
+void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
+  auto shader = to_shader<RaytracingShaderData>(cmd.shader);
+  auto buffer = to_buffer(cmd.shader_table);
+  REI_ASSERT(buffer);
+  REI_ASSERT(buffer->res.holds<ShaderTableBuffer>());
+  ShaderTableBuffer& tables = buffer->res.get<ShaderTableBuffer>();
 
-  const size_t cnv_srv_descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
-  tables->hitgroup->update(shader->hitgroup.shader_id, &geometry->ind_srv_gpu,
-    cnv_srv_descriptor_size, model->tlas_instance_id, 0);
+  shared_ptr<ShaderTable> table;
+  const void* shader_id;
+  switch (cmd.table_type) {
+    case UpdateShaderTable::TableType::Hitgroup:
+      table = tables.hitgroup;
+      shader_id = shader->hitgroup.shader_id;
+      break;
+    default:
+      REI_ERROR("Unhandled shader table type");
+      break;
+  }
+
+  FixedVec<D3D12_GPU_DESCRIPTOR_HANDLE, 8> local_args {};
+  for (ShaderArgumentHandle h : cmd.arguments) {
+    auto arg = to_argument(h);
+    if (arg) { local_args.push_back(arg->base_descriptor_gpu); }
+  }
+
+  const size_t gpu_descriptor_size = sizeof(D3D12_GPU_DESCRIPTOR_HANDLE);
+  table->update(
+    shader_id, local_args.data(), local_args.size() * gpu_descriptor_size, cmd.index, 0);
 }
 
 void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
@@ -422,16 +550,18 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   const FLOAT clear_stentil = 0;
 
   FixedVec<D3D12_RENDER_PASS_RENDER_TARGET_DESC, 8> rt_descs = {};
-  REI_ASSERT(cmd.render_targets.max_size() <= rt_descs.max_size());
+  REI_ASSERT(cmd.render_targets.max_size <= rt_descs.max_size);
   if (cmd.render_targets.size() > 0) {
     for (size_t i = 0; i < cmd.render_targets.size(); i++) {
       BufferHandle render_target_h = cmd.render_targets[i];
       REI_ASSERT(render_target_h != c_empty_handle);
-      shared_ptr<DefaultBufferData> rt_texture = to_buffer<DefaultBufferData>(render_target_h);
-      REI_ASSERT(rt_texture);
+      auto rt_buffer = to_buffer(render_target_h);
+      REI_ASSERT(rt_buffer);
+      REI_ASSERT(rt_buffer->res.holds<TextureBuffer>());
+      auto& tex = rt_buffer->res.get<TextureBuffer>();
 
       auto& rt_desc = rt_descs.emplace_back();
-      rt_desc.cpuDescriptor = get_rtv_cpu(rt_texture->get_res());
+      rt_desc.cpuDescriptor = get_rtv_cpu(tex.buffer.Get());
       REI_ASSERT(rt_desc.cpuDescriptor.ptr);
       if (cmd.clear_rt) {
         rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -447,9 +577,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   D3D12_RENDER_PASS_DEPTH_STENCIL_DESC* ds_desc_ptr = nullptr;
   D3D12_RENDER_PASS_DEPTH_STENCIL_DESC ds_desc {};
   if (cmd.depth_stencil != c_empty_handle) {
-    shared_ptr<DefaultBufferData> ds_texture = to_buffer<DefaultBufferData>(cmd.depth_stencil);
-    REI_ASSERT(ds_texture);
-    ds_desc.cpuDescriptor = get_dsv_cpu(ds_texture->get_res());
+    auto ds_buffer = to_buffer(cmd.depth_stencil);
+    REI_ASSERT(ds_buffer && ds_buffer->res.holds<TextureBuffer>());
+    auto& tex = ds_buffer->res.get<TextureBuffer>();
+    ds_desc.cpuDescriptor = get_dsv_cpu(tex.buffer.Get());
     REI_ASSERT(ds_desc.cpuDescriptor.ptr);
     if (cmd.clear_ds) {
       ds_desc.DepthBeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
@@ -479,7 +610,7 @@ void Renderer::end_render_pass() {
 void Renderer::transition(BufferHandle buffer_h, ResourceState state) {
   auto cmd_list = device_resources->prepare_command_list();
 
-  shared_ptr<BufferData> buffer = to_buffer<BufferData>(buffer_h);
+  auto buffer = to_buffer(buffer_h);
   D3D12_RESOURCE_STATES to_state = to_res_state(state);
 
   if (to_state == buffer->state) { return; }
@@ -488,6 +619,14 @@ void Renderer::transition(BufferHandle buffer_h, ResourceState state) {
   cmd_list->ResourceBarrier(1, &barr);
 
   buffer->state = to_state;
+}
+
+void Renderer::barrier(BufferHandle buffer_h) {
+  auto buffer = to_buffer(buffer_h);
+  REI_ASSERT(buffer);
+
+  auto cmd_list = device_resources->prepare_command_list();
+  cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::UAV(buffer->get_res()));
 }
 
 void Renderer::draw(const DrawCommand& cmd) {
@@ -505,9 +644,8 @@ void Renderer::draw(const DrawCommand& cmd) {
   cmd_list->SetGraphicsRootSignature(this_root_sign);
 
   // Check Pipeline state
-  ComPtr<ID3D12PipelineState> this_pso;
-  device_resources->get_pso(*shader, curr_target_spec, this_pso);
-  cmd_list->SetPipelineState(this_pso.Get());
+  ID3D12PipelineState* this_pso = shader->pso.Get();
+  cmd_list->SetPipelineState(this_pso);
 
   // Bind shader arguments
   {
@@ -520,12 +658,32 @@ void Renderer::draw(const DrawCommand& cmd) {
   }
 
   // Set geometry buffer and draw
-  if (cmd.geo) {
-    shared_ptr<MeshData> mesh = to_geometry<MeshData>(cmd.geo);
-    cmd_list->IASetVertexBuffers(0, 1, &mesh->vbv);
-    cmd_list->IASetIndexBuffer(&mesh->ibv);
+  bool has_index = bool(cmd.index_buffer);
+  bool has_vertex = bool(cmd.vertex_buffer);
+  REI_ASSERT(has_index == has_vertex);
+  if (has_vertex) {
+    UINT index_count;
+    {
+      auto buffer = to_buffer(cmd.index_buffer);
+      auto& ib = buffer->res.get<IndexBuffer>();
+      index_count = ib.index_count;
+      D3D12_INDEX_BUFFER_VIEW ibv;
+      ibv.BufferLocation = ib.buffer->GetGPUVirtualAddress();
+      ibv.Format = ib.format;
+      ibv.SizeInBytes = ib.bytesize;
+      cmd_list->IASetIndexBuffer(&ibv);
+    }
+    {
+      auto buffer = to_buffer(cmd.vertex_buffer);
+      auto& vb = buffer->res.get<VertexBuffer>();
+      D3D12_VERTEX_BUFFER_VIEW vbv;
+      vbv.BufferLocation = vb.buffer->GetGPUVirtualAddress();
+      vbv.SizeInBytes = vb.bytesize;
+      vbv.StrideInBytes = vb.stride;
+      cmd_list->IASetVertexBuffers(0, 1, &vbv);
+    }
     // Draw
-    cmd_list->DrawIndexedInstanced(mesh->index_num, 1, 0, 0, 0);
+    cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else {
     // FIXME better shortcut for blit pass
     cmd_list->IASetVertexBuffers(0, 0, NULL);
@@ -534,10 +692,12 @@ void Renderer::draw(const DrawCommand& cmd) {
   }
 }
 
-void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments arguments,
-  BufferHandle shader_table_h, size_t width, size_t height, size_t depth) {
-  auto shader = to_shader<RaytracingShaderData>(raytrace_shader_h);
-  auto shader_table = to_buffer<RaytracingShaderTableData>(shader_table_h);
+void Renderer::raytrace(const RaytraceCommand& cmd) {
+  auto shader = to_shader<RaytracingShaderData>(cmd.raytrace_shader);
+  REI_ASSERT(shader);
+  auto buffer = to_buffer(cmd.shader_table);
+  REI_ASSERT(buffer && buffer->res.holds<ShaderTableBuffer>());
+  auto& shader_table = buffer->res.get<ShaderTableBuffer>();
 
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
@@ -549,8 +709,8 @@ void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments argument
 
   // Bing global resource
   {
-    for (UINT i = 0; i < arguments.size(); i++) {
-      const auto shader_arg = to_argument(arguments[i]);
+    for (UINT i = 0; i < cmd.arguments.size(); i++) {
+      const auto shader_arg = to_argument(cmd.arguments[i]);
       if (shader_arg) {
         cmd_list->SetComputeRootDescriptorTable(i, shader_arg->base_descriptor_gpu);
       }
@@ -559,9 +719,9 @@ void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments argument
 
   // Dispatch
   {
-    auto raygen = shader_table->raygen;
-    auto hitgroup = shader_table->hitgroup;
-    auto miss = shader_table->miss;
+    auto raygen = shader_table.raygen.get();
+    auto hitgroup = shader_table.hitgroup.get();
+    auto miss = shader_table.miss.get();
 
     D3D12_DISPATCH_RAYS_DESC desc = {};
     desc.RayGenerationShaderRecord.StartAddress = raygen->buffer_address();
@@ -572,9 +732,9 @@ void Renderer::raytrace(ShaderHandle raytrace_shader_h, ShaderArguments argument
     desc.HitGroupTable.StartAddress = hitgroup->buffer_address();
     desc.HitGroupTable.SizeInBytes = hitgroup->effective_bytewidth();
     desc.HitGroupTable.StrideInBytes = hitgroup->element_bytewidth();
-    desc.Width = width;
-    desc.Height = height;
-    desc.Depth = depth;
+    desc.Width = UINT(cmd.width);
+    desc.Height = UINT(cmd.height);
+    desc.Depth = UINT(cmd.depth);
     cmd_list->DispatchRays(&desc);
   }
 }
@@ -583,11 +743,13 @@ void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_
   auto device = device_resources->device();
   auto cmd_list = device_resources->prepare_command_list();
 
-  auto src = to_buffer<DefaultBufferData>(src_h);
-  auto dst = to_buffer<DefaultBufferData>(dst_h);
+  auto src = to_buffer(src_h);
+  auto dst = to_buffer(dst_h);
 
-  ID3D12Resource* src_resource = src->buffer.Get();
-  ID3D12Resource* dst_resource = dst->buffer.Get();
+  ID3D12Resource* src_resource = src->get_res();
+  ID3D12Resource* dst_resource = dst->get_res();
+  REI_ASSERT(src_resource);
+  REI_ASSERT(dst_resource);
 
   D3D12_RESOURCE_BARRIER pre_copy[2];
   pre_copy[0] = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -623,13 +785,12 @@ Renderer* Renderer::prepare() {
 }
 
 void Renderer::present(SwapchainHandle handle, bool vsync) {
-  shared_ptr<SwapchainData> swapchain = to_swapchain(handle);
-  auto viewport = swapchain->res;
+  auto swapchain = to_swapchain(handle);
+  REI_ASSERT(swapchain);
 
   // check state
-  UINT curr_idx = swapchain->res->get_current_rt_index();
-  DefaultBufferData& rt_buffer = *swapchain->res->m_rt_buffers[curr_idx];
-  REI_ASSERT(rt_buffer.state == D3D12_RESOURCE_STATE_PRESENT);
+  auto rt_buffer = to_buffer(swapchain->get_curr_render_target());
+  REI_ASSERT(rt_buffer->state == D3D12_RESOURCE_STATE_PRESENT);
 
   // Done any writing
   device_resources->flush_command_list();
@@ -637,11 +798,11 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
   // Present and flip
   // TODO check state of swapchain buffer
   if (vsync) {
-    viewport->swapchain()->Present(1, 0);
+    swapchain->res_object->Present(1, 0);
   } else {
-    viewport->swapchain()->Present(0, 0);
+    swapchain->res_object->Present(0, 0);
   }
-  viewport->flip_backbuffer();
+  swapchain->advance_curr_rt();
 
   // Wait
   // FIXME should not wait
@@ -654,6 +815,9 @@ void Renderer::upload_resources() {
     device_resources->flush_command_list();
     is_uploading_resources = false;
   }
+
+  // Done with the delayed relased resources
+  m_delayed_release.clear();
 }
 
 void Renderer::build_raytracing_pso(const std::wstring& shader_path,
@@ -730,7 +894,7 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_count,
+void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene,
   ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer) {
   auto device = device_resources->dxr_device();
   auto cmd_list = device_resources->prepare_command_list_dxr();
@@ -741,7 +905,7 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
   toplevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
   toplevel_input.Flags
     = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
-  toplevel_input.NumDescs = model_count;
+  toplevel_input.NumDescs = scene.instance_count;
   toplevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
   toplevel_input.pGeometryDescs = NULL; // instance desc in GPU memory; set latter
   device->GetRaytracingAccelerationStructurePrebuildInfo(&toplevel_input, &tl_prebuild);
@@ -759,23 +923,20 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
   ComPtr<ID3D12Resource> instance_buffer;
   {
     // TLAS need the instance descs in GPU
-    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instance_descs {model_count};
-    for (size_t i = 0; i < model_count; i++) {
-      ModelData& model = *(models + i);
-      MeshData* mesh = to_geometry<MeshData>(model.geometry).get();
-
+    std::vector<D3D12_RAYTRACING_INSTANCE_DESC> instance_descs {scene.instance_count};
+    for (size_t i = 0; i < scene.instance_count; i++) {
       const bool is_opaque = true;
 
       // TODO pass tranfrom from model
       D3D12_RAYTRACING_INSTANCE_DESC desc {};
-      fill_tlas_instance_transform(desc.Transform, model.transform, model_trans_target);
-      desc.InstanceID = model.tlas_instance_id;
+      fill_tlas_instance_transform(desc.Transform, scene.transform[i], model_trans_target);
+      desc.InstanceID = scene.instance_id[i];
       desc.InstanceMask = 1;
       desc.InstanceContributionToHitGroupIndex
-        = model.tlas_instance_id * 1; // only one entry per instance
+        = scene.instance_id[i] * 1; // only one entry per instance
       desc.Flags = is_opaque ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE
                              : D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
-      desc.AccelerationStructure = mesh->blas_buffer->GetGPUVirtualAddress();
+      desc.AccelerationStructure = scene.blas[i]->GetGPUVirtualAddress();
 
       instance_descs[i] = desc;
     }
@@ -802,13 +963,14 @@ void Renderer::build_dxr_acceleration_structure(ModelData* models, size_t model_
 
 void Renderer::set_const_buffer(
   BufferHandle handle, size_t index, size_t member, const void* value, size_t width) {
-  shared_ptr<ConstBufferData> buffer = to_buffer<ConstBufferData>(handle);
+  auto buffer = to_buffer(handle);
+  auto& cb = buffer->res.get<ConstBuffer>();
   // validate
-  REI_ASSERT(member < buffer->layout.size());
-  REI_ASSERT(width == get_width(buffer->layout[member]));
+  REI_ASSERT(member < cb.layout.size());
+  REI_ASSERT(width == get_width(cb.layout[member]));
   // update
-  unsigned int local_offset = get_offset(buffer->layout, member);
-  buffer->buffer->update(value, width, index, local_offset);
+  unsigned int local_offset = get_offset(cb.layout, member);
+  cb.buffer->update(value, width, index, local_offset);
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE Renderer::get_rtv_cpu(ID3D12Resource* texture) {

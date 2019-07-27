@@ -31,16 +31,22 @@ public:
   virtual SceneHandle register_scene(SceneConfig conf) override;
   virtual void remove_scene(SceneHandle scene) override {}
 
-  virtual void update_model(SceneHandle scene, const Model& model) override;
-  virtual void add_model(SceneHandle scene, ModelHandle model) override {}
+  virtual void update_model(
+    SceneHandle scene, const Model& model, Scene::ModelUID model_id) override;
+  virtual void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {
+  }
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
+
+  constexpr static size_t max_light_count = 8;
 
 private:
   // FIXME should be material handle
   ShaderHandle m_default_shader;
-  ShaderHandle m_lighting_shader;
+  ShaderHandle m_lighting_shader_base;
+  ShaderHandle m_lighting_shader_add;
 
+  BufferHandle m_per_light_buffer;
   BufferHandle m_per_render_buffer;
 };
 

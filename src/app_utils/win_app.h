@@ -22,6 +22,7 @@ public:
   enum class RenderMode {
     Rasterization,
     RealtimeRaytracing,
+    Hybrid,
   };
 
   struct Config {
@@ -38,8 +39,6 @@ public:
 
   WinApp(Config config);
   virtual ~WinApp();
-
-  [[deprecated]] void setup(Scene&& scene, Camera&& camera);
 
   void run();
 

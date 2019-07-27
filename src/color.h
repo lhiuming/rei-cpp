@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <ostream>
 
+#include "algebra.h"
+
 /*
  * color.h
  * Define how color is stored and computed.
@@ -33,7 +35,10 @@ public:
   constexpr Color(int hex) : Color((hex >> 4) & 0xFF, (hex >> 2) & 0xFF, hex & 0xFF) {}
 
   // Scalar Multiplication. Useful for interpolation
-  Color operator*(float c) { return Color(r * c, g * c, b * c, a * c); }
+  Color operator*(float c) const { return Color(r * c, g * c, b * c, a * c); }
+
+  // Convert to Vec4
+  explicit operator Vec4() const { return {r, g, b, a}; }
 };
 
 // Print out the color

@@ -33,8 +33,8 @@ public:
   virtual SceneHandle register_scene(SceneConfig conf) = 0;
   virtual void remove_scene(SceneHandle scene) = 0;
 
-  virtual void add_model(SceneHandle scene, ModelHandle model) = 0;
-  virtual void update_model(SceneHandle scene, const Model& model) = 0;
+  virtual void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) = 0;
+  virtual void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) = 0;
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) = 0;
 };

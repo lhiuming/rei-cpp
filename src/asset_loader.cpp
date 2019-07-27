@@ -45,7 +45,7 @@ private:
 
   tuple<const aiNode*, Mat4> find_node(const aiNode* root, const string& node_name);
 
-  int collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans);
+  int collect_mesh(const aiNode* node, vector<MeshPtr>& m_models, Mat4 trans);
   Model load_model(const aiNode& node, Mat4 scene_trans);
 
   // Utilities
@@ -187,7 +187,7 @@ tuple<const aiNode*, Mat4> AssimpLoaderImpl::find_node(
 }
 
 // Convert from asMesh to a REI::Mesh, and add to `models` [out]
-int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& models, Mat4 trans) {
+int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& m_models, Mat4 trans) {
   int mesh_count = 0;
 
   // Add the mesh to `models`, with accumulated transform
@@ -196,13 +196,13 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& models, 
     // Convert the aiMesh stored in aiScene
     unsigned int mesh_ind = node->mMeshes[i];
 
-    models.push_back(make_mesh(*(as->mMeshes[mesh_ind]), trans, materials_list));
+    m_models.push_back(make_mesh(*(as->mMeshes[mesh_ind]), trans, materials_list));
     ++mesh_count;
   }
 
   // Continue to collect the child if any
   for (int i = 0; i < node->mNumChildren; ++i)
-    mesh_count += collect_mesh(node->mChildren[i], models, trans);
+    mesh_count += collect_mesh(node->mChildren[i], m_models, trans);
 
   return mesh_count;
 }
@@ -266,7 +266,7 @@ Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   // Material name
   aiString mater_name;
   mater.Get(AI_MATKEY_NAME, mater_name);
-  ret.name = string(mater_name.C_Str());
+  // ret.name = string(mater_name.C_Str());
 
   // Shading model
   int shading_model;
@@ -283,10 +283,13 @@ Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   mater.Get(AI_MATKEY_COLOR_SPECULAR, spec);
   mater.Get(AI_MATKEY_SHININESS, shine);
 
+  REI_NOT_IMPLEMENTED
+  /*
   ret.diffuse = Color(dif.r, dif.g, dif.b);
   ret.ambient = Color(amb.r, amb.g, amb.b);
   ret.specular = Color(spec.r, spec.g, spec.b);
   ret.shineness = shine;
+  */
 
   return ret;
 }

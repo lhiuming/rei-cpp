@@ -14,9 +14,12 @@ struct ViewportData {
   size_t width = 1;
   size_t height = 1;
   SwapchainHandle swapchain;
+  BufferHandle depth_stencil_buffer;
   BufferHandle normal_buffer;
   BufferHandle albedo_buffer;
-  ShaderArgumentHandle shading_pass_argument;
+  ShaderArgumentHandle shading_pass_per_render_arg;
+  // Max 8 light pass
+  FixedVec<ShaderArgumentHandle, DeferredPipeline::max_light_count> shading_pass_per_light_args;
 
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
@@ -25,15 +28,16 @@ struct ViewportData {
 
 struct SceneData {
   // holding for default material
-  BufferHandle objects_const_buf;
+  BufferHandle objects_cb;
   struct ModelData {
-    GeometryHandle geometry;
+    GeometryBuffers geometry;
     // TODO should use an offset in cb instead, rather than a brand-new descriptor
     ShaderArgumentHandle arg;
     size_t cb_index;
     Mat4 trans;
   };
-  Hashmap<ModelHandle, ModelData> models;
+  Hashmap<Scene::GeometryUID, GeometryBuffers> geometries;
+  Hashmap<Scene::ModelUID, ModelData> m_models;
 };
 
 } // namespace deferred
@@ -44,9 +48,9 @@ using SceneProxy = deferred::SceneData;
 struct DeferredBaseMeta : RasterizationShaderMetaInfo {
   DeferredBaseMeta() {
     ShaderParameter space0 {};
-    space0.const_buffers = {ConstBuffer()};
+    space0.const_buffers = {ConstantBuffer()};
     ShaderParameter space1 {};
-    space1.const_buffers = {ConstBuffer()};
+    space1.const_buffers = {ConstantBuffer()};
 
     RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
     RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
@@ -58,9 +62,10 @@ struct DeferredBaseMeta : RasterizationShaderMetaInfo {
 
 struct DeferredShadingMeta : RasterizationShaderMetaInfo {
   DeferredShadingMeta() {
-    ShaderParameter space0 {}; // light data?
+    ShaderParameter space0 {};
+    space0.const_buffers = {ConstantBuffer()};
     ShaderParameter space1 {};
-    space1.const_buffers = {ConstBuffer()};
+    space1.const_buffers = {ConstantBuffer()};
     space1.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource()};
     space1.static_samplers = {StaticSampler()};
     signature.param_table = {space0, space1};
@@ -69,22 +74,41 @@ struct DeferredShadingMeta : RasterizationShaderMetaInfo {
     render_target_descs = {rt_color};
 
     is_depth_stencil_disabled = true;
+    is_blending_addictive = true;
   }
 };
 
 DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(renderer) {
   Renderer* r = get_renderer();
+
   m_default_shader
     = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
-  m_lighting_shader = r->create_shader(
-    L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
-  ConstBufferLayout lo = {
-    ShaderDataType::Float4,   // screen size
-    ShaderDataType::Float4x4, // camera view_proj
-    ShaderDataType::Float4x4, // camera view_proj inverse
-    ShaderDataType::Float4,   // camera pos
+  ShaderCompileConfig lighting_shader_config {};
+  lighting_shader_config.defines = {
+    {"BASE_SHADING", "1"},
   };
-  m_per_render_buffer = r->create_const_buffer(lo, 1);
+  m_lighting_shader_base = r->create_shader(L"CoreData/shader/deferred_shading.hlsl",
+    std::make_unique<DeferredShadingMeta>(), lighting_shader_config);
+  m_lighting_shader_add = r->create_shader(
+    L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
+
+  {
+    ConstBufferLayout lo = {
+      ShaderDataType::Float4,   // screen size
+      ShaderDataType::Float4x4, // camera view_proj
+      ShaderDataType::Float4x4, // camera view_proj inverse
+      ShaderDataType::Float4,   // camera pos
+    };
+    m_per_render_buffer = r->create_const_buffer(lo, 1, L"ShadingPass PerRender CB");
+  }
+
+  {
+    ConstBufferLayout lo = {
+      ShaderDataType::Float4, // light pos/dir
+      ShaderDataType::Float4, // light color
+    };
+    m_per_light_buffer = r->create_const_buffer(lo, max_light_count, L"ShadingPass PerLight CB");
+  }
 }
 
 DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportConfig conf) {
@@ -99,12 +123,22 @@ DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportCon
   proxy.albedo_buffer = r->create_texture_2d(
     conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM, L"Albedo Buffer");
   {
-    auto ds_buf = r->fetch_swapchain_depth_stencil_buffer(proxy.swapchain);
+    TextureDesc ds_desc = TextureDesc::depth_stencil(conf.width, conf.height);
+    proxy.depth_stencil_buffer
+      = r->create_texture_2d(ds_desc, ResourceState::DeptpWrite, L"Depth Stencil");
     ShaderArgumentValue v {};
     v.const_buffers = {m_per_render_buffer};
     v.const_buffer_offsets = {0}; // assume only one viewport
-    v.shader_resources = {ds_buf, proxy.normal_buffer, proxy.albedo_buffer};
-    proxy.shading_pass_argument = r->create_shader_argument(m_lighting_shader, v);
+    v.shader_resources = {proxy.depth_stencil_buffer, proxy.normal_buffer, proxy.albedo_buffer};
+    proxy.shading_pass_per_render_arg = r->create_shader_argument(v);
+  }
+  {
+    ShaderArgumentValue v {};
+    v.const_buffers = {m_per_light_buffer};
+    for (size_t i = 0; i < proxy.shading_pass_per_light_args.max_size; i++) {
+      v.const_buffer_offsets = {i}; // assume only one viewport using the buffer at the same time
+      proxy.shading_pass_per_light_args.push_back(r->create_shader_argument(v));
+    }
   }
 
   return add_viewport(std::move(proxy));
@@ -133,22 +167,28 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
       ShaderDataType::Float4x4, // WVP
       ShaderDataType::Float4x4, // World
     };
-    proxy.objects_const_buf = r->create_const_buffer(cb_lo, model_count);
+    proxy.objects_cb = r->create_const_buffer(cb_lo, model_count, L"Scene-Objects CB");
   }
   {
-    proxy.models.reserve(model_count);
+    for (auto& g : scene->geometries()) {
+      auto geo = r->create_geometry({g});
+      proxy.geometries.insert({scene->get_id(g), geo});
+    }
+  }
+  {
+    proxy.m_models.reserve(model_count);
     ShaderArgumentValue arg_value = {};
     { // init
-      arg_value.const_buffers = {proxy.objects_const_buf};
+      arg_value.const_buffers = {proxy.objects_cb};
       arg_value.const_buffer_offsets = {0};
     }
-    for (size_t i = 0; i < scene->get_models().size(); i++) {
+    for (size_t i = 0; i < model_count; i++) {
       auto model = scene->get_models()[i];
+      auto* geo = proxy.geometries.try_get(scene->get_id(model->get_geometry()));
       arg_value.const_buffer_offsets[0] = i;
-      ShaderArgumentHandle arg = r->create_shader_argument(m_default_shader, arg_value);
-      proxy.models.insert({
-        model->get_rendering_handle(),                                                // key
-        {model->get_geometry()->get_graphic_handle(), arg, i, model->get_transform()} // value
+      ShaderArgumentHandle arg = r->create_shader_argument(arg_value);
+      proxy.m_models.insert({
+        scene->get_id(model), {*geo, arg, i, model->get_transform()} // value
       });
     }
   }
@@ -156,11 +196,11 @@ DeferredPipeline::SceneHandle DeferredPipeline::register_scene(SceneConfig conf)
   return add_scene(std::move(proxy));
 }
 
-void DeferredPipeline::update_model(SceneHandle scene_handle, const Model& model) {
+void DeferredPipeline::update_model(
+  SceneHandle scene_handle, const Model& model, Scene::ModelUID model_id) {
   SceneProxy* scene = get_scene(scene_handle);
   REI_ASSERT(scene);
-  auto* data = scene->models.try_get(model.get_rendering_handle());
-  data->geometry = model.get_geometry()->get_graphic_handle();
+  auto* data = scene->m_models.try_get(model_id);
   data->trans = model.get_transform();
 }
 
@@ -184,25 +224,24 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // Update per-object const buffer
   {
-    for (auto& pair : scene->models) {
+    for (auto& pair : scene->m_models) {
       auto& model = pair.second;
       size_t index = model.cb_index;
       Mat4& m = model.trans;
       Mat4 mvp = viewport->view_proj * m;
-      renderer->update_const_buffer(scene->objects_const_buf, index, 0, mvp);
-      renderer->update_const_buffer(scene->objects_const_buf, index, 1, m);
+      renderer->update_const_buffer(scene->objects_cb, index, 0, mvp);
+      renderer->update_const_buffer(scene->objects_cb, index, 1, m);
     }
   }
 
   // Geometry pass
-  BufferHandle ds_buffer = renderer->fetch_swapchain_depth_stencil_buffer(viewport->swapchain);
   cmd_list->transition(viewport->normal_buffer, ResourceState::RenderTarget);
   cmd_list->transition(viewport->albedo_buffer, ResourceState::RenderTarget);
-  cmd_list->transition(ds_buffer, ResourceState::DeptpWrite);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::DeptpWrite);
   RenderPassCommand gpass = {};
   {
     gpass.render_targets = {viewport->normal_buffer, viewport->albedo_buffer};
-    gpass.depth_stencil = ds_buffer;
+    gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
     gpass.area = {viewport->width, viewport->height};
@@ -211,9 +250,10 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   {
     DrawCommand draw_cmd = {};
     draw_cmd.shader = m_default_shader;
-    for (auto pair : scene->models) {
+    for (auto pair : scene->m_models) {
       auto& model = pair.second;
-      draw_cmd.geo = model.geometry;
+      draw_cmd.index_buffer = model.geometry.index_buffer;
+      draw_cmd.vertex_buffer = model.geometry.vertex_buffer;
       draw_cmd.shader = m_default_shader;
       draw_cmd.arguments = {model.arg};
       cmd_list->draw(draw_cmd);
@@ -226,7 +266,7 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->transition(render_target, ResourceState::RenderTarget);
   cmd_list->transition(viewport->normal_buffer, ResourceState::PixelShaderResource);
   cmd_list->transition(viewport->albedo_buffer, ResourceState::PixelShaderResource);
-  cmd_list->transition(ds_buffer, ResourceState::PixelShaderResource);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::PixelShaderResource);
   RenderPassCommand shading_pass = {};
   {
     shading_pass.render_targets = {render_target};
@@ -236,11 +276,16 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     shading_pass.area = {viewport->width, viewport->height};
   }
   cmd_list->begin_render_pass(shading_pass);
-  {
+  std::vector<Vec4> light_pos = {{0.5, 0.6, 0.9, 0}, {0.5, 0.6, 0.8, 0}};
+  for (int light_i = 0; light_i < 2; light_i++) {
+    // Run a screen-pass for each light
+    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 0, light_pos[light_i]);      // pos
+    cmd_list->update_const_buffer(m_per_light_buffer, light_i, 1, Vec4(0.7, 0.65, 0.6, 0)); // color
+
     DrawCommand cmd = {};
-    cmd.geo = c_empty_handle;
-    cmd.shader = m_lighting_shader;
-    cmd.arguments = {viewport->shading_pass_argument};
+    cmd.shader = (light_i == 0) ? m_lighting_shader_base : m_lighting_shader_add;
+    cmd.arguments
+      = {viewport->shading_pass_per_light_args[light_i], viewport->shading_pass_per_render_arg};
     cmd_list->draw(cmd);
   }
   cmd_list->end_render_pass();

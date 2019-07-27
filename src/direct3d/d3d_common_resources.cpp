@@ -1,6 +1,8 @@
 #if DIRECT3D_ENABLED
 #include "d3d_common_resources.h"
 
+#include <typeinfo>
+
 namespace rei {
 
 namespace d3d {
@@ -33,6 +35,18 @@ const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
       sizeof(VertexElement::pos)
         + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+
+ID3D12Resource* BufferData::get_res() {
+  return res.match( //
+    [](const TextureBuffer& tex) { return tex.buffer.Get(); },
+    [](const BlasBuffer& blas) { return blas.buffer.Get(); },
+    [](const auto& b) {
+      REI_NOT_IMPLEMENT();
+      const std::type_info& i = typeid(b);
+      warning(i.name());
+      return (ID3D12Resource*)NULL;
+    });
+}
 
 } // namespace d3d
 

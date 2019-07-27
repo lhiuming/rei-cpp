@@ -1,5 +1,7 @@
 #include "rt_path_tracing.h"
 
+#include <vector>
+
 #include "../direct3d/d3d_renderer.h"
 
 using std::make_shared;
@@ -13,7 +15,7 @@ namespace rei {
 struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
   PathTracingShaderMeta() {
     ShaderParameter space0 = {};
-    space0.const_buffers = {ConstBuffer()};
+    space0.const_buffers = {ConstantBuffer()};
     space0.shader_resources = {ShaderResource()};
     space0.unordered_accesses = {UnorderedAccess()};
 
@@ -53,9 +55,9 @@ struct SceneData {
   // Raytracing resources
   BufferHandle tlas_buffer;
   BufferHandle shader_table;
-  // Model proxies
-  // std::vector<MaterialHandle> dirty_materials;
-  std::vector<ModelHandle> dirty_models;
+  Hashmap<Scene::ModelUID, GeometryBuffers> geometry_buffers;
+  // NOTE: index by instance id
+  std::vector<ShaderArgumentHandle> shader_table_args;
 };
 } // namespace rtpt
 
@@ -113,25 +115,42 @@ RealtimePathTracingPipeline::SceneHandle RealtimePathTracingPipeline::register_s
   auto renderer = get_renderer();
   auto scene = make_shared<SceneData>();
 
-  // We need Top-Level Acceleration Structure and shader table, about the whole scene
-  scene->tlas_buffer = renderer->create_raytracing_accel_struct(*conf.scene);
-  scene->shader_table = renderer->create_shader_table(*conf.scene, pathtracing_shader);
-
-  // set up model properties in the scene
-  for (auto& m : conf.scene->get_models()) {
-    scene->dirty_models.push_back(m->get_rendering_handle());
+  // create mesh buffesr
+  {
+    for (auto& g : conf.scene->geometries()) {
+      GeometryBuffers gb = renderer->create_geometry({g});
+      scene->geometry_buffers.insert({conf.scene->get_id(g), gb});
+    }
   }
+
+  // create shader table arguments
+  {
+    ShaderArgumentValue arg_val {};
+    for (auto& m : conf.scene->get_models()) {
+      auto* geo = scene->geometry_buffers.try_get(conf.scene->get_id(m->get_geometry()));
+      arg_val.shader_resources = {geo->index_buffer, geo->vertex_buffer};
+      ShaderArgumentHandle h = renderer->create_shader_argument(arg_val);
+      scene->shader_table_args.emplace_back(std::move(h));
+    }
+  }
+
+  // We need Top-Level Acceleration Structure and shader table, about the whole scene
+  {
+    RaytraceSceneDesc desc;
+    size_t inst_id_next = 0;
+    for (auto& m : conf.scene->get_models()) {
+      auto* geo = scene->geometry_buffers.try_get(conf.scene->get_id(m->get_geometry()));
+      desc.blas_buffer.push_back(geo->blas_buffer);
+      desc.transform.push_back(m->get_transform());
+      desc.instance_id.push_back(inst_id_next++);
+    }
+    scene->tlas_buffer = renderer->create_raytracing_accel_struct(std::move(desc));
+  }
+  scene->shader_table = renderer->create_shader_table(*conf.scene, pathtracing_shader);
 
   auto handle = SceneHandle(scene.get());
   scenes.insert({handle, scene});
   return handle;
-}
-
-void RealtimePathTracingPipeline::add_model(SceneHandle scene_h, ModelHandle model) {
-  SceneData* scene = get_scene(scene_h);
-  REI_ASSERT(scene);
-  auto renderer = get_renderer();
-  scene->dirty_models.push_back(model);
 }
 
 void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHandle scene_handle) {
@@ -157,10 +176,14 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
 
   // Update shader Tables
   {
-    for (ModelHandle model : scene->dirty_models) {
-      cmd_list->update_hitgroup_shader_record(scene->shader_table, model);
+    UpdateShaderTable update = UpdateShaderTable::hitgroup();
+    update.shader = pathtracing_shader;
+    update.shader_table = scene->shader_table;
+    for (int index = 0; index < scene->shader_table_args.size(); index++) {
+      update.index = index;
+      update.arguments = {scene->shader_table_args[index]};
+      cmd_list->update_shader_table(update);
     }
-    scene->dirty_models.clear();
   }
 
   // Dispatch ray and write to raytracing output
@@ -172,7 +195,7 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
       args.const_buffer_offsets = {0};
       args.shader_resources = {scene->tlas_buffer};
       args.unordered_accesses = {viewport->raytracing_output_buffer};
-      pathtracing_argument = renderer->create_shader_argument(pathtracing_shader, args);
+      pathtracing_argument = renderer->create_shader_argument(args);
     }
 
     cmd_list->raytrace(pathtracing_shader, {pathtracing_argument}, scene->shader_table,

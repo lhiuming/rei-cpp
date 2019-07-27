@@ -27,6 +27,8 @@ public:
   using C::value_type;
   // TODO iterator
 
+  static constexpr size_type max_size = N;
+
   class const_iterator { // iterator for nonmutable array
     using Self = const_iterator;
 
@@ -134,7 +136,6 @@ public:
   }
 
   size_type size() const { return m_size; }
-  constexpr size_type max_size() const { return N; }
 
   using Base::data;
 
@@ -143,14 +144,18 @@ private:
 };
 
 // TODO fast hashmap
-template <typename TKey, typename TVal>
-class Hashmap : public std::unordered_map<TKey, TVal> {
+template <typename TKey, typename TVal, typename Hasher = std::hash<TKey>>
+class Hashmap : public std::unordered_map<TKey, TVal, Hasher> {
 public:
-  TVal* try_get(TKey key) {
+  bool has(const TKey& key) const { return find(key) != end(); }
+
+  TVal* try_get(const TKey& key) {
     auto found = this->find(key);
     if (found != this->end()) { return &(found->second); }
     return nullptr;
   }
+
+  const TVal* try_get(const TKey& key) const { return const_cast<Hashmap*>(this)->try_get(key); }
 };
 
 } // namespace rei

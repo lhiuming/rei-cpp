@@ -33,6 +33,7 @@ enum class ResourceDimension {
 };
 
 enum class ResourceState {
+  Undefined,
   Present,
   RenderTarget,
   DeptpWrite,
@@ -66,15 +67,6 @@ struct BaseShaderArgument : GraphicData {
   using GraphicData::GraphicData;
 };
 
-struct BaseModelData : GraphicData {
-  using GraphicData::GraphicData;
-  Mat4 transform;
-};
-
-struct BaseGeometryData : GraphicData {
-  using GraphicData::GraphicData;
-};
-
 // TODO remove this
 using ScreenTransformHandle = std::shared_ptr<BaseScreenTransformData>;
 using SwapchainHandle = std::shared_ptr<BaseSwapchainData>;
@@ -82,9 +74,6 @@ using BufferHandle = std::shared_ptr<BaseBufferData>;
 using ShaderArgumentHandle = std::shared_ptr<BaseShaderArgument>;
 
 using ShaderHandle = std::shared_ptr<BaseShaderData>;
-using GeometryHandle = std::shared_ptr<BaseGeometryData>;
-// TODO remove this
-using ModelHandle = std::shared_ptr<BaseModelData>;
 
 inline static constexpr decltype(nullptr) c_empty_handle = nullptr;
 

@@ -87,7 +87,15 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
 
-void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileResult& result) {
+void DeviceResources::compile_shader(
+  const wstring& shader_path, const ShaderCompileConfig& conf, ShaderCompileResult& result) {
+  FixedVec<D3D_SHADER_MACRO, conf.defines.max_size + 1> shader_defines {};
+  for (auto& d : conf.defines) {
+    D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
+    shader_defines.push_back(m);
+  }
+  shader_defines.push_back({NULL, NULL});
+
   // routine for bytecode compilation
   auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
     UINT compile_flags = 0;
@@ -97,9 +105,8 @@ void DeviceResources::compile_shader(const wstring& shader_path, ShaderCompileRe
     ComPtr<ID3DBlob> return_bytecode;
     ComPtr<ID3DBlob> error_msg;
 
-    D3D_SHADER_MACRO* shader_defines = NULL;
     HRESULT hr = D3DCompileFromFile(shader_path.c_str(), // shader file path
-      shader_defines,                                    // preprocessors
+      shader_defines.data(),                             // preprocessors
       D3D_COMPILE_STANDARD_FILE_INCLUDE,                 // "include file with relative path"
       entrypoint.c_str(),                                // e.g. "VS" or "PS" or "main" or others
       target.c_str(),                                    // "vs_5_0" or "ps_5_0" or similar
@@ -164,22 +171,13 @@ void DeviceResources::create_root_signature(
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void DeviceResources::get_pso(const RasterizationShaderData& shader,
-  const RenderTargetSpec& target_spec, ComPtr<ID3D12PipelineState>& pso) {
+void DeviceResources::create_pso(const RasterizationShaderData& shader,
+  const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso) {
   // inputs
-  const ShaderCompileResult& compiled = shader.compiled_data;
   ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
   ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
   const RasterizationShaderMetaDesc& meta = shader.meta;
   ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
-
-  // Try to retried from cache
-  const PSOKey cache_key {root_sign.Get(), target_spec};
-  auto cached_entry = pso_cache.find(cache_key);
-  if (cached_entry != pso_cache.end()) {
-    pso = cached_entry->second;
-    return;
-  }
 
   REI_ASSERT(vs_bytecode);
   REI_ASSERT(ps_bytecode);
@@ -205,7 +203,7 @@ void DeviceResources::get_pso(const RasterizationShaderData& shader,
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
     desc.DSVFormat = meta.get_dsv_format();
-    desc.SampleDesc = target_spec.sample_desc;
+    desc.SampleDesc = DXGI_SAMPLE_DESC {1, 0};
     desc.NodeMask = 0; // single GPU
     desc.CachedPSO.pCachedBlob
       = nullptr; // TODO cache in disk; see
@@ -219,11 +217,9 @@ void DeviceResources::get_pso(const RasterizationShaderData& shader,
   };
 
   pso = create();
-  auto inserted = pso_cache.insert({cache_key, pso});
-  REI_ASSERT(inserted.second);
 }
 
-void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
+void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res) {
   // Collect the source data
   // TODO pool this vectors
   vector<VertexElement> vertices;
@@ -249,69 +245,24 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
   ComPtr<ID3D12Resource> vert_upload_buffer
     = upload_to_default_buffer(device, cmd_list, p_vertices, vert_bytesize, vert_buffer.Get());
 
-  // make a view for vertice buffer, for later use
-  D3D12_VERTEX_BUFFER_VIEW vbv;
-  vbv.BufferLocation = vert_buffer->GetGPUVirtualAddress();
-  vbv.StrideInBytes = sizeof(VertexElement);
-  vbv.SizeInBytes = vert_bytesize;
-
   // Create indices buffer and update data
   ComPtr<ID3D12Resource> ind_buffer = create_default_buffer(device, ind_bytesize);
   ComPtr<ID3D12Resource> ind_upload_buffer
     = upload_to_default_buffer(device, cmd_list, p_indices, ind_bytesize, ind_buffer.Get());
 
-  // make a view for indicew buffer, for later use
-  D3D12_INDEX_BUFFER_VIEW ibv;
-  ibv.BufferLocation = ind_buffer->GetGPUVirtualAddress();
-  ibv.Format = c_index_format;
-  ibv.SizeInBytes = ind_bytesize;
-
   // populate the result
-  mesh_res.vert_buffer = vert_buffer;
-  mesh_res.vert_upload_buffer = vert_upload_buffer;
-  mesh_res.vbv = vbv;
-  mesh_res.vertex_num = vertices.size();
-  mesh_res.ind_buffer = ind_buffer;
-  mesh_res.ind_upload_buffer = ind_upload_buffer;
-  mesh_res.ibv = ibv;
-  mesh_res.index_num = indices.size();
+  res.vert_buffer = vert_buffer;
+  res.vert_upload_buffer = vert_upload_buffer;
+  res.vertex_num = vertices.size();
+
+  res.ind_buffer = ind_buffer;
+  res.ind_upload_buffer = ind_upload_buffer;
+  res.index_num = indices.size();
 
   if (is_dxr_enabled) {
-    // Using srv to allow hit-group shader acessing the geometry attributes
-    CD3DX12_GPU_DESCRIPTOR_HANDLE vertex_srv_gpu;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE vertex_srv_cpu;
-    CD3DX12_GPU_DESCRIPTOR_HANDLE index_srv_gpu;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE index_srv_cpu;
-
-    // index first
-    auto i_index = m_cbv_srv_heap.alloc(&index_srv_cpu, &index_srv_gpu);
-    auto v_index = m_cbv_srv_heap.alloc(&vertex_srv_cpu, &vertex_srv_gpu);
-    REI_ASSERT(v_index = i_index + 1);
-
     D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
     common_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
     common_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-    // vertex srv
-    {
-      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
-      desc.Format = DXGI_FORMAT_UNKNOWN;
-      desc.Buffer.NumElements = vert_bytesize / sizeof(VertexElement);
-      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-      desc.Buffer.StructureByteStride = vbv.StrideInBytes;
-      device->CreateShaderResourceView(vert_buffer.Get(), &desc, vertex_srv_cpu);
-    }
-
-    // index src
-    {
-      // FIXME why the sample do it this way; should be okay to just use a ConstantBuffer<uint>
-      D3D12_SHADER_RESOURCE_VIEW_DESC desc = common_desc;
-      desc.Format = DXGI_FORMAT_R32_TYPELESS;
-      desc.Buffer.NumElements = ind_bytesize / sizeof(int32_t); // pack to R32
-      desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-      desc.Buffer.StructureByteStride = 0;
-      device->CreateShaderResourceView(ind_buffer.Get(), &desc, index_srv_cpu);
-    }
 
     // Build BLAS for this mesh
     ComPtr<ID3D12Resource> blas_buffer;
@@ -331,7 +282,7 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
       geo_desc.Triangles.VertexCount = vertices.size();
       geo_desc.Triangles.IndexBuffer = ind_buffer->GetGPUVirtualAddress();
       geo_desc.Triangles.VertexBuffer.StartAddress = vert_buffer->GetGPUVirtualAddress();
-      geo_desc.Triangles.VertexBuffer.StrideInBytes = vbv.StrideInBytes;
+      geo_desc.Triangles.VertexBuffer.StrideInBytes = sizeof(VertexElement);
       if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
 
       const UINT c_mesh_count = 1;
@@ -369,13 +320,8 @@ void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshData& mesh_res) {
     }
 
     // populate the result
-    mesh_res.vert_srv_cpu = vertex_srv_cpu;
-    mesh_res.vert_srv_gpu = vertex_srv_gpu;
-    mesh_res.ind_srv_cpu = index_srv_cpu;
-    mesh_res.ind_srv_gpu = index_srv_gpu;
-
-    mesh_res.blas_buffer = blas_buffer;
-    mesh_res.scratch_buffer = scratch_buffer;
+    res.blas_buffer = blas_buffer;
+    res.scratch_buffer = scratch_buffer;
   }
 }
 

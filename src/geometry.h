@@ -19,9 +19,6 @@ public:
 
   Geometry(Geometry&& other) = default;
 
-  virtual GeometryHandle get_graphic_handle() const = 0;
-  virtual void set_graphic_handle(const GeometryHandle& h) = 0;
-
   // Debug info
   virtual std::wstring summary() const { return L"<Base Geomtry>"; }
   friend std::wostream& operator<<(std::wostream& os, const Geometry& g) {
@@ -88,9 +85,6 @@ public:
   bool vertices_num() const { return m_vertices.size(); }
   bool triangle_num() const { return m_triangles.size(); }
 
-  GeometryHandle get_graphic_handle() const override { return rendering_handle; }
-  void set_graphic_handle(const GeometryHandle& h) override { rendering_handle = h; }
-
   // Debug info
   std::wstring summary() const override;
 
@@ -107,8 +101,6 @@ public:
 private:
   std::vector<Vertex> m_vertices;
   std::vector<Triangle> m_triangles;
-
-  GeometryHandle rendering_handle;
 };
 
 typedef std::shared_ptr<Mesh> MeshPtr;

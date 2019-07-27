@@ -2,29 +2,12 @@
 #define REI_INTPUT_H
 
 #include <array>
-#include <optional>
-#include <type_traits>
-#include <variant>
 #include <vector>
 
 #include "algebra.h"
+#include "variant_utils.h"
 
 namespace rei {
-
-// Utility for variant
-// TODO maybe move to somewhere like type_utils.h or enum.h
-template <typename T>
-struct tag {};
-
-template <typename T, typename V>
-struct alternative_index; // not defined
-
-template <typename T, typename... Ts>
-struct alternative_index<T, std::variant<Ts...> >
-    : std::integral_constant<std::size_t, std::variant<tag<Ts>...>(tag<T>()).index()> {};
-
-template <typename T, typename... Ts>
-inline constexpr std::size_t alternative_index_v = alternative_index<T, Ts...>::value;
 
 struct _CursorPointData {
   Vec3 coord;
@@ -60,7 +43,7 @@ struct Zoom {
 };
 
 // clang-format off
-typedef std::variant<
+typedef Var<
   CursorPress
   , CursorRelease
   , CursorMove
@@ -71,14 +54,6 @@ typedef std::variant<
 
 // Type-safe input data
 struct Input : InputVariant {
-  using Index = std::size_t;
-  static constexpr std::size_t variant_size = std::variant_size_v<InputVariant>;
-
-  template <typename T>
-  static inline constexpr Index get_index() {
-    return alternative_index_v<T, InputVariant>;
-  }
-
   template <typename T>
   inline constexpr const T* get() const {
     return std::get_if<T>(this);
@@ -103,7 +78,7 @@ public:
 
   template <typename T>
   const InputBucket& get() const {
-    Input::Index index = Input::get_index<T>();
+    size_t index = Input::get_index<T>();
     return inputs[index];
   }
 

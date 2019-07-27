@@ -35,8 +35,11 @@ WinApp::WinApp(Config config) : config(config) {
         m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
         break;
       case RenderMode::RealtimeRaytracing:
-      default:
         m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
+        break;
+      case RenderMode::Hybrid:
+      default:
+        m_pipeline = make_shared<HybridPipeline>(d3d_renderer);
         break;
     }
   }
@@ -63,38 +66,10 @@ WinApp::~WinApp() {
   log("WinApp terminated.");
 }
 
-void WinApp::setup(Scene&& scene, Camera&& camera) {
-  if (is_started) {
-    REI_WARNING("App setup is called after started");
-    return;
-  }
-  initialize_scene();
-}
-
 void WinApp::initialize_scene() {
-  for (ModelPtr& m : this->m_scene->get_models()) {
-    REI_ASSERT(m);
-
-    // register geometry
-    GeometryPtr geo = m->get_geometry();
-    if (geo && geo->get_graphic_handle() == nullptr) {
-      GeometryHandle g_handle = m_renderer->create_geometry(*geo);
-      geo->set_graphic_handle(g_handle);
-    }
-
-    // register material&shader
-    // MaterialPtr mat = m->get_material();
-    // if (mat && mat->get_graphic_handle() == nullptr) { REI_NOT_IMPLEMENTED }
-
-    ModelHandle h_model = m_renderer->create_model(*m);
-    m->set_rendering_handle(h_model);
-  }
-
-  {
-    SceneConfig conf {};
-    conf.scene = m_scene.get();
-    m_scene_h = m_pipeline->register_scene(conf);
-  }
+  SceneConfig conf {};
+  conf.scene = m_scene.get();
+  m_scene_h = m_pipeline->register_scene(conf);
 }
 
 void WinApp::start() {
@@ -201,7 +176,7 @@ void WinApp::on_render() {
   // update model transform
   for (ModelPtr& m : m_scene->get_models()) {
     // TODO may be we need some transform mark-dirty mechanics?
-    m_pipeline->update_model(m_scene_h, *m);
+    m_pipeline->update_model(m_scene_h, *m, m_scene->get_id(m));
   }
   // render
   m_pipeline->render(m_viewport_h, m_scene_h);

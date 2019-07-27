@@ -8,8 +8,6 @@
 
 #include "algebra.h"
 #include "camera.h"
-#include "light.h"
-#include "model.h"
 #include "scene.h"
 
 /**
@@ -26,7 +24,7 @@ namespace rei {
 using MeshPtr = std::shared_ptr<Mesh>;
 using ScenePtr = std::shared_ptr<Scene>;
 using CameraPtr = std::shared_ptr<Camera>;
-using LightPtr = std::shared_ptr<Light>;
+using LightPtr = std::shared_ptr<void>;
 
 // Forward declaration for the implemetation class
 class AssimpLoaderImpl;
