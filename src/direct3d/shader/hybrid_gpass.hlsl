@@ -25,6 +25,7 @@ struct RasterAttr {
 struct GBufferPixel {
   float4 normal_smoothness : SV_TARGET0;
   float4 albedo_metalness: SV_TARGET1;
+  float4 emissive : SV_TARGET2;
 };
 
 RasterAttr VS(VertexData vert) {
@@ -42,8 +43,9 @@ RasterAttr VS(VertexData vert) {
 GBufferPixel PS(RasterAttr input) {
   GBufferPixel rt;
   rt.normal_smoothness.xyz = normalize(input.w_normal);
-  rt.normal_smoothness.w = g_per_material.smoothness_metalness_zw.x;
-  rt.albedo_metalness.xyz = g_per_material.albedo;
-  rt.albedo_metalness.w = g_per_material.smoothness_metalness_zw.y;
+  rt.normal_smoothness.w = get_smoothness(g_per_material);
+  rt.albedo_metalness.xyz = get_albedo(g_per_material);
+  rt.albedo_metalness.w = get_metalness(g_per_material);
+  rt.emissive.x = get_emissive(g_per_material);
   return rt;
 }

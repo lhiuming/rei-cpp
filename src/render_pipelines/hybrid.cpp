@@ -18,6 +18,7 @@ struct ViewportProxy {
   BufferHandle depth_stencil_buffer;
   BufferHandle normal_buffer;
   BufferHandle albedo_buffer;
+  BufferHandle emissive_buffer;
 
   BufferHandle raytracing_output_buffer;
 
@@ -34,9 +35,13 @@ struct SceneProxy {
   BufferHandle materials_cb;
   struct MaterialData {
     ShaderArgumentHandle arg;
-    Vec4 albedo;
-    Vec4 smoothness_metalness_zw;
+    Vec4 parset0;
+    Vec4 parset1;
     size_t cb_index;
+    Vec4& albedo() { return parset0; }
+    double& smoothness() { return parset1.x; }
+    double& metalness() { return parset1.y; }
+    double& emissive() { return parset1.z; }
   };
   struct ModelData {
     GeometryBuffers geo_buffers;
@@ -74,7 +79,8 @@ struct HybridGPassShaderDesc : RasterizationShaderMetaInfo {
 
     RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
     RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
-    render_target_descs = {rt_normal, rt_albedo};
+    RenderTargetDesc rt_emissive {ResourceFormat::R32G32B32A32_FLOAT};
+    render_target_descs = {rt_normal, rt_albedo, rt_emissive};
 
     signature.param_table = {space0, space1};
   }
@@ -85,7 +91,7 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
     ShaderParameter space0 {};
     space0.const_buffers = {ConstantBuffer()}; // Per-render CN
     space0.shader_resources = {
-      ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
+      ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
     space0.unordered_accesses = {UnorderedAccess()};                           // output buffer
     global_signature.param_table = {space0};
 
@@ -159,6 +165,9 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.albedo_buffer = r->create_texture_2d(
     TextureDesc::render_target(conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM),
     ResourceState::RenderTarget, L"Albedo Buffer");
+  proxy.emissive_buffer = r->create_texture_2d(
+    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::RenderTarget, L"Emissive Buffer");
 
   proxy.raytracing_output_buffer = r->create_unordered_access_buffer_2d(
     conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Raytracing Output Buffer");
@@ -221,9 +230,10 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
       SceneProxy::MaterialData data {};
       data.arg = mat_arg;
       data.cb_index = index;
-      data.albedo = Vec4(mat->get<Color>(L"albedo").value_or(Colors::magenta));
-      data.smoothness_metalness_zw.x = mat->get<double>(L"smoothness").value_or(0);
-      data.smoothness_metalness_zw.y = mat->get<double>(L"metalness").value_or(0);
+      data.albedo() = Vec4(mat->get<Color>(L"albedo").value_or(Colors::magenta));
+      data.smoothness() = mat->get<double>(L"smoothness").value_or(0);
+      data.metalness() = mat->get<double>(L"metalness").value_or(0);
+      data.emissive() = mat->get<double>(L"emissive").value_or(0);
       proxy.materials.insert({conf.scene->get_id(mat), data});
       index++;
     }
@@ -315,9 +325,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   {
     for (auto& pair : scene->materials) {
       auto& mat = pair.second;
-      renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 0, mat.albedo);
-      renderer->update_const_buffer(
-        scene->materials_cb, mat.cb_index, 1, mat.smoothness_metalness_zw);
+      renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 0, mat.parset0);
+      renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 1, mat.parset1);
     }
   }
 
@@ -336,10 +345,11 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // Geometry pass
   cmd_list->transition(viewport->normal_buffer, ResourceState::RenderTarget);
   cmd_list->transition(viewport->albedo_buffer, ResourceState::RenderTarget);
+  cmd_list->transition(viewport->emissive_buffer, ResourceState::RenderTarget);
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::DeptpWrite);
   RenderPassCommand gpass = {};
   {
-    gpass.render_targets = {viewport->normal_buffer, viewport->albedo_buffer};
+    gpass.render_targets = {viewport->normal_buffer, viewport->albedo_buffer, viewport->emissive_buffer};
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
@@ -410,6 +420,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->transition(render_target, ResourceState::RenderTarget);
     cmd_list->transition(viewport->normal_buffer, ResourceState::PixelShaderResource);
     cmd_list->transition(viewport->albedo_buffer, ResourceState::PixelShaderResource);
+    cmd_list->transition(viewport->emissive_buffer, ResourceState::PixelShaderResource);
     cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::PixelShaderResource);
     RenderPassCommand shading_pass = {};
     {
@@ -455,6 +466,7 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
     viewport->depth_stencil_buffer, // t1 G-buffer depth
     viewport->normal_buffer,        // t2 G-Buffer::normal
     viewport->albedo_buffer,        // t3 G-Buffer::albedo
+    viewport->emissive_buffer,      // t4 G-Buffer::emissive
   };
   val.unordered_accesses = {viewport->raytracing_output_buffer};
   ShaderArgumentHandle arg = r->create_shader_argument(val);
