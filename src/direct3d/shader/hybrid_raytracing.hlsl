@@ -143,7 +143,7 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   float3 accumulated = float3(0, 0, 0);
   float weight_sum = c_epsilon;
 
-  const uint c_sample = min(16, c_halton_max_sample_2d);
+  const uint c_sample = min(8, c_halton_max_sample_2d);
   BRDFSample samp;
   RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
   for (int i = 0; i < c_sample; i++) {

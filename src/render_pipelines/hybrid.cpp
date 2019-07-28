@@ -33,14 +33,43 @@ struct ViewportProxy {
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
   byte frame_id = 0;
+  bool view_proj_dirty = true;
 
-  void advance_frame() { 
+  void advance_frame() {
     frame_id++;
     if (frame_id == 0) frame_id += 2;
+    // reset dirty mark
+    view_proj_dirty = false;
   }
+
   ShaderArgumentHandle taa_curr_arg () { return taa_argument[frame_id % 2]; }
   BufferHandle taa_curr_input() { return taa_buffer[frame_id % 2]; }
   BufferHandle taa_curr_output() { return taa_buffer[(frame_id + 1) % 2]; }
+
+  template<int Base>
+  static float halton(int index) {
+    float a = 0;
+    float inv_base = 1.0f / float(Base);
+    for (float mult = inv_base; index != 0; index /= Base, mult *= inv_base) {
+      a += float(index % Base) * mult;
+    }
+    return a;
+  }
+
+  const Mat4& get_view_proj(bool jiterred) {
+    if (jiterred) {
+      float rndx = halton<2>(frame_id);
+      float rndy = halton<3>(frame_id);
+      const Mat4 subpixel_jitter {
+        1, 0, 0, (rndx * 2 - 1) / double(width),  //
+        0, 1, 0, (rndy * 2 - 1) / double(height), //
+        0, 0, 1, 0,                               //
+        0, 0, 0, 1                                //
+      };
+      return subpixel_jitter * view_proj;
+    }
+    return view_proj;
+  }
 };
 
 struct SceneProxy {
@@ -251,8 +280,13 @@ void HybridPipeline::transform_viewport(ViewportHandle handle, const Camera& cam
   REI_ASSERT(r);
 
   viewport->cam_pos = camera.position();
-  viewport->view_proj = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
-  viewport->view_proj_inv = viewport->view_proj.inv();
+  Mat4 new_vp = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
+  Mat4 diff_mat = new_vp - viewport->view_proj;
+  if (!m_enabled_accumulated_rtrt || diff_mat.norm2() > 0) {
+    viewport->view_proj_dirty = true;
+    viewport->view_proj = new_vp;
+    viewport->view_proj_inv = new_vp.inv();
+  }
 }
 
 HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
@@ -376,6 +410,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   Renderer* const renderer = get_renderer();
   const auto cmd_list = renderer->prepare();
 
+  // render info
+  Mat4 view_proj = viewport->get_view_proj(viewport->view_proj_dirty && m_enable_jittering);
+  double taa_blend_factor = viewport->view_proj_dirty ? 1.0 : (m_enabled_accumulated_rtrt ? 0.01 : 0.5);
+
   // Update scene-wide const buffer (per-frame CB)
   {
     Vec4 screen = Vec4(viewport->width, viewport->height, 0, 0);
@@ -401,7 +439,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       auto& model = pair.second;
       size_t index = model.cb_index;
       Mat4& m = model.trans;
-      Mat4 mvp = viewport->view_proj * m;
+      Mat4 mvp = view_proj * m;
       renderer->update_const_buffer(scene->objects_cb, index, 0, mvp);
       renderer->update_const_buffer(scene->objects_cb, index, 1, m);
     }
@@ -466,8 +504,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // TAA on Raytracing output
   {
-    Vec4 render_info {double(viewport->frame_id), -1, -1, -1};
-    cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, render_info);
+    Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
+    cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
   }
   cmd_list->transition(
     viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
