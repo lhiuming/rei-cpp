@@ -50,7 +50,7 @@ void RayTracingApp::on_start() {
   auto super_light = make_shared<Material>(L"Super-Bright Light");
   {
     super_light->set(L"albedo", Colors::white);
-    super_light->set(L"emissive", 50);
+    super_light->set(L"emissive", 25);
   }
 
   auto cube = std::make_shared<Mesh>(Mesh::procudure_cube());
@@ -61,7 +61,7 @@ void RayTracingApp::on_start() {
   scene().add_model(Mat4::translate({1.4, 1.1, 0}), cube, dark_wood, L"cube");
   scene().add_model(Mat4::translate({-1.2, 1.1, 0}), sphere, yellow_plastic, L"sphere");
   scene().add_model(Mat4::translate({0, 1, -3}), sphere, bright_light, L"light sphere");
-  scene().add_model(Mat4::translate({3, 2, 2}), dot, super_light, L"light blob");
+  scene().add_model(Mat4::translate({3, 2.5, 2}), dot, super_light, L"light blob");
 }
 
 void RayTracingApp::on_update() {
