@@ -23,7 +23,7 @@ Texture2D<float4> g_albedo : register(t3, space0);
 Texture2D<float4> g_emissive: register(t4, space0);
 
 // Per-render CB
-ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
+ConstantBuffer<PerRenderConstBuffer> g_render : register(b0, space0);
 
 // Local: Hit Group //
 
@@ -121,9 +121,9 @@ void sample_blinn_phong_brdf(Surface surf, float3 wo, float rnd0, float rnd1, ou
   // evaluate brdf weight: lambertian constant lobe + blinn-phong tilted lobe
   float3 h = normalize(ret.wi + wo);
   float smoothness = remap_smoothness(surf.smoothness);
-  // NOTE: 1-surf.smoothness to fake energy conservation
+  // NOTE: lerp by surf.smoothness to fake energy conservation
   // NOTE: normalization factor is ignored
-  float brdf = (1-surf.smoothness) + PI * pow(dot(h, normal), smoothness) / cos_phi; 
+  float brdf = lerp(1, PI * pow(dot(h, normal), smoothness) / cos_phi, surf.smoothness);
 
 // irradiance: consine projection
   float wi_proj = cos_phi;
@@ -132,9 +132,7 @@ void sample_blinn_phong_brdf(Surface surf, float3 wo, float rnd0, float rnd1, ou
 }
 
 float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float recur_depth) {
-  HaltonState halton;
-  uint3 dispatch_index = DispatchRaysIndex();
-  halton_init(halton, dispatch_index.xyz);
+  HaltonState halton = halton_init(DispatchRaysIndex().xy, get_frame_id(g_render), c_frame_loop);
 
   RayDesc ray;
   ray.Origin = pos;
@@ -144,7 +142,7 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   float3 accumulated = float3(0, 0, 0);
   float weight_sum = 0;
 
-  const uint c_sample = max(8, MAX_HALTON_SAMPLE / 2);
+  const uint c_sample = min(16, c_halton_max_sample_2d);
   BRDFSample samp;
   RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
   for (int i = 0; i < c_sample; i++) {
@@ -169,10 +167,10 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   float2 uv = float2(id) / float2(DispatchRaysDimensions().xy);
   float4 ndc = float4(uv * 2.f - 1.f, depth, 1.0f);
   ndc.y = -ndc.y;
-  float4 world_pos_h = mul(g_per_render.proj_to_world, ndc);
+  float4 world_pos_h = mul(g_render.proj_to_world, ndc);
   float3 world_pos = world_pos_h.xyz / world_pos_h.w;
 
-  float3 wo = normalize(g_per_render.camera_pos.xyz - world_pos);
+  float3 wo = normalize(g_render.camera_pos.xyz - world_pos);
 
   // reject on background
   if (depth <= c_epsilon) {

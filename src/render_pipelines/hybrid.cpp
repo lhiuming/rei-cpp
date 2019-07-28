@@ -27,6 +27,7 @@ struct ViewportProxy {
   Vec4 cam_pos = {0, 1, 8, 1};
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
+  byte frame_id = 0;
 };
 
 struct SceneProxy {
@@ -142,6 +143,7 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
       ShaderDataType::Float4,   // screen size
       ShaderDataType::Float4x4, // proj_to_world := camera view_proj inverse
       ShaderDataType::Float4,   // camera pos
+      ShaderDataType::Float4,   // frame id
     };
     m_per_render_buffer = r->create_const_buffer(lo, 1, L"PerRenderCB");
   }
@@ -319,6 +321,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 0, screen);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->view_proj_inv);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->cam_pos);
+    Vec4 render_info = Vec4(viewport->frame_id++, -1, -1, -1);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, render_info);
   }
 
   // Update material buffer
