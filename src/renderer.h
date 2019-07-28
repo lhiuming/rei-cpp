@@ -95,17 +95,18 @@ struct StaticSampler {};
 struct ShaderParameter {
   // TODO make this inplace memory
   // index as implicit shader register
-  std::vector<ConstantBuffer> const_buffers;
-  std::vector<ShaderResource> shader_resources;
-  std::vector<UnorderedAccess> unordered_accesses;
-  std::vector<Sampler> samplers;
-  rei::FixedVec<StaticSampler, 8> static_samplers;
+  FixedVec<ConstantBuffer, 8> const_buffers;
+  FixedVec<ShaderResource, 8> shader_resources;
+  FixedVec<UnorderedAccess, 8> unordered_accesses;
+  FixedVec<Sampler, 8> samplers;
+  FixedVec<StaticSampler, 8> static_samplers;
 };
 
 // Represent the set of shader resources to be bound by a list of shader arguments
 struct ShaderSignature {
   // index as implicit register space
-  std::vector<ShaderParameter> param_table;
+  // NOTE: you dont usually use more than 4 space, right?
+  FixedVec<ShaderParameter, 4> param_table;
 };
 
 struct ShaderCompileConfig {
@@ -143,6 +144,10 @@ struct RasterizationShaderMetaInfo {
   bool is_blending_addictive = false;
 };
 
+struct ComputeShaderMetaInfo {
+  ShaderSignature signature {};
+};
+
 // Shader info for the entire raytracing pipeline
 struct RaytracingShaderMetaInfo {
   ShaderSignature global_signature;
@@ -169,15 +174,21 @@ struct TextureDesc {
   size_t width;
   size_t height;
   ResourceFormat format;
-  bool allow_render_target;
-  bool allow_depth_stencil;
+  struct Flags {
+    bool allow_render_target : 1;
+    bool allow_depth_stencil : 1;
+    bool allow_unordered_access : 1;
+  } flags;
 
   static TextureDesc render_target(size_t width, size_t height, ResourceFormat format) {
-    return {width, height, format, true, false};
+    return {width, height, format, {true, false, false}};
   }
   static TextureDesc depth_stencil(
     size_t width, size_t height, ResourceFormat format = ResourceFormat::D24_UNORM_S8_UINT) {
-    return {width, height, format, false, true};
+    return {width, height, format, {false, true, false}};
+  }
+  static TextureDesc unorder_access(size_t width, size_t height, ResourceFormat format) {
+    return {width, height, format, {false, false, true}};
   }
 };
 
@@ -198,12 +209,6 @@ struct RaytraceSceneDesc {
 };
 
 using ShaderArguments = FixedVec<ShaderArgumentHandle, 8>;
-struct DrawCommand {
-  BufferHandle vertex_buffer = c_empty_handle;
-  BufferHandle index_buffer = c_empty_handle;
-  ShaderHandle shader = c_empty_handle;
-  ShaderArguments arguments;
-};
 
 struct UpdateShaderTable {
   enum class TableType {
@@ -219,13 +224,28 @@ struct UpdateShaderTable {
   static UpdateShaderTable hitgroup() { return {TableType::Hitgroup}; }
 };
 
+struct DrawCommand {
+  BufferHandle vertex_buffer = c_empty_handle;
+  BufferHandle index_buffer = c_empty_handle;
+  ShaderHandle shader = c_empty_handle;
+  ShaderArguments arguments;
+};
+
+struct DispatchCommand {
+  ShaderHandle compute_shader;
+  ShaderArguments arguments;
+  uint32_t dispatch_x;
+  uint32_t dispatch_y;
+  uint32_t dispatch_z = 1;
+};
+
 struct RaytraceCommand {
   ShaderHandle raytrace_shader;
   ShaderArguments arguments;
   BufferHandle shader_table;
-  size_t width;
-  size_t height;
-  size_t depth = 1;
+  uint32_t width;
+  uint32_t height;
+  uint32_t depth = 1;
 };
 
 struct RenderArea {

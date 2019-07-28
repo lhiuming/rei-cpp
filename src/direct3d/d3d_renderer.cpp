@@ -25,6 +25,7 @@ using std::make_shared;
 using std::make_unique;
 using std::move;
 using std::shared_ptr;
+using std::string;
 using std::unique_ptr;
 using std::unordered_set;
 using std::vector;
@@ -150,13 +151,15 @@ BufferHandle Renderer::create_texture_2d(
     ComPtr<ID3D12Resource> tex;
     auto res_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, UINT(desc.width), UINT(desc.height));
     // TODO add to input config
-    if (desc.allow_depth_stencil) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-    if (desc.allow_render_target) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    if (desc.flags.allow_depth_stencil) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    if (desc.flags.allow_render_target) res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    if (desc.flags.allow_unordered_access)
+      res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     auto heap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     auto heap_flags = D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
     D3D12_CLEAR_VALUE _optimized_clear = {}; // special clear value; usefull for framebuffer types
     D3D12_CLEAR_VALUE* optimized_clear_ptr = NULL;
-    if (desc.allow_depth_stencil) {
+    if (desc.flags.allow_depth_stencil) {
       _optimized_clear.Format = dxgi_format;
       _optimized_clear.DepthStencil = curr_target_spec.ds_clear;
       optimized_clear_ptr = &_optimized_clear;
@@ -168,42 +171,14 @@ BufferHandle Renderer::create_texture_2d(
     REI_ASSERT(SUCCEEDED(hr));
     texture.buffer = tex;
   }
+  #if DEBUG
+  texture.name = std::move(debug_name);
+  #endif
 
   auto res_data = make_shared<BufferData>(this);
   res_data->res = std::move(texture);
   res_data->state = d3d_init_state;
   return BufferHandle(res_data);
-}
-
-BufferHandle Renderer::create_unordered_access_buffer_2d(
-  size_t width, size_t height, ResourceFormat format, wstring&& name) {
-  DXGI_FORMAT dxgi_format = to_dxgi_format(format);
-
-  // Create buffer
-  ComPtr<ID3D12Resource> buffer;
-  {
-    auto device = device_resources->device();
-
-    D3D12_RESOURCE_DESC uav_buffer_desc = CD3DX12_RESOURCE_DESC::Tex2D(dxgi_format, width, height);
-    uav_buffer_desc.MipLevels = 1;
-    uav_buffer_desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
-    D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-    HRESULT hr = device->CreateCommittedResource(
-      &heap_prop, heap_flags, &uav_buffer_desc, init_state, nullptr, IID_PPV_ARGS(&buffer));
-    REI_ASSERT(SUCCEEDED(hr));
-    buffer->SetName(name.c_str());
-  }
-
-  TextureBuffer tex;
-  tex.buffer = buffer;
-  tex.dimension = ResourceDimension::Texture2D;
-  tex.format = format;
-  auto buffer_data = make_shared<BufferData>(this);
-  buffer_data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-  buffer_data->res = std::move(tex);
-  return BufferHandle(buffer_data);
 }
 
 BufferHandle Renderer::create_const_buffer(
@@ -233,18 +208,126 @@ void Renderer::update_const_buffer(BufferHandle buffer, size_t index, size_t mem
 ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
   RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<RasterizationShaderData>(this);
-
   shader->meta.init(std::move(meta));
 
   // compile and retrive root signature
-  ShaderCompileResult compiled_data;
-  device_resources->compile_shader(shader_path, config, compiled_data);
-  if (!(compiled_data.ps_bytecode && compiled_data.vs_bytecode)) {
+  ComPtr<ID3DBlob> vs_bytecode;
+  ComPtr<ID3DBlob> ps_bytecode;
+  {
+    FixedVec<D3D_SHADER_MACRO, config.defines.max_size + 1> shader_defines {};
+    for (auto& d : config.defines) {
+      D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
+      shader_defines.push_back(m);
+    }
+    shader_defines.push_back({NULL, NULL});
+
+    // routine for bytecode compilation
+    // TODO use dxcompiler instead
+    auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
+      UINT compile_flags = 0;
+#if defined(DEBUG)
+      compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+      ComPtr<ID3DBlob> return_bytecode;
+      ComPtr<ID3DBlob> error_msg;
+
+      HRESULT hr = D3DCompileFromFile(shader_path.c_str(), // shader file path
+        shader_defines.data(),                             // preprocessors
+        D3D_COMPILE_STANDARD_FILE_INCLUDE,                 // "include file with relative path"
+        entrypoint.c_str(),                                // e.g. "VS" or "PS" or "main" or others
+        target.c_str(),                                    // "vs_5_0" or "ps_5_0" or similar
+        compile_flags,                                     // options
+        0,                                                 // more options
+        &return_bytecode,                                  // result
+        &error_msg                                         // message if error
+      );
+      if (FAILED(hr)) {
+        if (error_msg) {
+          char* err_str = (char*)error_msg->GetBufferPointer();
+          error(err_str);
+        } else {
+          REI_ERROR("Shader Compiler failed with no error msg");
+        }
+      }
+      return return_bytecode;
+    };
+
+    vs_bytecode = compile("VS", "vs_5_1");
+    ps_bytecode = compile("PS", "ps_5_1");
+  }
+
+  if (!(ps_bytecode && vs_bytecode)) {
     REI_ERROR("Shader compilation faild");
     return c_empty_handle;
   }
-  device_resources->get_root_signature(shader->root_signature, shader->meta);
-  device_resources->create_pso(*shader, compiled_data, shader->pso);
+
+  // Retrive/Create root signature
+  // TODO allow create pso here
+  device_resources->get_root_signature(shader->meta.root_signature.desc, shader->root_signature);
+  REI_ASSERT(shader->root_signature);
+  {
+    ID3D12RootSignature* root_sign = shader->root_signature.Get();
+    RasterShaderDesc& meta = shader->meta;
+    ID3D12Device* device = device_resources->device();
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC desc;
+    desc.pRootSignature = root_sign;
+    desc.VS = {(BYTE*)(vs_bytecode->GetBufferPointer()), vs_bytecode->GetBufferSize()};
+    desc.PS = {(BYTE*)(ps_bytecode->GetBufferPointer()), ps_bytecode->GetBufferSize()};
+    desc.DS = {};
+    desc.HS = {};
+    desc.GS = {};
+    desc.StreamOutput = {}; // no used
+    desc.BlendState = meta.blend_state;
+    desc.SampleMask = UINT_MAX; // 0xFFFFFFFF, sample all points if MSAA enabled
+    desc.RasterizerState = meta.raster_state;
+    desc.DepthStencilState = meta.depth_stencil;
+    desc.InputLayout = meta.input_layout;
+    desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
+    desc.DSVFormat = meta.get_dsv_format();
+    desc.SampleDesc = DXGI_SAMPLE_DESC {1, 0};
+    desc.NodeMask = 0; // single GPU
+    desc.CachedPSO.pCachedBlob
+      = nullptr; // TODO cache in disk; see
+                 // https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12PipelineStateCache
+    desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // cache
+    HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&shader->pso));
+    REI_ASSERT(SUCCEEDED(hr));
+  }
+
+  return ShaderHandle(shader);
+}
+
+ShaderHandle Renderer::create_shader(
+  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta) {
+  auto shader = make_shared<ComputeShaderData>(this);
+
+  shader->meta.init(move(meta));
+
+  // compile
+  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1");
+
+  // get root-signature
+  device_resources->get_root_signature(shader->meta.signature.desc, shader->root_signature);
+  REI_ASSERT(shader->root_signature);
+
+  // crate pso
+  {
+    ID3D12RootSignature* root_sign = shader->root_signature.Get();
+    ComputeShaderDesc& meta = shader->meta;
+    ID3D12Device* device = device_resources->device();
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
+    desc.pRootSignature = root_sign;
+    desc.CS = {(BYTE*)(compiled->GetBufferPointer()), compiled->GetBufferSize()};
+    desc.NodeMask = 0; // single GPU
+    desc.CachedPSO = {NULL, 0};                                 // no caching currently
+    desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // TODO add debug option
+    HRESULT hr = device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&shader->pso));
+    REI_ASSERT(SUCCEEDED(hr));
+  }
 
   return ShaderHandle(shader);
 }
@@ -254,7 +337,7 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
   auto shader = make_shared<RaytracingShaderData>(this);
 
   shader->meta.init(std::move(meta));
-  d3d::RayTracingShaderMetaDesc& d3d_meta = shader->meta;
+  d3d::RayTraceShaderDesc& d3d_meta = shader->meta;
   device().get_root_signature(d3d_meta.global.desc, shader->root_signature);
   device().get_root_signature(d3d_meta.raygen.desc, shader->raygen.root_signature);
   device().get_root_signature(d3d_meta.hitgroup.desc, shader->hitgroup.root_signature);
@@ -692,6 +775,28 @@ void Renderer::draw(const DrawCommand& cmd) {
   }
 }
 
+void Renderer::dispatch(const DispatchCommand& cmd) {
+  auto shader = to_shader<ComputeShaderData>(cmd.compute_shader);
+  REI_ASSERT(shader);
+
+  auto cmd_list = device_resources->prepare_command_list();
+
+  ID3D12RootSignature* root_signature = shader->root_signature.Get();
+  cmd_list->SetComputeRootSignature(root_signature);
+  ID3D12PipelineState* pso = shader->pso.Get();
+  cmd_list->SetPipelineState(pso);
+
+  for (UINT i = 0; i < cmd.arguments.size(); i++) {
+    auto& h = cmd.arguments[i];
+    if (h == c_empty_handle) continue;
+    auto arg = to_argument(h);
+    REI_ASSERT(arg);
+    cmd_list->SetComputeRootDescriptorTable(i, arg->base_descriptor_gpu);
+  }
+
+  cmd_list->Dispatch(cmd.dispatch_x, cmd.dispatch_y, cmd.dispatch_z);
+}
+
 void Renderer::raytrace(const RaytraceCommand& cmd) {
   auto shader = to_shader<RaytracingShaderData>(cmd.raytrace_shader);
   REI_ASSERT(shader);
@@ -822,7 +927,7 @@ void Renderer::upload_resources() {
 
 void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   const d3d::RaytracingShaderData& shader, ComPtr<ID3D12StateObject>& pso) {
-  const d3d::RayTracingShaderMetaDesc& meta = shader.meta;
+  const d3d::RayTraceShaderDesc& meta = shader.meta;
 
   // hard-coded properties
   const UINT payload_max_size = sizeof(float) * 4 + sizeof(int) * 1;

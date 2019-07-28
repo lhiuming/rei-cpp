@@ -87,58 +87,6 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
 
-void DeviceResources::compile_shader(
-  const wstring& shader_path, const ShaderCompileConfig& conf, ShaderCompileResult& result) {
-  FixedVec<D3D_SHADER_MACRO, conf.defines.max_size + 1> shader_defines {};
-  for (auto& d : conf.defines) {
-    D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
-    shader_defines.push_back(m);
-  }
-  shader_defines.push_back({NULL, NULL});
-
-  // routine for bytecode compilation
-  auto compile = [&](const string& entrypoint, const string& target) -> ComPtr<ID3DBlob> {
-    UINT compile_flags = 0;
-#if defined(DEBUG) || !defined(NDEBUG)
-    compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-    ComPtr<ID3DBlob> return_bytecode;
-    ComPtr<ID3DBlob> error_msg;
-
-    HRESULT hr = D3DCompileFromFile(shader_path.c_str(), // shader file path
-      shader_defines.data(),                             // preprocessors
-      D3D_COMPILE_STANDARD_FILE_INCLUDE,                 // "include file with relative path"
-      entrypoint.c_str(),                                // e.g. "VS" or "PS" or "main" or others
-      target.c_str(),                                    // "vs_5_0" or "ps_5_0" or similar
-      compile_flags,                                     // options
-      0,                                                 // more options
-      &return_bytecode,                                  // result
-      &error_msg                                         // message if error
-    );
-    if (FAILED(hr)) {
-      if (error_msg) {
-        char* err_str = (char*)error_msg->GetBufferPointer();
-        error(err_str);
-      } else {
-        REI_ERROR("Shader Compiler failed with no error msg");
-      }
-    }
-    return return_bytecode;
-  };
-
-  ComPtr<ID3DBlob> vs_bytecode = compile("VS", "vs_5_1");
-  ComPtr<ID3DBlob> ps_bytecode = compile("PS", "ps_5_1");
-
-  result = {vs_bytecode, ps_bytecode};
-
-  return;
-}
-
-void DeviceResources::get_root_signature(
-  ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta) {
-  get_root_signature(meta.root_signature.desc, root_sign);
-}
-
 void DeviceResources::get_root_signature(
   const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign) {
   /*
@@ -169,54 +117,6 @@ void DeviceResources::create_root_signature(
   hr = m_device->CreateRootSignature(node_mask, root_sign_blob->GetBufferPointer(),
     root_sign_blob->GetBufferSize(), IID_PPV_ARGS(&root_sign));
   REI_ASSERT(SUCCEEDED(hr));
-}
-
-void DeviceResources::create_pso(const RasterizationShaderData& shader,
-  const ShaderCompileResult& compiled, ComPtr<ID3D12PipelineState>& pso) {
-  // inputs
-  ComPtr<ID3DBlob> ps_bytecode = compiled.ps_bytecode;
-  ComPtr<ID3DBlob> vs_bytecode = compiled.vs_bytecode;
-  const RasterizationShaderMetaDesc& meta = shader.meta;
-  ComPtr<ID3D12RootSignature> root_sign = shader.root_signature;
-
-  REI_ASSERT(vs_bytecode);
-  REI_ASSERT(ps_bytecode);
-
-  // some default value
-  UINT rt_num = 1; // TODO maybe check this
-
-  // ruotine for creating PSO
-  auto create = [&]() -> ComPtr<ID3D12PipelineState> {
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
-    desc.pRootSignature = root_sign.Get();
-    desc.VS = {(BYTE*)(vs_bytecode->GetBufferPointer()), vs_bytecode->GetBufferSize()};
-    desc.PS = {(BYTE*)(ps_bytecode->GetBufferPointer()), ps_bytecode->GetBufferSize()};
-    desc.DS = {};
-    desc.HS = {};
-    desc.GS = {};
-    desc.StreamOutput = {}; // no used
-    desc.BlendState = meta.blend_state;
-    desc.SampleMask = UINT_MAX; // 0xFFFFFFFF, sample all points if MSAA enabled
-    desc.RasterizerState = meta.raster_state;
-    desc.DepthStencilState = meta.depth_stencil;
-    desc.InputLayout = meta.input_layout;
-    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
-    desc.DSVFormat = meta.get_dsv_format();
-    desc.SampleDesc = DXGI_SAMPLE_DESC {1, 0};
-    desc.NodeMask = 0; // single GPU
-    desc.CachedPSO.pCachedBlob
-      = nullptr; // TODO cache in disk; see
-                 // https://github.com/microsoft/DirectX-Graphics-Samples/tree/master/Samples/Desktop/D3D12PipelineStateCache
-    desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // cache
-    ComPtr<ID3D12PipelineState> return_pso;
-    HRESULT hr = m_device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&return_pso));
-    REI_ASSERT(SUCCEEDED(hr));
-
-    return return_pso;
-  };
-
-  pso = create();
 }
 
 void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res) {

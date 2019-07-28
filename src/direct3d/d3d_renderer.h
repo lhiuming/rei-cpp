@@ -51,8 +51,12 @@ public:
     TextureDesc desc {width, height, format};
     return create_texture_2d(desc, ResourceState::Undefined, std::move(debug_name));
   }
-  BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height, ResourceFormat format,
-    std::wstring&& debug_name = L"Unnamed UA Buffer");
+  [[deprecated]] BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height,
+    ResourceFormat format, std::wstring&& debug_name = L"Unnamed UA Buffer") {
+    return create_texture_2d(TextureDesc::unorder_access(width, height, format),
+      ResourceState::UnorderedAccess, std ::move(debug_name));
+  }
+
   BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num,
     std::wstring&& debug_name = L"Unnamed ConstBuffer");
 
@@ -65,6 +69,8 @@ public:
     std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
     return create_shader(shader_path, std::move(*meta), config);
   }
+
+  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta);
 
   ShaderHandle create_shader(const std::wstring& shader_path, RaytracingShaderMetaInfo&& meta,
     const ShaderCompileConfig& config = {});
@@ -91,6 +97,8 @@ public:
   void barrier(BufferHandle buffer);
 
   void draw(const DrawCommand& cmd);
+
+  void dispatch(const DispatchCommand& dispatch);
 
   void raytrace(const RaytraceCommand& cmd);
   void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table,

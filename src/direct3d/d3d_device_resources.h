@@ -49,17 +49,10 @@ public:
   ID3D12DescriptorHeap* const* cbv_srv_heap_addr() const { return m_cbv_srv_heap.get_ptr_addr(); }
   UINT cnv_srv_descriptor_size() const { return m_cbv_srv_heap.cnv_srv_descriptor_size(); };
 
-  void compile_shader(const std::wstring& shader_path, const ShaderCompileConfig& config,
-    ShaderCompileResult& result);
-  // void create_const_buffers(const ShaderData& shader, ShaderConstBuffers& const_buffers);
-  void get_root_signature(
-    ComPtr<ID3D12RootSignature>& root_sign, const RasterizationShaderMetaDesc& meta);
   void get_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-  void create_pso(const RasterizationShaderData& shader, const ShaderCompileResult& compiled,
-    ComPtr<ID3D12PipelineState>& pso);
 
   void create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res);
 
