@@ -6,7 +6,14 @@ struct PerRenderConstBuffer {
   float4 screen;
   float4x4 proj_to_world;
   float4 camera_pos;
+  float4 render_info;
 };
+
+#define c_frame_loop uint(256)
+
+uint get_frame_id(in PerRenderConstBuffer cb) {
+  return uint(cb.render_info.x);
+}
 
 struct PerMaterialConstBuffer {
   float4 albedo;

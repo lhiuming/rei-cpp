@@ -119,6 +119,8 @@ inline static constexpr D3D12_RESOURCE_STATES to_res_state(ResourceState state) 
       return D3D12_RESOURCE_STATE_DEPTH_WRITE;
     case ResourceState::PixelShaderResource:
       return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    case ResourceState::ComputeShaderResource:
+      return D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
     case ResourceState::UnorderedAccess:
       return D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     default:
@@ -210,6 +212,9 @@ struct TextureBuffer {
   ComPtr<ID3D12Resource> buffer;
   ResourceFormat format;
   ResourceDimension dimension;
+  #if DEBUG
+  std::wstring name;
+  #endif
 };
 
 struct ConstBuffer {
@@ -325,7 +330,7 @@ struct RootSignatureDescMemory {
   }
 };
 
-struct RasterizationShaderMetaDesc {
+struct RasterShaderDesc {
   CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
   bool is_depth_stencil_null = false;
@@ -339,14 +344,14 @@ struct RasterizationShaderMetaDesc {
 
   FixedVec<DXGI_FORMAT, 8> rt_formats;
 
-  RasterizationShaderMetaDesc() {
+  RasterShaderDesc() {
     REI_ASSERT(is_right_handed);
     raster_state.FrontCounterClockwise = true;
     depth_stencil.DepthFunc
       = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   }
 
-  RasterizationShaderMetaDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
+  RasterShaderDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
 
   void init(RasterizationShaderMetaInfo&& meta) {
     root_signature.init_signature(meta.signature, false);
@@ -367,6 +372,9 @@ struct RasterizationShaderMetaDesc {
     for (int i = 0; i < rt_formats.size(); i++) {
       dest[i] = rt_formats[i];
     }
+    for (int i = rt_formats.size(); i < 8; i++) {
+      dest[i] = DXGI_FORMAT_UNKNOWN;
+    }
     return UINT(rt_formats.size());
   }
 
@@ -375,7 +383,14 @@ struct RasterizationShaderMetaDesc {
   }
 };
 
-struct RayTracingShaderMetaDesc {
+struct ComputeShaderDesc {
+  RootSignatureDescMemory signature {};
+
+  ComputeShaderDesc() {}
+  void init(ComputeShaderMetaInfo&& meta) { signature.init_signature(meta.signature, false); }
+};
+
+struct RayTraceShaderDesc {
   RootSignatureDescMemory global {};
   std::wstring hitgroup_name;
   std::wstring closest_hit_name;
@@ -387,9 +402,9 @@ struct RayTracingShaderMetaDesc {
   std::wstring miss_name;
   RootSignatureDescMemory miss {};
 
-  RayTracingShaderMetaDesc() {}
+  RayTraceShaderDesc() {}
 
-  RayTracingShaderMetaDesc(RaytracingShaderMetaInfo&& meta) { init(std::move(meta)); }
+  RayTraceShaderDesc(RaytracingShaderMetaInfo&& meta) { init(std::move(meta)); }
 
   void init(RaytracingShaderMetaInfo&& meta) {
     hitgroup_name = std::move(meta.hitgroup_name);
@@ -404,13 +419,8 @@ struct RayTracingShaderMetaDesc {
 
 private:
   // any form of copying is not allow
-  RayTracingShaderMetaDesc(const RayTracingShaderMetaDesc&) = delete;
-  RayTracingShaderMetaDesc(RayTracingShaderMetaDesc&&) = delete;
-};
-
-struct ShaderCompileResult {
-  ComPtr<ID3DBlob> vs_bytecode;
-  ComPtr<ID3DBlob> ps_bytecode;
+  RayTraceShaderDesc(const RayTraceShaderDesc&) = delete;
+  RayTraceShaderDesc(RayTraceShaderDesc&&) = delete;
 };
 
 struct ShaderConstBuffers {
@@ -439,13 +449,19 @@ struct ShaderArgumentData : BaseShaderArgument {
 
 struct RasterizationShaderData : ShaderData {
   using ShaderData::ShaderData;
-  RasterizationShaderMetaDesc meta;
+  RasterShaderDesc meta;
+  ComPtr<ID3D12PipelineState> pso;
+};
+
+struct ComputeShaderData : ShaderData {
+  using ShaderData::ShaderData;
+  ComputeShaderDesc meta;
   ComPtr<ID3D12PipelineState> pso;
 };
 
 struct RaytracingShaderData : ShaderData {
   using ShaderData::ShaderData;
-  RayTracingShaderMetaDesc meta;
+  RayTraceShaderDesc meta;
 
   struct LocalShaderData {
     ComPtr<ID3D12RootSignature> root_signature;

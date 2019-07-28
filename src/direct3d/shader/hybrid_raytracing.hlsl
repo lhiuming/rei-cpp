@@ -20,10 +20,10 @@ RaytracingAccelerationStructure g_scene : register(t0, space0);
 Texture2D<float> g_depth : register(t1, space0);
 Texture2D<float4> g_normal : register(t2, space0);
 Texture2D<float4> g_albedo : register(t3, space0);
-Texture2D<float4> g_emissive: register(t4, space0);
+Texture2D<float4> g_emissive : register(t4, space0);
 
 // Per-render CB
-ConstantBuffer<PerRenderConstBuffer> g_per_render : register(b0, space0);
+ConstantBuffer<PerRenderConstBuffer> g_render : register(b0, space0);
 
 // Local: Hit Group //
 
@@ -101,9 +101,9 @@ float remap_smoothness(float normalized_value) {
 
 void sample_blinn_phong_brdf(Surface surf, float3 wo, float rnd0, float rnd1, out BRDFSample ret) {
   // compute local random direction
-  // NOTE: for a uniform distribution on hemisphere, phi = acos(rnd1) 
+  // NOTE: for a uniform distribution on hemisphere, phi = acos(rnd1)
   float theta = rnd0 * PI_2;
-  float cos_phi = rnd1;
+  float cos_phi = rnd1 + c_epsilon;
   float sin_phi = sqrt(1 - cos_phi * cos_phi);
   float3 dir = {sin_phi * cos(theta), cos_phi, sin_phi * sin(theta)};
   float importance = 1.f;
@@ -111,40 +111,39 @@ void sample_blinn_phong_brdf(Surface surf, float3 wo, float rnd0, float rnd1, ou
   // rotate to world space
   float3 normal = surf.normal;
   float3 tangent = wo;
-  if (dot(normal, tangent) > (1 - c_epsilon)) tangent = normalize(float3(normal.z, 0, -normal.x));
+  //if (dot(normal, tangent) > (1 - c_epsilon)) { tangent = normalize(float3(normal.z, 0, -normal.x)); }
   float3 bitangent = cross(tangent, normal);
   tangent = cross(normal, bitangent);
 
-  // TODO nomrmlaized might be redudant
-  ret.wi = normalize(dir.x * tangent + dir.y * normal + dir.z * bitangent);
+  ret.wi = dir.x * tangent + dir.y * normal + dir.z * bitangent;
 
   // evaluate brdf weight: lambertian constant lobe + blinn-phong tilted lobe
   float3 h = normalize(ret.wi + wo);
   float smoothness = remap_smoothness(surf.smoothness);
-  // NOTE: 1-surf.smoothness to fake energy conservation
   // NOTE: normalization factor is ignored
-  float brdf = (1-surf.smoothness) + PI * pow(dot(h, normal), smoothness) / cos_phi; 
+  float diffuse_lobe = 1;
+  float specular_lobe = PI * pow(saturate(dot(h, normal)) + c_epsilon, smoothness) / cos_phi;
+  // NOTE: lerp by surf.smoothness to fake energy conservation
+  float brdf = lerp(diffuse_lobe, specular_lobe, surf.smoothness);
 
-// irradiance: consine projection
+  // irradiance: consine projection
   float wi_proj = cos_phi;
 
   ret.weight = (brdf * wi_proj) * importance;
 }
 
 float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float recur_depth) {
-  HaltonState halton;
-  uint3 dispatch_index = DispatchRaysIndex();
-  halton_init(halton, dispatch_index.xyz);
+  HaltonState halton = halton_init(DispatchRaysIndex().xy, get_frame_id(g_render), c_frame_loop);
 
   RayDesc ray;
   ray.Origin = pos;
-  ray.TMin = 0.001;
-  ray.TMax = 10000.0;
+  ray.TMin = 0.01;
+  ray.TMax = 100.0;
 
   float3 accumulated = float3(0, 0, 0);
-  float weight_sum = 0;
+  float weight_sum = c_epsilon;
 
-  const uint c_sample = max(8, MAX_HALTON_SAMPLE / 2);
+  const uint c_sample = min(8, c_halton_max_sample_2d);
   BRDFSample samp;
   RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
   for (int i = 0; i < c_sample; i++) {
@@ -169,10 +168,10 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   float2 uv = float2(id) / float2(DispatchRaysDimensions().xy);
   float4 ndc = float4(uv * 2.f - 1.f, depth, 1.0f);
   ndc.y = -ndc.y;
-  float4 world_pos_h = mul(g_per_render.proj_to_world, ndc);
+  float4 world_pos_h = mul(g_render.proj_to_world, ndc);
   float3 world_pos = world_pos_h.xyz / world_pos_h.w;
 
-  float3 wo = normalize(g_per_render.camera_pos.xyz - world_pos);
+  float3 wo = normalize(g_render.camera_pos.xyz - world_pos);
 
   // reject on background
   if (depth <= c_epsilon) {
@@ -189,8 +188,9 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   s.normal = g_normal[id].xyz;
   s.smoothness = albedo_smoothness.w;
   s.albedo = albedo_smoothness.xyz;
+  float3 offset = s.normal * 0.001; // avoiding self-intrusion
   float3 emittance = s.albedo * emissive.x;
-  float3 radiance = emittance + integrate_blinn_phong(world_pos, wo, s, 0);
+  float3 radiance = emittance + integrate_blinn_phong(world_pos + offset, wo, s, 0);
 
   output(radiance);
 }
@@ -226,7 +226,8 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
     surf.albedo = get_albedo(g_material);
     float emissive = get_emissive(g_material);
     float3 emittance = emissive * surf.albedo; // fake
-    radiance = emittance + integrate_blinn_phong(world_pos, wo, surf, payload.depth);
+    float3 offset = n * 0.001;                  // to avoid self-intrusion
+    radiance = emittance + integrate_blinn_phong(world_pos + offset, wo, surf, payload.depth);
   } else {
     // kill the path
     float ambient = 0.001;
@@ -236,7 +237,7 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   payload.color.xyz = radiance;
 }
 
-  [shader("miss")] void miss_shader(inout RayPayload payload) {
+[shader("miss")] void miss_shader(inout RayPayload payload) {
   float3 dir = WorldRayDirection();
   payload.color = float4(gradiant_sky_eva(dir), 1.0f);
 }

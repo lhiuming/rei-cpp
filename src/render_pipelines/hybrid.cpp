@@ -22,11 +22,54 @@ struct ViewportProxy {
 
   BufferHandle raytracing_output_buffer;
 
-  ShaderArgumentHandle blit_after_rt_argument;
+  BufferHandle taa_cb;
+  BufferHandle taa_buffer[2];
+  ShaderArgumentHandle taa_argument[2];
+
+  BufferHandle postprocessing_output;
+  ShaderArgumentHandle blit_for_present;
 
   Vec4 cam_pos = {0, 1, 8, 1};
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
+  byte frame_id = 0;
+  bool view_proj_dirty = true;
+
+  void advance_frame() {
+    frame_id++;
+    if (frame_id == 0) frame_id += 2;
+    // reset dirty mark
+    view_proj_dirty = false;
+  }
+
+  ShaderArgumentHandle taa_curr_arg () { return taa_argument[frame_id % 2]; }
+  BufferHandle taa_curr_input() { return taa_buffer[frame_id % 2]; }
+  BufferHandle taa_curr_output() { return taa_buffer[(frame_id + 1) % 2]; }
+
+  template<int Base>
+  static float halton(int index) {
+    float a = 0;
+    float inv_base = 1.0f / float(Base);
+    for (float mult = inv_base; index != 0; index /= Base, mult *= inv_base) {
+      a += float(index % Base) * mult;
+    }
+    return a;
+  }
+
+  const Mat4& get_view_proj(bool jiterred) {
+    if (jiterred) {
+      float rndx = halton<2>(frame_id);
+      float rndy = halton<3>(frame_id);
+      const Mat4 subpixel_jitter {
+        1, 0, 0, (rndx * 2 - 1) / double(width),  //
+        0, 1, 0, (rndy * 2 - 1) / double(height), //
+        0, 0, 1, 0,                               //
+        0, 0, 0, 1                                //
+      };
+      return subpixel_jitter * view_proj;
+    }
+    return view_proj;
+  }
 };
 
 struct SceneProxy {
@@ -90,9 +133,9 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
   HybridRaytracingShaderDesc() {
     ShaderParameter space0 {};
     space0.const_buffers = {ConstantBuffer()}; // Per-render CN
-    space0.shader_resources = {
-      ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
-    space0.unordered_accesses = {UnorderedAccess()};                           // output buffer
+    space0.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource(),
+      ShaderResource(), ShaderResource()};           // TLAS ans G-Buffer
+    space0.unordered_accesses = {UnorderedAccess()}; // output buffer
     global_signature.param_table = {space0};
 
     ShaderParameter space1 {};
@@ -122,6 +165,16 @@ struct BlitShaderDesc : RasterizationShaderMetaInfo {
   }
 };
 
+struct TaaShaderDesc : ComputeShaderMetaInfo {
+  TaaShaderDesc() {
+    ShaderParameter space0;
+    space0.const_buffers = {ConstantBuffer()};
+    space0.shader_resources = {ShaderResource(), ShaderResource()};     // input and history
+    space0.unordered_accesses = {UnorderedAccess(), UnorderedAccess()}; // two outputs
+    signature.param_table = {space0};
+  }
+};
+
 HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer) {
   Renderer* r = get_renderer();
 
@@ -135,13 +188,17 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
       = r->create_shader(L"CoreData/shader/hybrid_raytracing.hlsl", HybridRaytracingShaderDesc());
   }
 
-  { m_blit_shader = r->create_shader(L"CoreData/shader/blit.hlsl", BlitShaderDesc()); }
+  {
+    m_blit_shader = r->create_shader(L"CoreData/shader/blit.hlsl", BlitShaderDesc());
+    m_taa_shader = r->create_shader(L"CoreData/shader/taa.hlsl", TaaShaderDesc());
+  }
 
   {
     ConstBufferLayout lo = {
       ShaderDataType::Float4,   // screen size
       ShaderDataType::Float4x4, // proj_to_world := camera view_proj inverse
       ShaderDataType::Float4,   // camera pos
+      ShaderDataType::Float4,   // frame id
     };
     m_per_render_buffer = r->create_const_buffer(lo, 1, L"PerRenderCB");
   }
@@ -172,10 +229,45 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.raytracing_output_buffer = r->create_unordered_access_buffer_2d(
     conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Raytracing Output Buffer");
 
+  proxy.postprocessing_output = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM),
+    ResourceState::UnorderedAccess, L"PP Output");
+
+  {
+    ConstBufferLayout lo {};
+    lo[0] = ShaderDataType::Float4;
+    proxy.taa_cb = r->create_const_buffer(lo, 1, L"TAA CB");
+  }
+  {
+    static const wchar_t* taa_names[2] = {L"TAA_Buffer[0]", L"TAA_Buffer[1]"};
+    auto make_taa_buffer = [&](int idx) {
+      return r->create_texture_2d(
+        TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+        ResourceState::UnorderedAccess, taa_names[idx]);
+    };
+    for (int i = 0; i < 2; i++)
+      proxy.taa_buffer[i] = make_taa_buffer(i);
+  }
+
+  {
+    auto make_taa_argument = [&](int input, int output) {
+      ShaderArgumentValue v {};
+      // NOTE: we feed raytracing output directory to TAA
+      // TODO should do a tonemapping first
+      v.const_buffers = {proxy.taa_cb};
+      v.const_buffer_offsets = {0};
+      v.shader_resources = {proxy.taa_buffer[input], proxy.raytracing_output_buffer};
+      v.unordered_accesses = {proxy.taa_buffer[output], proxy.postprocessing_output};
+      return r->create_shader_argument(v);
+    };
+    for (int i = 0; i < 2; i++)
+      proxy.taa_argument[i] = make_taa_argument(i, (i + 1) % 2);
+  }
+
   {
     ShaderArgumentValue val {};
-    val.shader_resources = {proxy.raytracing_output_buffer};
-    proxy.blit_after_rt_argument = r->create_shader_argument(val);
+    val.shader_resources = {proxy.postprocessing_output};
+    proxy.blit_for_present = r->create_shader_argument(val);
   }
 
   return add_viewport(std::move(proxy));
@@ -188,8 +280,13 @@ void HybridPipeline::transform_viewport(ViewportHandle handle, const Camera& cam
   REI_ASSERT(r);
 
   viewport->cam_pos = camera.position();
-  viewport->view_proj = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
-  viewport->view_proj_inv = viewport->view_proj.inv();
+  Mat4 new_vp = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
+  Mat4 diff_mat = new_vp - viewport->view_proj;
+  if (!m_enabled_accumulated_rtrt || diff_mat.norm2() > 0) {
+    viewport->view_proj_dirty = true;
+    viewport->view_proj = new_vp;
+    viewport->view_proj_inv = new_vp.inv();
+  }
 }
 
 HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
@@ -313,12 +410,18 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   Renderer* const renderer = get_renderer();
   const auto cmd_list = renderer->prepare();
 
+  // render info
+  Mat4 view_proj = viewport->get_view_proj(viewport->view_proj_dirty && m_enable_jittering);
+  double taa_blend_factor = viewport->view_proj_dirty ? 1.0 : (m_enabled_accumulated_rtrt ? 0.01 : 0.5);
+
   // Update scene-wide const buffer (per-frame CB)
   {
     Vec4 screen = Vec4(viewport->width, viewport->height, 0, 0);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 0, screen);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->view_proj_inv);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->cam_pos);
+    Vec4 render_info = Vec4(viewport->frame_id, -1, -1, -1);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, render_info);
   }
 
   // Update material buffer
@@ -336,7 +439,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       auto& model = pair.second;
       size_t index = model.cb_index;
       Mat4& m = model.trans;
-      Mat4 mvp = viewport->view_proj * m;
+      Mat4 mvp = view_proj * m;
       renderer->update_const_buffer(scene->objects_cb, index, 0, mvp);
       renderer->update_const_buffer(scene->objects_cb, index, 1, m);
     }
@@ -349,7 +452,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::DeptpWrite);
   RenderPassCommand gpass = {};
   {
-    gpass.render_targets = {viewport->normal_buffer, viewport->albedo_buffer, viewport->emissive_buffer};
+    gpass.render_targets
+      = {viewport->normal_buffer, viewport->albedo_buffer, viewport->emissive_buffer};
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
@@ -383,6 +487,11 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   }
 
   // Raytraced lighting
+  cmd_list->transition(viewport->normal_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->albedo_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->emissive_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
   {
     RaytraceCommand cmd {};
     cmd.raytrace_shader = m_raytraced_lighting_shader;
@@ -393,10 +502,31 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->raytrace(cmd);
   }
 
+  // TAA on Raytracing output
+  {
+    Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
+    cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
+  }
+  cmd_list->transition(
+    viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(
+    viewport->taa_curr_output(), ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->postprocessing_output, ResourceState::UnorderedAccess);
+  {
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_taa_shader;
+    dispatch.arguments = {viewport->taa_curr_arg()};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
+  }
+
   // Blit raytracing result for debug
   BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
+  cmd_list->transition(viewport->postprocessing_output, ResourceState::PixelShaderResource);
   cmd_list->transition(render_target, ResourceState::RenderTarget);
-  cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::PixelShaderResource);
   {
     RenderPassCommand render_pass {};
     render_pass.render_targets = {render_target};
@@ -407,7 +537,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->begin_render_pass(render_pass);
 
     DrawCommand draw {};
-    draw.arguments = {viewport->blit_after_rt_argument};
+    draw.arguments = {viewport->blit_for_present};
     draw.shader = m_blit_shader;
     cmd_list->draw(draw);
 
@@ -438,6 +568,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->draw(cmd);
     cmd_list->end_render_pass();
   }
+
+  viewport->advance_frame();
 
   cmd_list->transition(render_target, ResourceState::Present);
   cmd_list->present(viewport->swapchain, false);

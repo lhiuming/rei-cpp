@@ -1,7 +1,7 @@
 #ifndef REI_COMMON_HLSL
 #define REI_COMMON_HLSL
 
-#define c_epsilon 1E-38
+#define c_epsilon 1E-23
 
 #define PI 3.141592653589793238462643383279502884197169399375105820974f
 #define PI_2 (2 * PI)

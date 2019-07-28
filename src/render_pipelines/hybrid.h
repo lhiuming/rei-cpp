@@ -40,9 +40,13 @@ public:
   virtual void render(ViewportHandle viewport, SceneHandle scene) override;
 
 private:
+  const bool m_enable_jittering = true;
+  const bool m_enabled_accumulated_rtrt = true;
+
   ShaderHandle m_gpass_shader;
   ShaderHandle m_raytraced_lighting_shader;
   ShaderHandle m_blit_shader;
+  ShaderHandle m_taa_shader;
 
   BufferHandle m_per_render_buffer;
 

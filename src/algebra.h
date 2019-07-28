@@ -339,6 +339,9 @@ struct Mat4 {
   double& operator()(int i, int j) { return columns[j][i]; }
   const double& operator()(int i, int j) const { return columns[j][i]; }
 
+  // Element-wise operations
+  Mat4 operator-(const Mat4& rhs) const;
+
   // Matrix transposition
   static void transpose(Mat4& A);
   Mat4 T() const;
@@ -367,6 +370,10 @@ struct Mat4 {
 
   // Adjoint Mat4
   Mat4 adjoint() const;
+
+  // Frobenius norm
+  double norm2() const;
+  double norm() const { return std::sqrt(norm2()); }
 };
 
 // Print 4D matrix
