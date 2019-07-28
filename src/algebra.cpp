@@ -72,6 +72,17 @@ Mat4::Mat4(const double rows[16]) {
       me(i, j) = rows[i * 4 + j];
 }
 
+// Element-wise subtraction
+Mat4 Mat4::operator-(const Mat4& rhs) const {
+  Mat4 ret;
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      ret(j, i) = this->operator()(j, i) - rhs(j, i);
+    }
+  }
+  return ret;
+}
+
 // Transpose a matrix
 void Mat4::transpose(Mat4& A) {
   for (int i = 0; i < 3; ++i)
@@ -164,6 +175,14 @@ Mat4 Mat4::adjoint() const {
   return Mat4(cofactor(0, 0), cofactor(1, 0), cofactor(2, 0), cofactor(3, 0), cofactor(0, 1),
     cofactor(1, 1), cofactor(2, 1), cofactor(3, 1), cofactor(0, 2), cofactor(1, 2), cofactor(2, 2),
     cofactor(3, 2), cofactor(0, 3), cofactor(1, 3), cofactor(2, 3), cofactor(3, 3));
+}
+
+double Mat4::norm2() const {
+  double r = 0;
+  for (int i = 0; i < 4; i++)
+    for (int j = 0; j < 4; j++)
+      r += columns[i][j] * columns[i][j];
+  return r;
 }
 
 // Print Mat4
