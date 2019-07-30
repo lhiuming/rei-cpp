@@ -82,7 +82,7 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   current_frame_fence = 0;
 
   // Create  descriptor heaps
-  m_cbv_srv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 128);
+  m_cbv_srv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 256);
   m_rtv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 8);
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }

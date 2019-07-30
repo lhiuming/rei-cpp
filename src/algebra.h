@@ -320,6 +320,16 @@ struct Mat4 {
     return {{1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translate, 1.0}};
   }
 
+  // Construct a rotation matrix
+  static Mat4 rotate(const Vec3& axis, double radian, Handness rot_hand = Handness::Right) {
+    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
+    Vec4 c0 = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
+    Vec4 c1 = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
+    Vec4 c2 = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
+    Vec4 c3 = {0, 0, 0, 1};
+    return {c0, c1, c2, c3};
+  }
+
   // Construct a translation and rotation matrix (translate first, then rotate locally)
   static Mat4 translate_rotate(
     const Vec3& translate, const Vec3& axis, double radian, Handness rot_hand = Handness::Right) {
