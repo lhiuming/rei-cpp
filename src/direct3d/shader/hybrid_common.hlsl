@@ -8,7 +8,8 @@
 // Encoding&Decoding
 //
 
-#define c_frame_loop uint(256)
+#define FRAME_LOOP uint(256)
+#define c_frame_loop FRAME_LOOP
 
 struct PerRenderConstBuffer {
   // NOTE: see PerFrameConstantBuffer in cpp code
@@ -93,11 +94,6 @@ struct BXDFSurface {
   float3 albedo;
 };
 
-struct Space {
-  float3 wo; // view vector
-  float3 wi; // light vector
-};
-
 struct BrdfCosine {
   float3 specular;
   float3 diffuse;
@@ -106,14 +102,14 @@ struct BrdfCosine {
 // Classic Blinn-Phong specular brdf
 // NOTE: some normalization is applied here, ref:
 // https://seblagarde.wordpress.com/2011/08/17/hello-world/
-BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
+BrdfCosine blinn_phong_classic(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
   float smoothness = 1 - surf.roughness_percepted;
   float a = pow(8192, smoothness);
-  float3 h = normalize(space.wo + space.wi); // fixme redudant normalization
+  float3 h = normalize(wo + wi); // fixme redudant normalization
   float dot_n_h = clamp(dot(surf.normal, h), c_epsilon, 1);
-  float dot_n_l = clamp(dot(surf.normal, space.wi), c_epsilon, 1);
+  float dot_n_l = clamp(dot(surf.normal, wi), c_epsilon, 1);
   float3 color = surf.albedo + surf.fresnel_0 - 0.03;
   float normalizer = (a + 2) / (4 * PI * (2 - pow(2, -0.5 * a)));
   float ks = smoothness; // fake enery conservation
@@ -125,18 +121,18 @@ BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
 
 // Energy Consering Blinn-Phong BRDF simulated with Beckmann Lambda function, with roughness
 // remapped accoordingly. ref: [rtr4], p340
-BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
+BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
   float a = pow(8192, 1 - surf.roughness_percepted);
   // Remap to beckmann roughness, and evalue G2
-  float3 h = normalize(space.wo + space.wi);
-  float dot_v_n = dot(space.wo, surf.normal);
+  float3 h = normalize(wo + wi);
+  float dot_v_n = dot(wo, surf.normal);
   float dot_v_n_2 = dot_v_n * dot_v_n;
   float a_b_for_G = sqrt((0.5 * a + 1) / (1 - dot_v_n_2)) * dot_v_n;
   // Evalute BRDF
-  float dot_l_h = dot(space.wi, h);
-  float dot_l_n = dot(space.wi, surf.normal);
+  float dot_l_h = dot(wi, h);
+  float dot_l_n = dot(wi, surf.normal);
   float dot_h_n = max(dot(h, surf.normal), EPS); // clamp to avoid nan in self-intrusion
   float3 f = F_schlick(surf.fresnel_0, dot_l_h);
   float g1 = G1Smith_beckmann_schlick(a_b_for_G);
@@ -149,17 +145,17 @@ BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
   return ret;
 }
 
-BrdfCosine BRDF_GGX_Lambertian(BXDFSurface surf, Space space) {
+BrdfCosine BRDF_GGX_Lambertian(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // Disney mapping, ref: [rtr4]
   float _a = surf.roughness_percepted;
   float a = _a * _a;
   // Evalute BRDF
-  float3 h = normalize(space.wo + space.wi);
-  float dot_l_h = dot(space.wi, h);
+  float3 h = normalize(wo + wi);
+  float dot_l_h = dot(wi, h);
   float3 f = F_schlick(surf.fresnel_0, dot_l_h);
-  float dot_l_n = max(dot(space.wi, surf.normal), EPS); // avoid nan in G2
-  float dot_v_n = max(dot(space.wo, surf.normal), EPS); // avoid nan in G2
+  float dot_l_n = max(dot(wi, surf.normal), EPS); // avoid nan in G2
+  float dot_v_n = max(dot(wo, surf.normal), EPS); // avoid nan in G2
   float g2_denom = G2Smith_ggx_hammon_devided(dot_l_n, dot_v_n, a);
   float dot_h_n = max(dot(h, surf.normal), EPS); // avoid nan in d, due to self-intrusion
   float d = D_ggx(dot_h_n, a);

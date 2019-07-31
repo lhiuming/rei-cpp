@@ -1,7 +1,12 @@
 #include "common.hlsl"
 #include "hybrid_common.hlsl"
 #include "halton.hlsl"
+#include "integrator.hlsl"
 #include "procedural_env.hlsl"
+
+#define BOUNCE_LIMIT  2
+#define FIRST_BOUNCE_SAMPLE 8
+#define SECOND_BOUNCE_SAMPLE 2
 
 struct Vertex {
   // NOTE: see VertexElement in cpp code
@@ -78,50 +83,15 @@ float4 sample_sky(float3 dir) {
   return float4(gradiant_sky_eva(dir), 1.0f);
 }
 
-struct BRDFSample {
-  float3 wi;
-  float3 specular;
-  float3 diffuse;
-  float importance;
-};
-
-BRDFSample sample_blinn_phong_brdf(BXDFSurface bxdf, float3 wo, float rnd0, float rnd1) {
-  BRDFSample ret;
-  // compute local random direction
-  // NOTE: for a uniform distribution on hemisphere, phi = acos(rnd1)
-  // ref: http://mathworld.wolfram.com/SpherePointPicking.html
-  float theta = rnd0 * PI_2;
-  float cos_phi = rnd1;
-  float sin_phi = sqrt(1 - cos_phi * cos_phi);
-  float3 dir = {sin_phi * cos(theta), cos_phi, sin_phi * sin(theta)};
-  // we are sampling uniformly on hemisphere using sphere coordinate
-  ret.importance = PI_2;
-
-  // rotate to world space
-  float3 normal = bxdf.normal;
-  float3 pre_tangent = wo;
-  if (abs(dot(normal, pre_tangent)) >= (1 - EPS) ) { pre_tangent = float3(wo.z, 0, -wo.x); }
-  float3 bitangent = normalize(cross(pre_tangent, normal));
-  float3 tangent = cross(normal, bitangent);
-  ret.wi = dir.x * tangent + dir.y * normal + dir.z * bitangent;
-
-  // evaluate brdf
-  Space space;
-  space.wi = ret.wi;
-  space.wo = wo;
-  BrdfCosine brdf_cosine;
-  //brdf_cosine = blinn_phong_classic(bxdf, space);
-  //brdf_cosine = BRDF_blinn_phong_modified(bxdf, space);
-  brdf_cosine = BRDF_GGX_Lambertian(bxdf, space);
-  // note: the brdf result is alredy cosine-weighted
-  ret.specular = brdf_cosine.specular;
-  ret.diffuse = brdf_cosine.diffuse;
-
-  return ret;
+float3 evaluate_emittion(Surface surf) {
+  // Emissive is defined againat Lambertian response
+  float3 emittance = surf.emissive * PI;
+  return emittance;
 }
 
-float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float recur_depth) {
+float3 evaluate_lighting(float3 pos, float3 wo, Surface surf, float recur_depth, uint sample_count) {
   HaltonState halton = halton_init(DispatchRaysIndex().xy, get_frame_id(g_render), c_frame_loop);
+  UniformHSampler h_sampler = uniform_h_sampler_init(halton, surf.normal, wo);
 
   BXDFSurface bxdf;
   bxdf.normal = surf.normal;
@@ -130,30 +100,32 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
   bxdf.albedo = lerp(surf.color, 0, surf.metalness);
 
   float3 accumulated = float3(0, 0, 0);
+  sample_count = min(sample_count, HALTON_MAX_SAMPLE_2D);
 
-  const uint c_sample = min(8, c_halton_max_sample_2d);
   RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
   RayDesc ray;
-  ray.Origin = pos + surf.normal * 0.001; // to avoid self-intrusion
-  ray.TMin = 0.0001;
+  ray.Origin = pos;
+  ray.TMin = EPS;
   ray.TMax = 100.0;
-  for (int i = 0; i < c_sample; i++) {
-    float rnd0 = frac(halton_next(halton));
-    float rnd1 = frac(halton_next(halton));
-    BRDFSample samp = sample_blinn_phong_brdf(bxdf, wo, rnd0, rnd1);
+  for (int i = 0; i < sample_count; i++) {
+    // Take sample
+    SphereSample ssample = sampler_next(h_sampler);
 
-    ray.Direction = samp.wi;
+    // Trace
+    ray.Direction = ssample.wi;
     TraceRay(g_scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 0, 0, ray, payload);
-    // Convert color to irradiance
+
+    // Calculate radiance
+    BrdfCosine brdf_cos = BRDF_GGX_Lambertian(bxdf, wo, ssample.wi);
     float3 irradiance = payload.color.xyz;
-    float3 radiance = (samp.specular + samp.diffuse) * irradiance;
-    accumulated += samp.importance * radiance;
+    float3 radiance = (brdf_cos.specular + brdf_cos.diffuse) * irradiance;
+    
+    // Sum
+    accumulated += ssample.importance * radiance;
   }
 
-  // Emissive is defined againat Lambertian response
-  float3 emittance = surf.emissive * PI;
-  float3 reflectance = accumulated / c_sample;
-  return emittance + reflectance;
+  float3 reflectance = accumulated / sample_count;
+  return reflectance;
 }
 
 void output(float4 color) {
@@ -177,7 +149,7 @@ void output(float3 color) {
   float3 wo = normalize(g_render.camera_pos.xyz - world_pos);
 
   // reject on background
-  if (depth <= c_epsilon) {
+  if (depth <= EPS) {
     float3 view_dir = -wo;
     output(sample_sky(view_dir));
     return;
@@ -185,7 +157,7 @@ void output(float3 color) {
 
   Surface s;
   fill_surface(g_rt0[id], g_rt1[id], g_rt2[id], s);
-  float3 radiance = integrate_blinn_phong(world_pos, wo, s, 0);
+  float3 radiance = evaluate_emittion(s) + evaluate_lighting(world_pos, wo, s, 0, FIRST_BOUNCE_SAMPLE);
 
   output(radiance);
 }
@@ -207,23 +179,23 @@ void output(float3 color) {
   float3 n = n0 + bary.x * (n1 - n0) + bary.y * (n2 - n0);
   n = normalize(n);
 
-  // collect bounced irradiance
-  float3 radiance;
-  if (payload.depth < 2) {
-    // Bounc around the scene !
-    float3 world_pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
-    float3 wo = -WorldRayDirection();
+  Surface surf;
+  fill_surface(g_material, n, surf);
+  float3 emittance = evaluate_emittion(surf);
 
-    // TODO read material from shader table
-    Surface surf;
-    fill_surface(g_material, n, surf);
-    radiance = integrate_blinn_phong(world_pos, wo, surf, payload.depth);
+  // collect bounced irradiance
+  float3 reflectance;
+  if (payload.depth < BOUNCE_LIMIT) {
+    // Bounc around the scene !
+    float3 pos = WorldRayOrigin() + RayTCurrent() * WorldRayDirection();
+    float3 wo = -WorldRayDirection();
+    reflectance = evaluate_lighting(pos, wo, surf, payload.depth, SECOND_BOUNCE_SAMPLE);
   } else {
     // kill the path
-    radiance = 0.001;
+    reflectance = 0.01;
   }
 
-  payload.color.xyz = radiance;
+  payload.color.xyz = emittance + reflectance;
 }
 
 [shader("miss")] void miss_shader(inout RayPayload payload) {
