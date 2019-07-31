@@ -70,31 +70,27 @@ float G1Smith_beckmann_schlick(float a_roughness) {
 }
 
 // GGX/Trowbridge-Reitz NDF
-// ref: [rtr4]
-float D_ggx(float dot_n_l_clamped, float a_roughness) {
+// ref: [rtr4], p.340
+float D_ggx(float dot_n_m, float a_roughness) {
   float a = a_roughness;
   float a2 = a * a;
-  float dot_n_l = dot_n_l_clamped;
-  float cos2 = dot_n_l * dot_n_l;
-  // TODO does compiler optimize the pow(x, 2)?
-  return a2 / (PI * pow(1 + cos2 * (a2 - 1) + c_epsilon, 2));
+  float cos2 = dot_n_m * dot_n_m;
+  float _tmp = 1 + cos2 * (a2 - 1);
+  return a2 / (PI * _tmp * _tmp);
 }
 
 // Smith G1 for GGX NDF, as approximated by Karis
 // ref: [rtr4], p342
-float G1Smith_ggx_karis(float dot_n_l_clamped, float a_roughness) {
+float G1Smith_ggx_karis(float dot_n_s, float a_roughness) {
   float a = a_roughness;
-  float dot_n_l = dot_n_l_clamped + c_epsilon;
-  return (2 * dot_n_l) / (dot_n_l * (2 - a) + a);
+  return (2 * dot_n_s) / (dot_n_s * (2 - a) + a);
 }
 
 // Smith G2 combined with the microfacet denominator 1/(4 * dot_n_l * dot_n_v),
 // assumuing height-correlated G2, as approximated by Hammon et al
 // ref: [rtr4], p342
-float G2Smith_ggx_hammon_devided(float dot_n_l_clamped, float dot_n_v_clamped, float a_roughness) {
+float G2Smith_ggx_hammon_devided(float dot_n_l, float dot_n_v, float a_roughness) {
   float a = a_roughness;
-  float dot_n_l = dot_n_l_clamped + c_epsilon;
-  float dot_n_v = dot_n_v_clamped + c_epsilon;
   return 0.5 / lerp(2 * dot_n_l * dot_n_v, dot_n_l + dot_n_v, a);
 }
 

@@ -28,7 +28,7 @@ void RayTracingApp::on_start() {
   {
     blue_steel->set(L"albedo", Colors::aqua);
     blue_steel->set(L"metalness", 1.0);
-    blue_steel->set(L"smoothness", 0.95);
+    blue_steel->set(L"smoothness", 0.85);
   }
   auto yellow_plastic = make_shared<Material>(L"Yellow Plastic");
   {
@@ -70,13 +70,15 @@ void RayTracingApp::on_start() {
   scene().add_model(Mat4::translate({1.5, 2.5, 0}), dot, super_light, L"light blob");
   // Reference ball list
   auto small_ball = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3, 0.25));
-  for (int i = 0; i < 8; i++) {
-    for (int j = 0; j < 2; j++) {
-      Vec3 pos = {(i - 4.0) * 0.6 + j * 0.3, 0.25, 3 + j * 0.6};
+  const int balls_x = 8;
+  const int balls_y = 2;
+  for (int i = 0; i < balls_x; i++) {
+    for (int j = 0; j < balls_y; j++) {
+      Vec3 pos = {(i - balls_x / 2) * 0.6 + j * 0.3, 0.25, 2.4 + j * 0.6};
       auto ball_mat = make_shared<Material>(L"Varying Ball");
-      ball_mat->set(L"albedo", Colors::asuka_red);
-      ball_mat->set(L"smoothness", i / 16.0);
-      ball_mat->set(L"metalness", j / 1.0);
+      ball_mat->set(L"albedo", Colors::white * 0.5);
+      ball_mat->set(L"smoothness", i / double(balls_x));
+      ball_mat->set(L"metalness", j / (std::max)(double(balls_y - 1), 1.0));
       scene().add_model(Mat4::translate(pos), small_ball, ball_mat, L"One of Small Balls");
     }
   }

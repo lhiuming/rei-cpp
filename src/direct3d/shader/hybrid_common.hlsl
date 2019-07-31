@@ -104,7 +104,8 @@ struct BrdfCosine {
 };
 
 // Classic Blinn-Phong specular brdf
-// NOTE: some normalization is applied here, ref: https://seblagarde.wordpress.com/2011/08/17/hello-world/
+// NOTE: some normalization is applied here, ref:
+// https://seblagarde.wordpress.com/2011/08/17/hello-world/
 BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
@@ -122,8 +123,8 @@ BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
   return ret;
 }
 
-// Energy Consering Blinn-Phong BRDF simulated with Beckmann Lambda function, with roughness remapped accoordingly.
-// ref: [rtr4], p340
+// Energy Consering Blinn-Phong BRDF simulated with Beckmann Lambda function, with roughness
+// remapped accoordingly. ref: [rtr4], p340
 BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
@@ -142,16 +143,31 @@ BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
   float g2 = g1 * g1;
   float d = D_blinn_phong(dot_h_n, a);
   // NOTE: 1/dot_l_n is canceld with irradiance projection
-  ret.specular = f * g2 * d / (4 * dot_v_n); 
+  ret.specular = f * g2 * d / (4 * dot_v_n);
   // perfect scattering by 1 - f
-  ret.diffuse =  (1- f) * surf.albedo * BRDF_lambertian() * dot_l_n;
+  ret.diffuse = (1 - f) * surf.albedo * BRDF_lambertian() * dot_l_n;
   return ret;
 }
 
-float BERG_GGX() {
+BrdfCosine BRDF_GGX_Lambertian(BXDFSurface surf, Space space) {
+  BrdfCosine ret;
   // Disney mapping, ref: [rtr4]
-  // float roughness = pow(surf.roughness_percepted, 2);
-  return 0;
+  float _a = surf.roughness_percepted;
+  float a = _a * _a;
+  // Evalute BRDF
+  float3 h = normalize(space.wo + space.wi);
+  float dot_l_h = dot(space.wi, h);
+  float3 f = F_schlick(surf.fresnel_0, dot_l_h);
+  float dot_l_n = max(dot(space.wi, surf.normal), EPS); // avoid nan in G2
+  float dot_v_n = max(dot(space.wo, surf.normal), EPS); // avoid nan in G2
+  float g2_denom = G2Smith_ggx_hammon_devided(dot_l_n, dot_v_n, a);
+  float dot_h_n = max(dot(h, surf.normal), EPS); // avoid nan in d, due to self-intrusion
+  float d = D_ggx(dot_h_n, a);
+  // NOTE: denominator part 1 / (4 * dot_l_n * dot_v_n) is pre-multiplied in g2_denom
+  ret.specular = f * d * g2_denom * dot_l_n;
+  // perfect scattering by 1 - f
+  ret.diffuse = (1 - f) * surf.albedo * BRDF_lambertian() * dot_l_n;
+  return ret;
 }
 
 #endif
