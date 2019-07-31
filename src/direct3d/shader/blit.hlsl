@@ -2,6 +2,8 @@
  * Full-screen blit shader.
  */
 
+#include "raster_common.hlsl"
+
 sampler samp : register(s0, space0);
 Texture2D<float4> input_texture : register(t0, space0);
 
@@ -11,33 +13,9 @@ struct Varying {
 };
 
 Varying VS(uint vid : SV_VertexID) {
-  /*
-   *  2 --------------------- 1
-   *  |     .   / |         /
-   *  |     . /   |       /
-   *  | - - * - - |     /
-   *  |   / .     |   /
-   *  | /   .     | /
-   *  |-----------/
-   *  |         /
-   *  |       /
-   *  |     /
-   *  |   /
-   *  | /
-   *  0
-   */
-
   Varying v;
-
-  if (vid == 0) v.pos = float4(-1, -3, 1, 1);
-  if (vid == 1) v.pos = float4(+3, +1, 1, 1);
-  if (vid == 2) v.pos = float4(-1, +1, 1, 1);
-
-  // ASSUME texcoord start from upper left
-  if (vid == 0) v.uv = float2(0, 2);
-  if (vid == 1) v.uv = float2(2, 0);
-  if (vid == 2) v.uv = float2(0, 0);
-
+  v.pos = make_screen_triangle_ndc(vid);
+  v.uv = make_screen_triangle_uv(vid);
   return v;
 }
 

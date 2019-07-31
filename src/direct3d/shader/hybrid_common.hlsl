@@ -14,12 +14,25 @@
 struct PerRenderConstBuffer {
   // NOTE: see PerFrameConstantBuffer in cpp code
   float4 screen;
+  float4x4 view_proj;
   float4x4 proj_to_world;
   float4 camera_pos;
   float4 render_info;
 };
 
-uint get_frame_id(in PerRenderConstBuffer cb) {
+float2 get_screen_size(PerRenderConstBuffer cb) {
+  return cb.screen.xy;
+}
+
+float4x4 get_view_proj(PerRenderConstBuffer cb) {
+  return cb.view_proj;
+}
+
+float4x4 get_view_proj_inv(PerRenderConstBuffer cb) {
+  return cb.proj_to_world;
+}
+
+uint get_frame_id(PerRenderConstBuffer cb) {
   return uint(cb.render_info.x);
 }
 
@@ -58,6 +71,12 @@ void fill_surface(PerMaterialConstBuffer cb, float3 normal, inout Surface surf) 
   surf.emissive = get_emissive(cb);
 }
 
+Surface decode_material(PerMaterialConstBuffer cb, float3 normal) {
+  Surface surf;
+  fill_surface(cb, normal, surf);
+  return surf;
+}
+
 struct GBufferPixel {
   float4 normal_smoothness : SV_TARGET0;
   float4 color_metalness : SV_TARGET1;
@@ -83,6 +102,13 @@ void fill_surface(float4 rt0, float4 rt1, float4 rt2, inout Surface s) {
   s.emissive = rt2.xyz;
 }
 
+// Read surface properties from GBuffer
+Surface decode_gbuffer(float4 rt0, float4 rt1, float4 rt2) {
+  Surface surf;
+  fill_surface(rt0, rt1, rt2, surf);
+  return surf;
+}
+
 //
 // Shading
 //
@@ -93,6 +119,15 @@ struct BXDFSurface {
   float3 fresnel_0;
   float3 albedo;
 };
+
+BXDFSurface to_bxdf(Surface surf) {
+  BXDFSurface bxdf;
+  bxdf.normal = surf.normal;
+  bxdf.roughness_percepted = saturate(1 - surf.smoothness);
+  bxdf.fresnel_0 = lerp(0.03, surf.color, surf.metalness);
+  bxdf.albedo = lerp(surf.color, 0, surf.metalness);
+  return bxdf;
+}
 
 struct BrdfCosine {
   float3 specular;

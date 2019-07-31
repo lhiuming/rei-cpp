@@ -93,11 +93,7 @@ float3 evaluate_lighting(float3 pos, float3 wo, Surface surf, float recur_depth,
   HaltonState halton = halton_init(DispatchRaysIndex().xy, get_frame_id(g_render), c_frame_loop);
   UniformHSampler h_sampler = uniform_h_sampler_init(halton, surf.normal, wo);
 
-  BXDFSurface bxdf;
-  bxdf.normal = surf.normal;
-  bxdf.roughness_percepted = saturate(1 - surf.smoothness);
-  bxdf.fresnel_0 = lerp(0.03, surf.color, surf.metalness);
-  bxdf.albedo = lerp(surf.color, 0, surf.metalness);
+  BXDFSurface bxdf = to_bxdf(surf);
 
   float3 accumulated = float3(0, 0, 0);
   sample_count = min(sample_count, HALTON_MAX_SAMPLE_2D);
@@ -192,7 +188,8 @@ void output(float3 color) {
     reflectance = evaluate_lighting(pos, wo, surf, payload.depth, SECOND_BOUNCE_SAMPLE);
   } else {
     // kill the path
-    reflectance = 0.01;
+    float3 ambient = 0;
+    reflectance = ambient;
   }
 
   payload.color.xyz = emittance + reflectance;

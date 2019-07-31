@@ -7,6 +7,8 @@
 #include "../container_utils.h"
 #include "../direct3d/d3d_renderer.h"
 
+using std::vector;
+
 namespace rei {
 
 namespace hybrid {
@@ -16,15 +18,17 @@ struct ViewportProxy {
   size_t height = 1;
   SwapchainHandle swapchain;
   BufferHandle depth_stencil_buffer;
-  BufferHandle normal_buffer;
-  BufferHandle albedo_buffer;
-  BufferHandle emissive_buffer;
+  BufferHandle gbuffer0;
+  BufferHandle gbuffer1;
+  BufferHandle gbuffer2;
 
   BufferHandle raytracing_output_buffer;
 
   BufferHandle taa_cb;
   BufferHandle taa_buffer[2];
   ShaderArgumentHandle taa_argument[2];
+
+  ShaderArgumentHandle direct_lighting_inout_arg;
 
   BufferHandle postprocessing_output;
   ShaderArgumentHandle blit_for_present;
@@ -42,11 +46,11 @@ struct ViewportProxy {
     view_proj_dirty = false;
   }
 
-  ShaderArgumentHandle taa_curr_arg () { return taa_argument[frame_id % 2]; }
+  ShaderArgumentHandle taa_curr_arg() { return taa_argument[frame_id % 2]; }
   BufferHandle taa_curr_input() { return taa_buffer[frame_id % 2]; }
   BufferHandle taa_curr_output() { return taa_buffer[(frame_id + 1) % 2]; }
 
-  template<int Base>
+  template <int Base>
   static float halton(int index) {
     float a = 0;
     float inv_base = 1.0f / float(Base);
@@ -105,6 +109,10 @@ struct SceneProxy {
   // Accelration structure and shader table
   BufferHandle tlas;
   BufferHandle shader_table;
+
+  // Direct lighting const buffer
+  BufferHandle direct_lights;
+  vector<ShaderArgumentHandle> direct_light_arg_cache;
 };
 
 } // namespace hybrid
@@ -151,6 +159,29 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
   }
 };
 
+struct HybridDirectLightingShaderDesc : ComputeShaderMetaInfo {
+  HybridDirectLightingShaderDesc() {
+    ShaderParameter space0 {};
+    space0.const_buffers = {
+      ConstantBuffer(), // light data
+    };
+    ShaderParameter space1 {};
+    space1.shader_resources = {
+      ShaderResource(), // depth
+      ShaderResource(), // gbuffers
+      ShaderResource(),
+      ShaderResource(),
+    };
+    space1.unordered_accesses = {
+      UnorderedAccess(), // output color
+    };
+    space1.const_buffers = {
+      ConstantBuffer(), // per-render data
+    };
+    signature.param_table = {space0, space1};
+  }
+};
+
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
   BlitShaderDesc() {
     ShaderParameter space0 {};
@@ -184,8 +215,10 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
   }
 
   {
-    m_raytraced_lighting_shader
-      = r->create_shader(L"CoreData/shader/hybrid_raytracing.hlsl", HybridRaytracingShaderDesc());
+    m_multibounce_shader
+      = r->create_shader(L"CoreData/shader/hybrid_multibounce.hlsl", HybridRaytracingShaderDesc());
+    m_direct_lighting_shader = r->create_shader(
+      L"CoreData/shader/hybrid_direct_lighting.hlsl", HybridDirectLightingShaderDesc());
   }
 
   {
@@ -196,6 +229,7 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
   {
     ConstBufferLayout lo = {
       ShaderDataType::Float4,   // screen size
+      ShaderDataType::Float4x4, // world_to_proj := camera view_proj
       ShaderDataType::Float4x4, // proj_to_world := camera view_proj inverse
       ShaderDataType::Float4,   // camera pos
       ShaderDataType::Float4,   // frame id
@@ -216,13 +250,13 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.depth_stencil_buffer
     = r->create_texture_2d(TextureDesc::depth_stencil(conf.width, conf.height),
       ResourceState::DeptpWrite, L"Depth Stencil");
-  proxy.normal_buffer = r->create_texture_2d(
+  proxy.gbuffer0 = r->create_texture_2d(
     TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
     ResourceState::RenderTarget, L"Normal Buffer");
-  proxy.albedo_buffer = r->create_texture_2d(
+  proxy.gbuffer1 = r->create_texture_2d(
     TextureDesc::render_target(conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM),
     ResourceState::RenderTarget, L"Albedo Buffer");
-  proxy.emissive_buffer = r->create_texture_2d(
+  proxy.gbuffer2 = r->create_texture_2d(
     TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
     ResourceState::RenderTarget, L"Emissive Buffer");
 
@@ -230,7 +264,7 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Raytracing Output Buffer");
 
   proxy.postprocessing_output = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
     ResourceState::UnorderedAccess, L"PP Output");
 
   {
@@ -262,6 +296,17 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     };
     for (int i = 0; i < 2; i++)
       proxy.taa_argument[i] = make_taa_argument(i, (i + 1) % 2);
+  }
+
+  {
+    ShaderArgumentValue val {};
+    val.shader_resources
+      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
+    val.unordered_accesses = {proxy.postprocessing_output};
+    val.const_buffers = {m_per_render_buffer};
+    val.const_buffer_offsets = {0}; // FIXME current all viewport using the same part of per-render buffer
+    proxy.direct_lighting_inout_arg = r->create_shader_argument(val);
+    REI_ASSERT(proxy.direct_lighting_inout_arg);
   }
 
   {
@@ -387,7 +432,15 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
       desc.transform.push_back(m.trans);
     }
     proxy.tlas = r->create_raytracing_accel_struct(desc);
-    proxy.shader_table = r->create_shader_table(*scene, m_raytraced_lighting_shader);
+    proxy.shader_table = r->create_shader_table(*scene, m_multibounce_shader);
+  }
+
+  // Allocate analitic light buffer
+  {
+    ConstBufferLayout lo {};
+    lo[0] = ShaderDataType::Float4; // pos_dir
+    lo[1] = ShaderDataType::Float4; // color
+    proxy.direct_lights = r->create_const_buffer(lo, 128, L"Analytic Lights Buffer");
   }
 
   return add_scene(std::move(proxy));
@@ -412,16 +465,18 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // render info
   Mat4 view_proj = viewport->get_view_proj(viewport->view_proj_dirty && m_enable_jittering);
-  double taa_blend_factor = viewport->view_proj_dirty ? 1.0 : (m_enabled_accumulated_rtrt ? 0.01 : 0.5);
+  double taa_blend_factor
+    = viewport->view_proj_dirty ? 1.0 : (m_enabled_accumulated_rtrt ? 0.01 : 0.5);
 
   // Update scene-wide const buffer (per-frame CB)
   {
     Vec4 screen = Vec4(viewport->width, viewport->height, 0, 0);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 0, screen);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->view_proj_inv);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->cam_pos);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->view_proj);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->view_proj_inv);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, viewport->cam_pos);
     Vec4 render_info = Vec4(viewport->frame_id, -1, -1, -1);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, render_info);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 4, render_info);
   }
 
   // Update material buffer
@@ -432,6 +487,9 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       renderer->update_const_buffer(scene->materials_cb, mat.cb_index, 1, mat.parset1);
     }
   }
+
+  //-------
+  // Pass: Create G-Buffer
 
   // Update per-object const buffer
   {
@@ -445,15 +503,14 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     }
   }
 
-  // Geometry pass
-  cmd_list->transition(viewport->normal_buffer, ResourceState::RenderTarget);
-  cmd_list->transition(viewport->albedo_buffer, ResourceState::RenderTarget);
-  cmd_list->transition(viewport->emissive_buffer, ResourceState::RenderTarget);
+  // Draw to G-Buffer
+  cmd_list->transition(viewport->gbuffer0, ResourceState::RenderTarget);
+  cmd_list->transition(viewport->gbuffer1, ResourceState::RenderTarget);
+  cmd_list->transition(viewport->gbuffer2, ResourceState::RenderTarget);
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::DeptpWrite);
   RenderPassCommand gpass = {};
   {
-    gpass.render_targets
-      = {viewport->normal_buffer, viewport->albedo_buffer, viewport->emissive_buffer};
+    gpass.render_targets = {viewport->gbuffer0, viewport->gbuffer1, viewport->gbuffer2};
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
@@ -473,10 +530,19 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   }
   cmd_list->end_render_pass();
 
+  //--- End G-Buffer pass
+
+  //-------
+  // Pass: Raytraced multi-bounced GI
+
+  // goto skip_multibounce;
+
+  // TODO move this to a seperated command queue
+
   // Update shader Tables
   {
     UpdateShaderTable desc = UpdateShaderTable::hitgroup();
-    desc.shader = m_raytraced_lighting_shader;
+    desc.shader = m_multibounce_shader;
     desc.shader_table = scene->shader_table;
     for (auto& pair : scene->models) {
       auto& m = pair.second;
@@ -486,15 +552,15 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     }
   }
 
-  // Raytraced lighting
-  cmd_list->transition(viewport->normal_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->albedo_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->emissive_buffer, ResourceState::ComputeShaderResource);
+  // Trace
+  cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
   {
     RaytraceCommand cmd {};
-    cmd.raytrace_shader = m_raytraced_lighting_shader;
+    cmd.raytrace_shader = m_multibounce_shader;
     cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
     cmd.shader_table = scene->shader_table;
     cmd.width = viewport->width;
@@ -507,11 +573,9 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
     cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
   }
-  cmd_list->transition(
-    viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(
-    viewport->taa_curr_output(), ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->taa_curr_output(), ResourceState::UnorderedAccess);
   cmd_list->transition(viewport->postprocessing_output, ResourceState::UnorderedAccess);
   {
     DispatchCommand dispatch {};
@@ -523,10 +587,64 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->dispatch(dispatch);
   }
 
-  // Blit raytracing result for debug
+skip_multibounce:
+
+  //--- End multi-bounce GI pass
+
+  //-------
+  // Pass: Deferred direct lightings
+
+  // goto skip_direct_lighting;
+
+  // TODO: same texture input for multibounce GI
+  cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->postprocessing_output, ResourceState::UnorderedAccess);
+  // currently both taa and direct-lighting write to the same UA buffer
+  cmd_list->barrier(viewport->postprocessing_output);
+  int light_count = 2;
+  static int light_indices[] = {0, 1};
+  static Color light_colors[] = {Colors::white * 2, Colors::white * 0.1};
+  static Vec4 light_pos_dirs[] = {{Vec3(1, 2, 1).normalized(), 0}, {0, 2, 0, 1}};
+  for (int i = 0; i < light_count; i++) {
+    int light_index = light_indices[i];
+    Vec4 light_color = Vec4(light_colors[i]);
+    Vec4 light_pos_dir = light_pos_dirs[i];
+
+    // update light data
+    cmd_list->update_const_buffer(scene->direct_lights, light_index, 0, light_pos_dir);
+    cmd_list->update_const_buffer(scene->direct_lights, light_index, 1, light_color);
+
+    // dispatch
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_direct_lighting_shader;
+    dispatch.arguments
+      = {fetch_direct_lighting_arg(*scene, light_index), viewport->direct_lighting_inout_arg};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
+  }
+
+  skip_direct_lighting:
+
+  // --- End Deferred directy lighting
+
+  // ----
+  // Pass: blend multi-bounced GI to result
+  // TODO
+  //--- End Blend-in GI result
+
+  // -------
+  // Pass: Blit Post-processing reults to render target
+
+  // NOTE: currently direct lighting output to pp-output-texture
+
   BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
-  cmd_list->transition(viewport->postprocessing_output, ResourceState::PixelShaderResource);
   cmd_list->transition(render_target, ResourceState::RenderTarget);
+  cmd_list->transition(viewport->postprocessing_output, ResourceState::PixelShaderResource);
   {
     RenderPassCommand render_pass {};
     render_pass.render_targets = {render_target};
@@ -544,31 +662,9 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     cmd_list->end_render_pass();
   }
 
-  // Shading pass
-  // TODO do some direct lighting here
-  if (false) {
-    cmd_list->transition(render_target, ResourceState::RenderTarget);
-    cmd_list->transition(viewport->normal_buffer, ResourceState::PixelShaderResource);
-    cmd_list->transition(viewport->albedo_buffer, ResourceState::PixelShaderResource);
-    cmd_list->transition(viewport->emissive_buffer, ResourceState::PixelShaderResource);
-    cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::PixelShaderResource);
-    RenderPassCommand shading_pass = {};
-    {
-      shading_pass.render_targets = {render_target};
-      shading_pass.depth_stencil = c_empty_handle;
-      shading_pass.clear_rt = true;
-      shading_pass.clear_ds = false;
-      shading_pass.area = {viewport->width, viewport->height};
-    }
-    cmd_list->begin_render_pass(shading_pass);
-    DrawCommand cmd = {};
-    // cmd.geo = c_empty_handle;
-    cmd.shader = c_empty_handle;
-    cmd.arguments = {};
-    cmd_list->draw(cmd);
-    cmd_list->end_render_pass();
-  }
+  // --- End blitting
 
+  // Update frame-counting in the end
   viewport->advance_frame();
 
   cmd_list->transition(render_target, ResourceState::Present);
@@ -596,9 +692,9 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   val.shader_resources = {
     scene->tlas,                    // t0 TLAS
     viewport->depth_stencil_buffer, // t1 G-buffer depth
-    viewport->normal_buffer,        // t2 G-Buffer::normal
-    viewport->albedo_buffer,        // t3 G-Buffer::albedo
-    viewport->emissive_buffer,      // t4 G-Buffer::emissive
+    viewport->gbuffer0,             // t2 G-Buffer::normal
+    viewport->gbuffer1,             // t3 G-Buffer::albedo
+    viewport->gbuffer2,             // t4 G-Buffer::emissive
   };
   val.unordered_accesses = {viewport->raytracing_output_buffer};
   ShaderArgumentHandle arg = r->create_shader_argument(val);
@@ -608,6 +704,25 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   m_raytracing_args.insert({cache_key, arg});
 
   return arg;
+}
+
+ShaderArgumentHandle HybridPipeline::fetch_direct_lighting_arg(SceneProxy& scene, int cb_index) {
+  REI_ASSERT(cb_index >= 0);
+  if (cb_index >= scene.direct_light_arg_cache.size()) {
+    Renderer* r = get_renderer();
+    REI_ASSERT(r);
+
+    ShaderArgumentValue val {};
+    val.const_buffers = {scene.direct_lights};
+    val.const_buffer_offsets = {size_t(cb_index)};
+    ShaderArgumentHandle h = r->create_shader_argument(val);
+    REI_ASSERT(h);
+    scene.direct_light_arg_cache.reserve(cb_index + 1);
+    scene.direct_light_arg_cache.resize(cb_index + 1);
+    scene.direct_light_arg_cache[cb_index] = h;
+  }
+
+  return scene.direct_light_arg_cache[cb_index];
 }
 
 } // namespace rei

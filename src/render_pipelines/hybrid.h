@@ -23,6 +23,8 @@ class HybridPipeline
     : public SimplexPipeline<hybrid::ViewportProxy, hybrid::SceneProxy, d3d::Renderer> {
   // FIXME lazyness
   using Renderer = d3d::Renderer;
+  using ViewportProxy = hybrid::ViewportProxy;
+  using SceneProxy = hybrid::SceneProxy;
 
 public:
   HybridPipeline(RendererPtr renderer);
@@ -44,9 +46,12 @@ private:
   const bool m_enabled_accumulated_rtrt = true;
 
   ShaderHandle m_gpass_shader;
-  ShaderHandle m_raytraced_lighting_shader;
-  ShaderHandle m_blit_shader;
+
+  ShaderHandle m_multibounce_shader;
+  ShaderHandle m_direct_lighting_shader;
+
   ShaderHandle m_taa_shader;
+  ShaderHandle m_blit_shader;
 
   BufferHandle m_per_render_buffer;
 
@@ -67,6 +72,8 @@ private:
   Hashmap<RaytracingArgumentKey, ShaderArgumentHandle, RakHash> m_raytracing_args;
 
   ShaderArgumentHandle fetch_raytracing_arg(ViewportHandle viewport, SceneHandle scene);
+
+  ShaderArgumentHandle fetch_direct_lighting_arg(SceneProxy& scene, int cb_index);
 };
 
 } // namespace rei
