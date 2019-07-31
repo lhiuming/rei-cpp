@@ -606,7 +606,7 @@ skip_multibounce:
   cmd_list->barrier(viewport->postprocessing_output);
   int light_count = 2;
   static int light_indices[] = {0, 1};
-  static Color light_colors[] = {Colors::white * 2, Colors::white * 0.1};
+  static Color light_colors[] = {Colors::white * 1.3, Colors::white * 1};
   static Vec4 light_pos_dirs[] = {{Vec3(1, 2, 1).normalized(), 0}, {0, 2, 0, 1}};
   for (int i = 0; i < light_count; i++) {
     int light_index = light_indices[i];
