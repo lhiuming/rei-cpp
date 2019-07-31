@@ -95,7 +95,7 @@ BRDFSample sample_blinn_phong_brdf(BXDFSurface bxdf, float3 wo, float rnd0, floa
   float sin_phi = sqrt(1 - cos_phi * cos_phi);
   float3 dir = {sin_phi * cos(theta), cos_phi, sin_phi * sin(theta)};
   // we are sampling uniformly on hemisphere using sphere coordinate
-  ret.importance = c_pi_2;
+  ret.importance = PI_2;
 
   // rotate to world space
   float3 normal = bxdf.normal;
@@ -111,7 +111,8 @@ BRDFSample sample_blinn_phong_brdf(BXDFSurface bxdf, float3 wo, float rnd0, floa
   space.wo = wo;
   BrdfCosine brdf_cosine;
   //brdf_cosine = blinn_phong_classic(bxdf, space);
-  brdf_cosine = BRDF_blinn_phong_modified(bxdf, space);
+  //brdf_cosine = BRDF_blinn_phong_modified(bxdf, space);
+  brdf_cosine = BRDF_GGX_Lambertian(bxdf, space);
   // note: the brdf result is alredy cosine-weighted
   ret.specular = brdf_cosine.specular;
   ret.diffuse = brdf_cosine.diffuse;
@@ -130,7 +131,7 @@ float3 integrate_blinn_phong(in float3 pos, in float3 wo, in Surface surf, float
 
   float3 accumulated = float3(0, 0, 0);
 
-  const uint c_sample = min(4, c_halton_max_sample_2d);
+  const uint c_sample = min(8, c_halton_max_sample_2d);
   RayPayload payload = {{0, 0, 0, 0}, recur_depth + 1};
   RayDesc ray;
   ray.Origin = pos + surf.normal * 0.001; // to avoid self-intrusion
