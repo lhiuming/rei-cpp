@@ -601,6 +601,7 @@ void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
 }
 
 void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
+  const RenderViewaport viewport = cmd.viewport;
   const RenderArea& area = cmd.area;
 
   auto cmd_list = device_resources->prepare_command_list();
@@ -609,10 +610,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   {
     // NOTE: DirectX viewport starts from top-left to bottom-right.
     D3D12_VIEWPORT d3d_vp {};
-    d3d_vp.TopLeftX = 0.0f;
-    d3d_vp.TopLeftY = 0.0f;
-    d3d_vp.Width = float(area.width);
-    d3d_vp.Height = float(area.height);
+    d3d_vp.TopLeftX = viewport.offset_left;
+    d3d_vp.TopLeftY = viewport.offset_top;
+    d3d_vp.Width = viewport.width;
+    d3d_vp.Height = viewport.height;
     d3d_vp.MinDepth = D3D12_MIN_DEPTH;
     d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
     cmd_list->RSSetViewports(1, &d3d_vp);
@@ -620,10 +621,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
 
   {
     D3D12_RECT scissor {};
-    scissor.left = 0;
-    scissor.top = 0;
-    scissor.right = float(area.width);
-    scissor.bottom = float(area.height);
+    scissor.left = float(area.offset_left);
+    scissor.top = float(area.offset_top);
+    scissor.right = float(area.offset_left + area.width);
+    scissor.bottom = float(area.offset_top + area.height);
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
@@ -651,7 +652,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
         rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
       } else {
-        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
       }
       rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
     }
@@ -883,9 +884,9 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
   fill_vec4(color, clear_value);
   D3D12_RECT clear_rect; // NOTE DirectX sreen orientation
   clear_rect.left = area.offset_left;
-  clear_rect.top = area.offset_bottom;
-  clear_rect.bottom = area.offset_bottom + area.height; 
+  clear_rect.top = area.offset_top;
   clear_rect.right = area.offset_left + area.width;
+  clear_rect.bottom = area.offset_top + area.height;
   cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
 }
 

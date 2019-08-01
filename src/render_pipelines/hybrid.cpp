@@ -598,7 +598,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
-    gpass.area = {0, 0, viewport->width, viewport->height};
+    gpass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    gpass.area = RenderArea::full(viewport->width, viewport->height);
   }
   cmd_list->begin_render_pass(gpass);
   {
@@ -711,7 +712,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->area_light.unshadowed, ResourceState::UnorderedAccess);
-  cmd_list->clear_texture(viewport->area_light.unshadowed, {0, 0, 0, 0}, {0, 0, viewport->width, viewport->height});
+  cmd_list->clear_texture(viewport->area_light.unshadowed, {0, 0, 0, 0},
+    RenderArea::full(viewport->width, viewport->height));
   cmd_list->barrier(viewport->area_light.unshadowed);
   static std::array<int, 1> area_light_indices = {0};
   static std::array<Vec4, 1> area_light_shapes = {
@@ -780,7 +782,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     render_pass.depth_stencil = c_empty_handle;
     render_pass.clear_ds = false;
     render_pass.clear_rt = true;
-    render_pass.area = {0, 0, viewport->width, viewport->height};
+    render_pass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    render_pass.area = RenderArea::full(viewport->width, viewport->height);
     cmd_list->begin_render_pass(render_pass);
 
     DrawCommand draw {};
@@ -795,6 +798,11 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // some debug blits
   if (true) {
+    const size_t blit_width = 256;
+    const size_t blit_height = blit_width * viewport->height / viewport->width;
+    int debug_blit_count = 0;
+    const RenderViewaport full_vp = RenderViewaport::full(viewport->width, viewport->height);
+    const RenderArea full_area = RenderArea::full(viewport->width, viewport->height);
     auto drawer = [&](BufferHandle texture, ShaderArgumentHandle blit_arg) {
       cmd_list->transition(texture, ResourceState::PixelShaderResource);
       RenderPassCommand render_pass {};
@@ -802,7 +810,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       render_pass.depth_stencil = c_empty_handle;
       render_pass.clear_ds = false;
       render_pass.clear_rt = false;
-      render_pass.area = {0, 0, viewport->width, viewport->height};
+      render_pass.viewport = full_vp.shrink_to_upper_left(blit_width, blit_height, 0, blit_height * debug_blit_count);
+      render_pass.area = full_area.shrink_to_upper_left(blit_width, blit_height, 0, blit_height * debug_blit_count);
       cmd_list->begin_render_pass(render_pass);
 
       DrawCommand draw {};
@@ -811,6 +820,8 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       cmd_list->draw(draw);
 
       cmd_list->end_render_pass();
+
+      debug_blit_count++;
     };
 
     drawer(viewport->area_light.unshadowed, viewport->area_light.blit_unshadowed);
