@@ -13,6 +13,28 @@ namespace rei {
 
 namespace hybrid {
 
+struct HaltonSequence {
+  size_t index = 0;
+
+  HaltonSequence(size_t init_index = 0) : index(init_index) {}
+
+  template <int Base>
+  static float sample(int index) {
+    float a = 0;
+    float inv_base = 1.0f / float(Base);
+    for (float mult = inv_base; index != 0; index /= Base, mult *= inv_base) {
+      a += float(index % Base) * mult;
+    }
+    return a;
+  }
+
+  float next() { return sample<2>(++index); }
+  Vec4 next4() {
+    ++index;
+    return Vec4(sample<2>(index), sample<3>(index), sample<5>(index), sample<7>(index));
+  }
+};
+
 struct ViewportProxy {
   size_t width = 1;
   size_t height = 1;
@@ -31,11 +53,12 @@ struct ViewportProxy {
   // Statochastic Shadowed area lighting
   struct AreaLightHandles {
     BufferHandle unshadowed;
-    BufferHandle stochastic_ray;
+    BufferHandle stochastic_sample_ray;
+    BufferHandle stochastic_sample_radiance;
     BufferHandle stochastic_unshadowed;
     BufferHandle stochastic_shadowed;
     // BufferHandle stochastic_variance;
-    BufferHandle denoised_0;
+    // BufferHandle denoised_0; // not necessay a seperated buffer
     ShaderArgumentHandle unshadowed_pass_arg;
     ShaderArgumentHandle sample_gen_pass_arg;
     ShaderArgumentHandle trace_pass_arg;
@@ -46,6 +69,10 @@ struct ViewportProxy {
 
     // debug pass
     ShaderArgumentHandle blit_unshadowed;
+    ShaderArgumentHandle blit_stochastic_sample_ray;
+    ShaderArgumentHandle blit_stochastic_sample_radiance;
+    ShaderArgumentHandle blit_stochastic_unshadowed;
+    ShaderArgumentHandle blit_stochastic_shadowed;
   } area_light;
 
   // TAA resources
@@ -73,20 +100,10 @@ struct ViewportProxy {
   BufferHandle taa_curr_input() { return taa_buffer[frame_id % 2]; }
   BufferHandle taa_curr_output() { return taa_buffer[(frame_id + 1) % 2]; }
 
-  template <int Base>
-  static float halton(int index) {
-    float a = 0;
-    float inv_base = 1.0f / float(Base);
-    for (float mult = inv_base; index != 0; index /= Base, mult *= inv_base) {
-      a += float(index % Base) * mult;
-    }
-    return a;
-  }
-
   const Mat4& get_view_proj(bool jiterred) {
     if (jiterred) {
-      float rndx = halton<2>(frame_id);
-      float rndy = halton<3>(frame_id);
+      float rndx = HaltonSequence::sample<2>(frame_id);
+      float rndy = HaltonSequence::sample<3>(frame_id);
       const Mat4 subpixel_jitter {
         1, 0, 0, (rndx * 2 - 1) / double(width),  //
         0, 1, 0, (rndy * 2 - 1) / double(height), //
@@ -221,6 +238,31 @@ struct HybridDirectAreaLightingShaderDesc : HybridDirectLightingShaderDesc {
   HybridDirectAreaLightingShaderDesc() {}
 };
 
+struct HybridStochasticGenShaderDesc : ComputeShaderMetaInfo {
+  HybridStochasticGenShaderDesc() {
+    ShaderParameter space0 {};
+    space0.const_buffers = {
+      ConstantBuffer(), // light data
+    };
+    ShaderParameter space1 {};
+    space1.shader_resources = {
+      ShaderResource(), // depth
+      ShaderResource(), // gbuffers
+      ShaderResource(),
+      ShaderResource(),
+    };
+    space1.unordered_accesses = {
+      UnorderedAccess(), // output U_n
+      UnorderedAccess(), // output ray sample
+      UnorderedAccess(), // output radiance sample
+    };
+    space1.const_buffers = {
+      ConstantBuffer(), // per-render data
+    };
+    signature.param_table = {space0, space1};
+  }
+};
+
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
   BlitShaderDesc() {
     ShaderParameter space0 {};
@@ -246,7 +288,7 @@ struct TaaShaderDesc : ComputeShaderMetaInfo {
 };
 
 HybridPipeline::HybridPipeline(RendererPtr renderer)
-    : SimplexPipeline(renderer), m_enable_multibounce(false) {
+    : SimplexPipeline(renderer), m_enable_multibounce(false), m_area_shadow_ssp_per_light(8) {
   Renderer* r = get_renderer();
 
   {
@@ -261,6 +303,12 @@ HybridPipeline::HybridPipeline(RendererPtr renderer)
       L"CoreData/shader/hybrid_direct_lighting.hlsl", HybridDirectLightingShaderDesc());
     m_area_lighting_shader = r->create_shader(
       L"CoreData/shader/hybrid_direct_area_lighting.hlsl", HybridDirectAreaLightingShaderDesc());
+  }
+
+  {
+    m_stochastic_shadow_sample_gen_shader
+      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_sample_generate.hlsl",
+        HybridStochasticGenShaderDesc());
   }
 
   {
@@ -318,6 +366,18 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.area_light.unshadowed = r->create_texture_2d(
     TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
     ResourceState::UnorderedAccess, L"Area Light Unshadowed");
+  proxy.area_light.stochastic_unshadowed = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Stochastic Unshadowed");
+  proxy.area_light.stochastic_sample_ray = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Ray");
+  proxy.area_light.stochastic_sample_radiance = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Radiance");
+  proxy.area_light.stochastic_shadowed = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Stochastic Shadowed");
 
   // helper routine
   auto make_blit_arg = [&](BufferHandle source) {
@@ -359,6 +419,25 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     proxy.area_light.unshadowed_pass_arg = r->create_shader_argument(val);
     REI_ASSERT(proxy.area_light.unshadowed_pass_arg);
     proxy.area_light.blit_unshadowed = make_blit_arg(proxy.area_light.unshadowed);
+  }
+  {
+    ShaderArgumentValue val {};
+    val.shader_resources
+      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
+    val.unordered_accesses
+      = {proxy.area_light.stochastic_unshadowed, proxy.area_light.stochastic_sample_ray, proxy.area_light.stochastic_sample_radiance};
+    val.const_buffers = {m_per_render_buffer};
+    val.const_buffer_offsets
+      = {0}; // FIXME current all viewport using the same part of per-render buffer
+    proxy.area_light.sample_gen_pass_arg = r->create_shader_argument(val);
+    REI_ASSERT(proxy.area_light.sample_gen_pass_arg);
+    proxy.area_light.blit_stochastic_unshadowed
+      = make_blit_arg(proxy.area_light.stochastic_unshadowed);
+    proxy.area_light.blit_stochastic_sample_ray = make_blit_arg(proxy.area_light.stochastic_sample_ray);
+    proxy.area_light.blit_stochastic_sample_radiance = make_blit_arg(proxy.area_light.stochastic_sample_radiance);
+  }
+  {
+    proxy.area_light.blit_stochastic_shadowed = make_blit_arg(proxy.area_light.stochastic_shadowed);
   }
 
   {
@@ -524,6 +603,7 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
     ConstBufferLayout lo {};
     lo[0] = ShaderDataType::Float4; // shaper
     lo[1] = ShaderDataType::Float4; // color
+    lo[2] = ShaderDataType::Float4; // stochastic data
     proxy.area_lights = r->create_const_buffer(lo, 128, L"Area Lights Buffer");
   }
 
@@ -717,14 +797,14 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->barrier(viewport->area_light.unshadowed);
   static std::array<int, 1> area_light_indices = {0};
   static std::array<Vec4, 1> area_light_shapes = {
-    Vec4(0, 5, 0, 0.5),
+    Vec4(-2, 3, -2, 0.5),
   };
-  static std::array<Color, 1> area_light_color {
+  static std::array<Color, 1> area_light_colors {
     Colors::white * 10,
   };
   for (int i = 0; i < area_light_indices.size(); i++) {
     int light_index = area_light_indices[i];
-    Vec4 light_color = Vec4(area_light_color[i]);
+    Vec4 light_color = Vec4(area_light_colors[i]);
     Vec4 light_shape = area_light_shapes[i];
 
     // update light data
@@ -746,6 +826,44 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // -------
   // Pass: Stochastic Shadow
+
+  cmd_list->transition(viewport->area_light.stochastic_unshadowed, ResourceState::UnorderedAccess);
+  cmd_list->clear_texture(viewport->area_light.stochastic_unshadowed, {0, 0, 0, 0}, RenderArea::full(viewport->width, viewport->height));
+  cmd_list->barrier(viewport->area_light.stochastic_unshadowed);
+
+  // generate stochastic sample, and trace
+  // NOTE: per light, multiple ray-per-pixel
+  HaltonSequence halton {viewport->frame_id};
+  for (int i = 0; i < area_light_indices.size(); i++) {
+    for (int sp = 0; sp < m_area_shadow_ssp_per_light; sp++) {
+      int light_index = area_light_indices[i];
+      Vec4 light_color = Vec4(area_light_colors[i]);
+      Vec4 light_shape = area_light_shapes[i];
+
+      // update light data and random data
+      cmd_list->update_const_buffer(scene->area_lights, light_index, 0, light_shape);
+      cmd_list->update_const_buffer(scene->area_lights, light_index, 1, light_color);
+      cmd_list->update_const_buffer(scene->area_lights, light_index, 2, halton.next4());
+
+      // sample gen
+      cmd_list->transition(viewport->area_light.stochastic_sample_ray, ResourceState::UnorderedAccess);
+      cmd_list->transition(viewport->area_light.stochastic_sample_radiance, ResourceState::UnorderedAccess);
+      cmd_list->clear_texture(viewport->area_light.stochastic_sample_ray, {0, 0, 0, 0},RenderArea::full(viewport->width, viewport->height));
+      cmd_list->clear_texture(viewport->area_light.stochastic_sample_radiance, {0, 0, 0, 0},RenderArea::full(viewport->width, viewport->height));
+      cmd_list->barrier(viewport->area_light.stochastic_sample_ray);
+      cmd_list->barrier(viewport->area_light.stochastic_sample_radiance);
+      DispatchCommand dispatch {};
+      dispatch.compute_shader = m_stochastic_shadow_sample_gen_shader;
+      dispatch.arguments = {fetch_direct_area_lighting_arg(*scene, light_index),
+        viewport->area_light.sample_gen_pass_arg};
+      dispatch.dispatch_x = viewport->width / 8;
+      dispatch.dispatch_y = viewport->height / 8;
+      dispatch.dispatch_z = 1;
+      cmd_list->dispatch(dispatch);
+
+      // shadow trace
+    }
+  }
 
   //--- End Stochastic Shadow
 
@@ -790,7 +908,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     draw.arguments = {viewport->blit_for_present};
     draw.shader = m_blit_shader;
     cmd_list->draw(draw);
-  
+
     cmd_list->end_render_pass();
   }
 
@@ -803,15 +921,22 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     int debug_blit_count = 0;
     const RenderViewaport full_vp = RenderViewaport::full(viewport->width, viewport->height);
     const RenderArea full_area = RenderArea::full(viewport->width, viewport->height);
-    auto drawer = [&](BufferHandle texture, ShaderArgumentHandle blit_arg) {
+    auto debug_blit_pass = [&](BufferHandle texture, ShaderArgumentHandle blit_arg, bool full = false) {
       cmd_list->transition(texture, ResourceState::PixelShaderResource);
       RenderPassCommand render_pass {};
       render_pass.render_targets = {render_target};
       render_pass.depth_stencil = c_empty_handle;
       render_pass.clear_ds = false;
       render_pass.clear_rt = false;
-      render_pass.viewport = full_vp.shrink_to_upper_left(blit_width, blit_height, 0, blit_height * debug_blit_count);
-      render_pass.area = full_area.shrink_to_upper_left(blit_width, blit_height, 0, blit_height * debug_blit_count);
+      if (full) {
+        render_pass.viewport = full_vp;
+        render_pass.area = full_area;
+      } else {
+        render_pass.viewport = full_vp.shrink_to_upper_left(
+          blit_width, blit_height, 0, blit_height * debug_blit_count);
+        render_pass.area = full_area.shrink_to_upper_left(
+          blit_width, blit_height, 0, blit_height * debug_blit_count);
+      }
       cmd_list->begin_render_pass(render_pass);
 
       DrawCommand draw {};
@@ -824,7 +949,12 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       debug_blit_count++;
     };
 
-    drawer(viewport->area_light.unshadowed, viewport->area_light.blit_unshadowed);
+    debug_blit_pass(viewport->area_light.unshadowed, viewport->area_light.blit_unshadowed);
+    debug_blit_pass(viewport->area_light.stochastic_unshadowed, viewport->area_light.blit_stochastic_unshadowed);
+    debug_blit_pass(viewport->area_light.stochastic_sample_ray, viewport->area_light.blit_stochastic_sample_ray);
+    debug_blit_pass(viewport->area_light.stochastic_sample_radiance, viewport->area_light.blit_stochastic_sample_radiance);
+    // debug_blit_pass(viewport->area_light.stochastic_shadowed,
+    // viewport->area_light.blit_stochastic_shadowed);
   }
 
   // Update frame-counting in the end

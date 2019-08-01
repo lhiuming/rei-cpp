@@ -56,6 +56,11 @@ private:
   ShaderHandle m_punctual_lighting_shader;
   ShaderHandle m_area_lighting_shader;
 
+  ShaderHandle m_stochastic_shadow_sample_gen_shader;
+  //ShaderHandle m_stochastic_shadow_trace_shader;
+  //ShaderHandle m_stochastic_shadow_denoise_horizontal_shader;
+  //ShaderHandle m_stochastic_shadow_denoise_final_shader;
+
   ShaderHandle m_multibounce_shader;
 
   ShaderHandle m_taa_shader;
