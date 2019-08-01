@@ -61,7 +61,6 @@ struct ViewportProxy {
     // BufferHandle denoised_0; // not necessay a seperated buffer
     ShaderArgumentHandle unshadowed_pass_arg;
     ShaderArgumentHandle sample_gen_pass_arg;
-    ShaderArgumentHandle trace_pass_arg;
     // ShaderArgumentHandle variance_pass_arg;
     // ShaderArgumentHandle variance_filter_pass_arg;
     ShaderArgumentHandle denoise_horizontal_pass_arg;
@@ -148,7 +147,7 @@ struct SceneProxy {
 
   // Accelration structure and shader table
   BufferHandle tlas;
-  BufferHandle shader_table;
+  BufferHandle multibounce_shadetable;
 
   // Direct lighting const buffer
   BufferHandle punctual_lights;
@@ -263,6 +262,26 @@ struct HybridStochasticGenShaderDesc : ComputeShaderMetaInfo {
   }
 };
 
+struct HybridShtochasticShadowTraceShaderDesc: RaytracingShaderMetaInfo {
+  HybridShtochasticShadowTraceShaderDesc() {
+    ShaderParameter space0 {};
+    space0.const_buffers = {ConstantBuffer()}; // Per-render CN
+    space0.shader_resources = {
+      ShaderResource(),  // TLAS
+      ShaderResource(), // depth buffer
+      ShaderResource(), // sample ray
+      ShaderResource()}; // sample radiance
+    space0.unordered_accesses = {UnorderedAccess()}; // output buffer
+    global_signature.param_table = {space0};
+
+    hitgroup_name = L"hit_group0";
+    raygen_name = L"raygen_shader";
+    closest_hit_name = L"closest_hit_shader";
+    miss_name = L"miss_shader";
+  }
+};
+
+
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
   BlitShaderDesc() {
     ShaderParameter space0 {};
@@ -309,6 +328,11 @@ HybridPipeline::HybridPipeline(RendererPtr renderer)
     m_stochastic_shadow_sample_gen_shader
       = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_sample_generate.hlsl",
         HybridStochasticGenShaderDesc());
+    m_stochastic_shadow_trace_shader
+      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_trace.hlsl",
+        HybridShtochasticShadowTraceShaderDesc());
+    m_stochastic_shadow_trace_shadertable
+      = r->create_shader_table(1, m_stochastic_shadow_trace_shader);
   }
 
   {
@@ -589,7 +613,7 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
       desc.transform.push_back(m.trans);
     }
     proxy.tlas = r->create_raytracing_accel_struct(desc);
-    proxy.shader_table = r->create_shader_table(*scene, m_multibounce_shader);
+    proxy.multibounce_shadetable = r->create_shader_table(*scene, m_multibounce_shader);
   }
 
   // Allocate analitic light buffer
@@ -707,7 +731,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     {
       UpdateShaderTable desc = UpdateShaderTable::hitgroup();
       desc.shader = m_multibounce_shader;
-      desc.shader_table = scene->shader_table;
+      desc.shader_table = scene->multibounce_shadetable;
       for (auto& pair : scene->models) {
         auto& m = pair.second;
         desc.index = m.tlas_instance_id;
@@ -726,7 +750,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       RaytraceCommand cmd {};
       cmd.raytrace_shader = m_multibounce_shader;
       cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
-      cmd.shader_table = scene->shader_table;
+      cmd.shader_table = scene->multibounce_shadetable;
       cmd.width = viewport->width;
       cmd.height = viewport->height;
       cmd_list->raytrace(cmd);
@@ -797,10 +821,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->barrier(viewport->area_light.unshadowed);
   static std::array<int, 1> area_light_indices = {0};
   static std::array<Vec4, 1> area_light_shapes = {
-    Vec4(-2, 3, -2, 0.5),
+    Vec4(-4, 6, 1, .5),
   };
   static std::array<Color, 1> area_light_colors {
-    Colors::white * 10,
+    Colors::white * 80,
   };
   for (int i = 0; i < area_light_indices.size(); i++) {
     int light_index = area_light_indices[i];
@@ -828,8 +852,11 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // Pass: Stochastic Shadow
 
   cmd_list->transition(viewport->area_light.stochastic_unshadowed, ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->area_light.stochastic_shadowed, ResourceState::UnorderedAccess);
   cmd_list->clear_texture(viewport->area_light.stochastic_unshadowed, {0, 0, 0, 0}, RenderArea::full(viewport->width, viewport->height));
+  cmd_list->clear_texture(viewport->area_light.stochastic_shadowed, {0, 0, 0, 0}, RenderArea::full(viewport->width, viewport->height));
   cmd_list->barrier(viewport->area_light.stochastic_unshadowed);
+  cmd_list->barrier(viewport->area_light.stochastic_shadowed);
 
   // generate stochastic sample, and trace
   // NOTE: per light, multiple ray-per-pixel
@@ -862,6 +889,17 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       cmd_list->dispatch(dispatch);
 
       // shadow trace
+      cmd_list->transition(viewport->area_light.stochastic_sample_ray, ResourceState::ComputeShaderResource);
+      cmd_list->transition(viewport->area_light.stochastic_sample_radiance, ResourceState::ComputeShaderResource);
+      cmd_list->barrier(viewport->area_light.stochastic_sample_ray);
+      cmd_list->barrier(viewport->area_light.stochastic_sample_radiance);
+      RaytraceCommand trace {};
+      trace.raytrace_shader = m_stochastic_shadow_trace_shader;
+      trace.arguments = {fetch_shadow_tracing_arg(viewport_h, scene_h)};
+      trace.shader_table = m_stochastic_shadow_trace_shadertable;
+      trace.width = viewport->width;
+      trace.height = viewport->height;
+      cmd_list->raytrace(trace);
     }
   }
 
@@ -916,45 +954,49 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // some debug blits
   if (true) {
-    const size_t blit_width = 256;
-    const size_t blit_height = blit_width * viewport->height / viewport->width;
+    const size_t blit_height = viewport->height / 5;
+    const size_t blit_width = blit_height * viewport->width / viewport->height;
     int debug_blit_count = 0;
     const RenderViewaport full_vp = RenderViewaport::full(viewport->width, viewport->height);
     const RenderArea full_area = RenderArea::full(viewport->width, viewport->height);
-    auto debug_blit_pass = [&](BufferHandle texture, ShaderArgumentHandle blit_arg, bool full = false) {
-      cmd_list->transition(texture, ResourceState::PixelShaderResource);
-      RenderPassCommand render_pass {};
-      render_pass.render_targets = {render_target};
-      render_pass.depth_stencil = c_empty_handle;
-      render_pass.clear_ds = false;
-      render_pass.clear_rt = false;
-      if (full) {
-        render_pass.viewport = full_vp;
-        render_pass.area = full_area;
-      } else {
-        render_pass.viewport = full_vp.shrink_to_upper_left(
-          blit_width, blit_height, 0, blit_height * debug_blit_count);
-        render_pass.area = full_area.shrink_to_upper_left(
-          blit_width, blit_height, 0, blit_height * debug_blit_count);
-      }
-      cmd_list->begin_render_pass(render_pass);
+    auto debug_blit_pass
+      = [&](BufferHandle texture, ShaderArgumentHandle blit_arg, bool full = false) {
+          cmd_list->transition(texture, ResourceState::PixelShaderResource);
+          RenderPassCommand render_pass {};
+          render_pass.render_targets = {render_target};
+          render_pass.depth_stencil = c_empty_handle;
+          render_pass.clear_ds = false;
+          render_pass.clear_rt = false;
+          if (full) {
+            render_pass.viewport = full_vp;
+            render_pass.area = full_area;
+          } else {
+            render_pass.viewport = full_vp.shrink_to_upper_left(
+              blit_width, blit_height, 0, blit_height * debug_blit_count);
+            render_pass.area = full_area.shrink_to_upper_left(
+              blit_width, blit_height, 0, blit_height * debug_blit_count);
+          }
+          cmd_list->begin_render_pass(render_pass);
 
-      DrawCommand draw {};
-      draw.arguments = {blit_arg};
-      draw.shader = m_blit_shader;
-      cmd_list->draw(draw);
+          DrawCommand draw {};
+          draw.arguments = {blit_arg};
+          draw.shader = m_blit_shader;
+          cmd_list->draw(draw);
 
-      cmd_list->end_render_pass();
+          cmd_list->end_render_pass();
 
-      debug_blit_count++;
-    };
+          debug_blit_count++;
+        };
 
     debug_blit_pass(viewport->area_light.unshadowed, viewport->area_light.blit_unshadowed);
-    debug_blit_pass(viewport->area_light.stochastic_unshadowed, viewport->area_light.blit_stochastic_unshadowed);
-    debug_blit_pass(viewport->area_light.stochastic_sample_ray, viewport->area_light.blit_stochastic_sample_ray);
-    debug_blit_pass(viewport->area_light.stochastic_sample_radiance, viewport->area_light.blit_stochastic_sample_radiance);
-    // debug_blit_pass(viewport->area_light.stochastic_shadowed,
-    // viewport->area_light.blit_stochastic_shadowed);
+    debug_blit_pass(
+      viewport->area_light.stochastic_unshadowed, viewport->area_light.blit_stochastic_unshadowed);
+    debug_blit_pass(
+      viewport->area_light.stochastic_sample_ray, viewport->area_light.blit_stochastic_sample_ray);
+    debug_blit_pass(viewport->area_light.stochastic_sample_radiance,
+      viewport->area_light.blit_stochastic_sample_radiance);
+    debug_blit_pass(
+      viewport->area_light.stochastic_shadowed, viewport->area_light.blit_stochastic_shadowed);
   }
 
   // Update frame-counting in the end
@@ -995,6 +1037,40 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
 
   // add to cache
   m_raytracing_args.insert({cache_key, arg});
+
+  return arg;
+}
+
+ShaderArgumentHandle HybridPipeline::fetch_shadow_tracing_arg(
+  ViewportHandle viewport_h, SceneHandle scene_h) {
+  const CombinedArgumentKey cache_key {viewport_h, scene_h};
+
+  // check cache
+  ShaderArgumentHandle* cached_arg = m_shadow_tracing_args.try_get(cache_key);
+  if (cached_arg) { return *cached_arg; }
+
+  // create new one
+  Renderer* r = get_renderer();
+  REI_ASSERT(r);
+  ViewportProxy* viewport = get_viewport(viewport_h);
+  SceneProxy* scene = get_scene(scene_h);
+  REI_ASSERT(viewport && scene);
+
+  ShaderArgumentValue val {};
+  val.const_buffers = {m_per_render_buffer};
+  val.const_buffer_offsets = {0};
+  val.shader_resources = {
+    scene->tlas,                                     // t0 TLAS
+    viewport->depth_stencil_buffer,                  // t1 G-buffer depth
+    viewport->area_light.stochastic_sample_ray,      // t2 sample ray
+    viewport->area_light.stochastic_sample_radiance, // t3 sample radiance
+  };
+  val.unordered_accesses = {viewport->area_light.stochastic_shadowed};
+  ShaderArgumentHandle arg = r->create_shader_argument(val);
+  REI_ASSERT(arg);
+
+  // add to cache
+  m_shadow_tracing_args.insert({cache_key, arg});
 
   return arg;
 }

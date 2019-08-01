@@ -69,13 +69,13 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
   float3 light_dir = delta / dist;
   float3 light_color = g_light.color.xyz / dist2;
 
-
   // Evalute BRDF for surface
   float4 rt0 = g_rt0[tid.xy];
   float4 rt1 = g_rt1[tid.xy];
   float4 rt2 = g_rt2[tid.xy];
   Surface surf = decode_gbuffer(rt0, rt1, rt2);
-  if (dot(light_dir, surf.normal) < EPS) { 
+  float non_grazing = dot(light_dir, surf.normal);
+  if (non_grazing < EPS) { 
     // no need to sample
     return;
   }
@@ -86,7 +86,10 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
   float3 reflectance = (brdf_cos.specular + brdf_cos.diffuse) * light_color;
 
   // output
+  float3 ray_dir = light_dir;
+  float ray_start = 0.01 / non_grazing; // to avoid self intrusion
+  float ray_end = dist;
   g_stochastic_radiance[tid.xy] += float4(reflectance, 0.0);
-  g_stochastic_sample_ray[tid.xy] = float4(light_dir, dist);
-  g_stochastic_sample_radiance[tid.xy] = float4(reflectance, 0.0);
+  g_stochastic_sample_ray[tid.xy] = float4(ray_dir, ray_start);
+  g_stochastic_sample_radiance[tid.xy] = float4(reflectance, ray_end);
 }

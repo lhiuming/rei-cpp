@@ -57,7 +57,8 @@ private:
   ShaderHandle m_area_lighting_shader;
 
   ShaderHandle m_stochastic_shadow_sample_gen_shader;
-  //ShaderHandle m_stochastic_shadow_trace_shader;
+  ShaderHandle m_stochastic_shadow_trace_shader;
+  BufferHandle m_stochastic_shadow_trace_shadertable;
   //ShaderHandle m_stochastic_shadow_denoise_horizontal_shader;
   //ShaderHandle m_stochastic_shadow_denoise_final_shader;
 
@@ -83,8 +84,10 @@ private:
     }
   };
   Hashmap<CombinedArgumentKey, ShaderArgumentHandle, RakHash> m_raytracing_args;
+  Hashmap<CombinedArgumentKey, ShaderArgumentHandle, RakHash> m_shadow_tracing_args;
 
   ShaderArgumentHandle fetch_raytracing_arg(ViewportHandle viewport, SceneHandle scene);
+  ShaderArgumentHandle fetch_shadow_tracing_arg(ViewportHandle viewport, SceneHandle scene);
 
   ShaderArgumentHandle fetch_direct_punctual_lighting_arg(SceneProxy& scene, int cb_index);
   ShaderArgumentHandle fetch_direct_area_lighting_arg(SceneProxy& scene, int cb_index);

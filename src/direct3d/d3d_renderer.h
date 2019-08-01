@@ -85,6 +85,7 @@ public:
 
   GeometryBuffers create_geometry(const GeometryDesc& geometry);
   BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene);
+  BufferHandle create_shader_table(size_t intersection_count, ShaderHandle raytracing_shader);
   BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
   // void update_raygen_shader_record();

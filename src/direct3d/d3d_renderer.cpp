@@ -537,11 +537,10 @@ BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& d
   return BufferHandle(data);
 }
 
-BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
+BufferHandle Renderer::create_shader_table(
+  size_t intersec_count, ShaderHandle raytracing_shader) {
   auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
   const auto& meta = shader->meta;
-
-  size_t model_count = scene.get_models().size();
 
   auto device = device_resources->dxr_device();
   auto build = [&](size_t max_root_arguments_width, size_t entry_num, const void* shader_id,
@@ -561,13 +560,17 @@ BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle rayt
   ShaderTableBuffer tables;
   tables.shader = shader;
   build(raygen_arg_width, 1, shader->raygen.shader_id, tables.raygen);
-  build(hitgroup_arg_width, model_count, shader->hitgroup.shader_id, tables.hitgroup);
-  build(miss_arg_width, model_count, shader->miss.shader_id, tables.miss);
+  build(hitgroup_arg_width, intersec_count, shader->hitgroup.shader_id, tables.hitgroup);
+  build(miss_arg_width, intersec_count, shader->miss.shader_id, tables.miss);
 
   auto data = new_buffer();
   data->res = move(tables);
   data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS; // FIXME really?
   return BufferHandle(data);
+}
+
+BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
+  return create_shader_table(scene.get_models().size(), raytracing_shader);
 }
 
 void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
