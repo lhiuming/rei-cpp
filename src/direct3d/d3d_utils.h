@@ -120,11 +120,15 @@ inline void fill_tlas_instance_transform(
   }
 }
 
+inline void fill_vec4(FLOAT (&dest)[4], const Vec4& src) {
+  dest[0] = src.x;
+  dest[1] = src.y;
+  dest[2] = src.z;
+  dest[3] = src.h;
+}
+
 inline void fill_color(FLOAT (&dest)[4], const Color& src) {
-  dest[0] = src.r;
-  dest[1] = src.g;
-  dest[2] = src.b;
-  dest[3] = src.a;
+  fill_vec4(dest, Vec4(src));
 }
 
 // Wrapper class for a reused upload buffer,
@@ -290,14 +294,9 @@ public:
   NaiveDescriptorHeap(NaiveDescriptorHeap&& other) = default;
   NaiveDescriptorHeap& operator=(NaiveDescriptorHeap&& other) = default;
 
-  NaiveDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, UINT capacity)
+  NaiveDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE type, UINT capacity, D3D12_DESCRIPTOR_HEAP_FLAGS flag = D3D12_DESCRIPTOR_HEAP_FLAG_NONE)
       : max_descriptor_num(capacity),
         m_descriptor_size(device->GetDescriptorHandleIncrementSize(type)) {
-    // Automatic flag
-    D3D12_DESCRIPTOR_HEAP_FLAGS flag = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    if (type == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) {
-      flag = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    }
 
     // Create buffer-type descriptor heap
     D3D12_DESCRIPTOR_HEAP_DESC heap_desc = {};
@@ -312,6 +311,23 @@ public:
 
   ID3D12DescriptorHeap* get_ptr() const { return m_descriotpr_heap.Get(); }
   ID3D12DescriptorHeap* const* get_ptr_addr() const { return m_descriotpr_heap.GetAddressOf(); }
+
+  void get_descriptor_handle(UINT index, D3D12_CPU_DESCRIPTOR_HANDLE* cpu_descriptor,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_descriptor) {
+    if (index >= max_descriptor_num) {
+      REI_ERROR("Bad descriotpr index");
+      return;
+    }
+    ID3D12DescriptorHeap* heap = m_descriotpr_heap.Get();
+    if (cpu_descriptor) {
+      *cpu_descriptor = CD3DX12_CPU_DESCRIPTOR_HANDLE(
+        heap->GetCPUDescriptorHandleForHeapStart(), INT(index), m_descriptor_size);
+    }
+    if (gpu_descriptor) {
+      *gpu_descriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(
+        heap->GetGPUDescriptorHandleForHeapStart(), INT(index), m_descriptor_size);
+    }
+  }
 
   UINT cnv_srv_descriptor_size() const { return m_descriptor_size; };
 

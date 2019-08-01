@@ -43,6 +43,7 @@ public:
   // ID3D12GraphicsCommandList& command_list() const { return *m_draw_command_list.Get(); }
 
   NaiveDescriptorHeap& cbv_srv_heap() { return m_cbv_srv_heap; }
+  NaiveDescriptorHeap& cbv_srv_shader_non_visible_heap() { return m_cbv_srv_shader_nonvisible_heap; }
   NaiveDescriptorHeap& rtv_heap() { return m_rtv_heap; }
   NaiveDescriptorHeap& dsv_heap() { return m_dsv_heap; }
 
@@ -87,6 +88,7 @@ private:
 
   // Naive descriptor allocators
   NaiveDescriptorHeap m_cbv_srv_heap;
+  NaiveDescriptorHeap m_cbv_srv_shader_nonvisible_heap;
   NaiveDescriptorHeap m_rtv_heap;
   NaiveDescriptorHeap m_dsv_heap;
 };

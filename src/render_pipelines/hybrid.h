@@ -1,6 +1,9 @@
 #ifndef REI_RENDER_PIPELINE_HYBRID_H
 #define REI_RENDER_PIPELINE_HYBRID_H
 
+#include <functional>
+#include <string>
+
 #include "render_pipeline_base.h"
 
 namespace rei {
@@ -43,37 +46,43 @@ public:
 
 private:
   const bool m_enable_jittering = true;
+  const bool m_enable_multibounce = true;
   const bool m_enabled_accumulated_rtrt = true;
+  const int m_area_shadow_ssp_per_light = 4;
 
   ShaderHandle m_gpass_shader;
 
+  ShaderHandle m_base_shading_shader;
+  ShaderHandle m_punctual_lighting_shader;
+  ShaderHandle m_area_lighting_shader;
+
   ShaderHandle m_multibounce_shader;
-  ShaderHandle m_direct_lighting_shader;
 
   ShaderHandle m_taa_shader;
   ShaderHandle m_blit_shader;
 
   BufferHandle m_per_render_buffer;
 
-  using RaytracingArgumentKey = std::pair<ViewportHandle, SceneHandle>;
+  using CombinedArgumentKey = std::pair<ViewportHandle, SceneHandle>;
   struct RakHash {
     // NOTE stole from boost
     // ref: https://www.boost.org/doc/libs/1_35_0/doc/html/boost/hash_combine_id241013.html
     void combine(size_t& seed, size_t v) const {
       seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
-    size_t operator()(const RaytracingArgumentKey& key) const {
+    size_t operator()(const CombinedArgumentKey& key) const {
       size_t seed = 0;
       combine(seed, std::hash_value(key.first));
       combine(seed, std::hash_value(key.second));
       return seed;
     }
   };
-  Hashmap<RaytracingArgumentKey, ShaderArgumentHandle, RakHash> m_raytracing_args;
+  Hashmap<CombinedArgumentKey, ShaderArgumentHandle, RakHash> m_raytracing_args;
 
   ShaderArgumentHandle fetch_raytracing_arg(ViewportHandle viewport, SceneHandle scene);
 
-  ShaderArgumentHandle fetch_direct_lighting_arg(SceneProxy& scene, int cb_index);
+  ShaderArgumentHandle fetch_direct_punctual_lighting_arg(SceneProxy& scene, int cb_index);
+  ShaderArgumentHandle fetch_direct_area_lighting_arg(SceneProxy& scene, int cb_index);
 };
 
 } // namespace rei

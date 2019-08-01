@@ -249,6 +249,8 @@ struct RaytraceCommand {
 };
 
 struct RenderArea {
+  size_t offset_left;
+  size_t offset_bottom;
   size_t width;
   size_t height;
 };

@@ -22,15 +22,38 @@ struct ViewportProxy {
   BufferHandle gbuffer1;
   BufferHandle gbuffer2;
 
+  ShaderArgumentHandle base_shading_inout_arg;
+  ShaderArgumentHandle direct_lighting_inout_arg;
+
+  // Multi-bounce GI
   BufferHandle raytracing_output_buffer;
 
+  // Statochastic Shadowed area lighting
+  struct AreaLightHandles {
+    BufferHandle unshadowed;
+    BufferHandle stochastic_ray;
+    BufferHandle stochastic_unshadowed;
+    BufferHandle stochastic_shadowed;
+    // BufferHandle stochastic_variance;
+    BufferHandle denoised_0;
+    ShaderArgumentHandle unshadowed_pass_arg;
+    ShaderArgumentHandle sample_gen_pass_arg;
+    ShaderArgumentHandle trace_pass_arg;
+    // ShaderArgumentHandle variance_pass_arg;
+    // ShaderArgumentHandle variance_filter_pass_arg;
+    ShaderArgumentHandle denoise_horizontal_pass_arg;
+    ShaderArgumentHandle denoise_final_pass_arg;
+
+    // debug pass
+    ShaderArgumentHandle blit_unshadowed;
+  } area_light;
+
+  // TAA resources
   BufferHandle taa_cb;
   BufferHandle taa_buffer[2];
   ShaderArgumentHandle taa_argument[2];
 
-  ShaderArgumentHandle direct_lighting_inout_arg;
-
-  BufferHandle postprocessing_output;
+  BufferHandle deferred_shading_output;
   ShaderArgumentHandle blit_for_present;
 
   Vec4 cam_pos = {0, 1, 8, 1};
@@ -111,8 +134,10 @@ struct SceneProxy {
   BufferHandle shader_table;
 
   // Direct lighting const buffer
-  BufferHandle direct_lights;
-  vector<ShaderArgumentHandle> direct_light_arg_cache;
+  BufferHandle punctual_lights;
+  vector<ShaderArgumentHandle> punctual_light_arg_cache;
+  BufferHandle area_lights;
+  vector<ShaderArgumentHandle> area_light_arg_cache;
 };
 
 } // namespace hybrid
@@ -159,6 +184,16 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
   }
 };
 
+struct HybridBaseShadingShaderDesc : ComputeShaderMetaInfo {
+  HybridBaseShadingShaderDesc() {
+    ShaderParameter space1 {};
+    space1.unordered_accesses = {
+      UnorderedAccess(), // output color
+    };
+    signature.param_table = {{}, space1};
+  }
+};
+
 struct HybridDirectLightingShaderDesc : ComputeShaderMetaInfo {
   HybridDirectLightingShaderDesc() {
     ShaderParameter space0 {};
@@ -180,6 +215,10 @@ struct HybridDirectLightingShaderDesc : ComputeShaderMetaInfo {
     };
     signature.param_table = {space0, space1};
   }
+};
+
+struct HybridDirectAreaLightingShaderDesc : HybridDirectLightingShaderDesc {
+  HybridDirectAreaLightingShaderDesc() {}
 };
 
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
@@ -206,7 +245,8 @@ struct TaaShaderDesc : ComputeShaderMetaInfo {
   }
 };
 
-HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer) {
+HybridPipeline::HybridPipeline(RendererPtr renderer)
+    : SimplexPipeline(renderer), m_enable_multibounce(false) {
   Renderer* r = get_renderer();
 
   {
@@ -215,10 +255,17 @@ HybridPipeline::HybridPipeline(RendererPtr renderer) : SimplexPipeline(renderer)
   }
 
   {
+    m_base_shading_shader = r->create_shader(
+      L"CoreData/shader/hybrid_base_shading.hlsl", HybridBaseShadingShaderDesc());
+    m_punctual_lighting_shader = r->create_shader(
+      L"CoreData/shader/hybrid_direct_lighting.hlsl", HybridDirectLightingShaderDesc());
+    m_area_lighting_shader = r->create_shader(
+      L"CoreData/shader/hybrid_direct_area_lighting.hlsl", HybridDirectAreaLightingShaderDesc());
+  }
+
+  {
     m_multibounce_shader
       = r->create_shader(L"CoreData/shader/hybrid_multibounce.hlsl", HybridRaytracingShaderDesc());
-    m_direct_lighting_shader = r->create_shader(
-      L"CoreData/shader/hybrid_direct_lighting.hlsl", HybridDirectLightingShaderDesc());
   }
 
   {
@@ -263,9 +310,56 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.raytracing_output_buffer = r->create_unordered_access_buffer_2d(
     conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Raytracing Output Buffer");
 
-  proxy.postprocessing_output = r->create_texture_2d(
+  proxy.deferred_shading_output = r->create_texture_2d(
     TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
-    ResourceState::UnorderedAccess, L"PP Output");
+    ResourceState::UnorderedAccess, L"Deferred Shading Output");
+
+  // area light resources
+  proxy.area_light.unshadowed = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Unshadowed");
+
+  // helper routine
+  auto make_blit_arg = [&](BufferHandle source) {
+    ShaderArgumentValue val {};
+    val.shader_resources = {source};
+    return r->create_shader_argument(val);
+  };
+
+  // Base shading pass argument
+  {
+    ShaderArgumentValue val {};
+    val.unordered_accesses = {proxy.deferred_shading_output};
+    proxy.base_shading_inout_arg = r->create_shader_argument(val);
+    REI_ASSERT(proxy.base_shading_inout_arg);
+  }
+
+  // punctual light argumnets
+  {
+    ShaderArgumentValue val {};
+    val.shader_resources
+      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
+    val.unordered_accesses = {proxy.deferred_shading_output};
+    val.const_buffers = {m_per_render_buffer};
+    val.const_buffer_offsets
+      = {0}; // FIXME current all viewport using the same part of per-render buffer
+    proxy.direct_lighting_inout_arg = r->create_shader_argument(val);
+    REI_ASSERT(proxy.direct_lighting_inout_arg);
+  }
+
+  // area light arguments
+  {
+    ShaderArgumentValue val {};
+    val.shader_resources
+      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
+    val.unordered_accesses = {proxy.area_light.unshadowed};
+    val.const_buffers = {m_per_render_buffer};
+    val.const_buffer_offsets
+      = {0}; // FIXME current all viewport using the same part of per-render buffer
+    proxy.area_light.unshadowed_pass_arg = r->create_shader_argument(val);
+    REI_ASSERT(proxy.area_light.unshadowed_pass_arg);
+    proxy.area_light.blit_unshadowed = make_blit_arg(proxy.area_light.unshadowed);
+  }
 
   {
     ConstBufferLayout lo {};
@@ -286,34 +380,18 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   {
     auto make_taa_argument = [&](int input, int output) {
       ShaderArgumentValue v {};
-      // NOTE: we feed raytracing output directory to TAA
-      // TODO should do a tonemapping first
+      // TODO we feed deferred shading raw result to TAA, but better is to do a tonemapping first
       v.const_buffers = {proxy.taa_cb};
       v.const_buffer_offsets = {0};
-      v.shader_resources = {proxy.taa_buffer[input], proxy.raytracing_output_buffer};
-      v.unordered_accesses = {proxy.taa_buffer[output], proxy.postprocessing_output};
+      v.shader_resources = {proxy.taa_buffer[input], proxy.deferred_shading_output};
+      v.unordered_accesses = {proxy.taa_buffer[output], proxy.deferred_shading_output};
       return r->create_shader_argument(v);
     };
     for (int i = 0; i < 2; i++)
       proxy.taa_argument[i] = make_taa_argument(i, (i + 1) % 2);
   }
 
-  {
-    ShaderArgumentValue val {};
-    val.shader_resources
-      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
-    val.unordered_accesses = {proxy.postprocessing_output};
-    val.const_buffers = {m_per_render_buffer};
-    val.const_buffer_offsets = {0}; // FIXME current all viewport using the same part of per-render buffer
-    proxy.direct_lighting_inout_arg = r->create_shader_argument(val);
-    REI_ASSERT(proxy.direct_lighting_inout_arg);
-  }
-
-  {
-    ShaderArgumentValue val {};
-    val.shader_resources = {proxy.postprocessing_output};
-    proxy.blit_for_present = r->create_shader_argument(val);
-  }
+  proxy.blit_for_present = make_blit_arg(proxy.deferred_shading_output);
 
   return add_viewport(std::move(proxy));
 }
@@ -440,7 +518,13 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
     ConstBufferLayout lo {};
     lo[0] = ShaderDataType::Float4; // pos_dir
     lo[1] = ShaderDataType::Float4; // color
-    proxy.direct_lights = r->create_const_buffer(lo, 128, L"Analytic Lights Buffer");
+    proxy.punctual_lights = r->create_const_buffer(lo, 128, L"Punctual Lights Buffer");
+  }
+  {
+    ConstBufferLayout lo {};
+    lo[0] = ShaderDataType::Float4; // shaper
+    lo[1] = ShaderDataType::Float4; // color
+    proxy.area_lights = r->create_const_buffer(lo, 128, L"Area Lights Buffer");
   }
 
   return add_scene(std::move(proxy));
@@ -514,7 +598,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
-    gpass.area = {viewport->width, viewport->height};
+    gpass.area = {0, 0, viewport->width, viewport->height};
   }
   cmd_list->begin_render_pass(gpass);
   {
@@ -532,78 +616,70 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   //--- End G-Buffer pass
 
-  //-------
-  // Pass: Raytraced multi-bounced GI
+  if (m_enable_multibounce) {
+    //-------
+    // Pass: Raytraced multi-bounced GI
 
-  // goto skip_multibounce;
+    // TODO move this to a seperated command queue
 
-  // TODO move this to a seperated command queue
-
-  // Update shader Tables
-  {
-    UpdateShaderTable desc = UpdateShaderTable::hitgroup();
-    desc.shader = m_multibounce_shader;
-    desc.shader_table = scene->shader_table;
-    for (auto& pair : scene->models) {
-      auto& m = pair.second;
-      desc.index = m.tlas_instance_id;
-      desc.arguments = {m.raytrace_shadertable_arg};
-      cmd_list->update_shader_table(desc);
+    // Update shader Tables
+    {
+      UpdateShaderTable desc = UpdateShaderTable::hitgroup();
+      desc.shader = m_multibounce_shader;
+      desc.shader_table = scene->shader_table;
+      for (auto& pair : scene->models) {
+        auto& m = pair.second;
+        desc.index = m.tlas_instance_id;
+        desc.arguments = {m.raytrace_shadertable_arg};
+        cmd_list->update_shader_table(desc);
+      }
     }
+
+    // Trace
+    cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
+    {
+      RaytraceCommand cmd {};
+      cmd.raytrace_shader = m_multibounce_shader;
+      cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
+      cmd.shader_table = scene->shader_table;
+      cmd.width = viewport->width;
+      cmd.height = viewport->height;
+      cmd_list->raytrace(cmd);
+    }
+
+    //--- End multi-bounce GI pass
   }
 
-  // Trace
-  cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
-  {
-    RaytraceCommand cmd {};
-    cmd.raytrace_shader = m_multibounce_shader;
-    cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
-    cmd.shader_table = scene->shader_table;
-    cmd.width = viewport->width;
-    cmd.height = viewport->height;
-    cmd_list->raytrace(cmd);
-  }
+  //-------
+  // Pass: Deferred direct lightings, both punctual and area lights
 
-  // TAA on Raytracing output
-  {
-    Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
-    cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
-  }
-  cmd_list->transition(viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->taa_curr_output(), ResourceState::UnorderedAccess);
-  cmd_list->transition(viewport->postprocessing_output, ResourceState::UnorderedAccess);
+  // Base Shading
+  cmd_list->transition(viewport->deferred_shading_output, ResourceState::UnorderedAccess);
   {
     DispatchCommand dispatch {};
-    dispatch.compute_shader = m_taa_shader;
-    dispatch.arguments = {viewport->taa_curr_arg()};
+    dispatch.compute_shader = m_base_shading_shader;
+    dispatch.arguments = {viewport->base_shading_inout_arg};
     dispatch.dispatch_x = viewport->width / 8;
     dispatch.dispatch_y = viewport->height / 8;
     dispatch.dispatch_z = 1;
     cmd_list->dispatch(dispatch);
   }
 
-skip_multibounce:
+  cmd_list->barrier(viewport->deferred_shading_output);
 
-  //--- End multi-bounce GI pass
-
-  //-------
-  // Pass: Deferred direct lightings
-
-  // goto skip_direct_lighting;
-
+  // Punctual lights
   // TODO: same texture input for multibounce GI
   cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
   cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport->postprocessing_output, ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->deferred_shading_output, ResourceState::UnorderedAccess);
   // currently both taa and direct-lighting write to the same UA buffer
-  cmd_list->barrier(viewport->postprocessing_output);
+  cmd_list->barrier(viewport->deferred_shading_output);
   int light_count = 2;
   static int light_indices[] = {0, 1};
   static Color light_colors[] = {Colors::white * 1.3, Colors::white * 1};
@@ -614,55 +690,131 @@ skip_multibounce:
     Vec4 light_pos_dir = light_pos_dirs[i];
 
     // update light data
-    cmd_list->update_const_buffer(scene->direct_lights, light_index, 0, light_pos_dir);
-    cmd_list->update_const_buffer(scene->direct_lights, light_index, 1, light_color);
+    cmd_list->update_const_buffer(scene->punctual_lights, light_index, 0, light_pos_dir);
+    cmd_list->update_const_buffer(scene->punctual_lights, light_index, 1, light_color);
 
     // dispatch
     DispatchCommand dispatch {};
-    dispatch.compute_shader = m_direct_lighting_shader;
-    dispatch.arguments
-      = {fetch_direct_lighting_arg(*scene, light_index), viewport->direct_lighting_inout_arg};
+    dispatch.compute_shader = m_punctual_lighting_shader;
+    dispatch.arguments = {
+      fetch_direct_punctual_lighting_arg(*scene, light_index), viewport->direct_lighting_inout_arg};
     dispatch.dispatch_x = viewport->width / 8;
     dispatch.dispatch_y = viewport->height / 8;
     dispatch.dispatch_z = 1;
     cmd_list->dispatch(dispatch);
   }
 
-  skip_direct_lighting:
+  // Area lights
+  // TODO: same texture input for multibounce GI
+  cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->area_light.unshadowed, ResourceState::UnorderedAccess);
+  cmd_list->clear_texture(viewport->area_light.unshadowed, {0, 0, 0, 0}, {0, 0, viewport->width, viewport->height});
+  cmd_list->barrier(viewport->area_light.unshadowed);
+  static std::array<int, 1> area_light_indices = {0};
+  static std::array<Vec4, 1> area_light_shapes = {
+    Vec4(0, 5, 0, 0.5),
+  };
+  static std::array<Color, 1> area_light_color {
+    Colors::white * 10,
+  };
+  for (int i = 0; i < area_light_indices.size(); i++) {
+    int light_index = area_light_indices[i];
+    Vec4 light_color = Vec4(area_light_color[i]);
+    Vec4 light_shape = area_light_shapes[i];
+
+    // update light data
+    cmd_list->update_const_buffer(scene->area_lights, light_index, 0, light_shape);
+    cmd_list->update_const_buffer(scene->area_lights, light_index, 1, light_color);
+
+    // dispatch
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_area_lighting_shader;
+    dispatch.arguments = {fetch_direct_area_lighting_arg(*scene, light_index),
+      viewport->area_light.unshadowed_pass_arg};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
+  }
 
   // --- End Deferred directy lighting
 
-  // ----
-  // Pass: blend multi-bounced GI to result
-  // TODO
-  //--- End Blend-in GI result
+  // -------
+  // Pass: Stochastic Shadow
+
+  //--- End Stochastic Shadow
+
+  // -------
+  // Pass: TAA on final shading result
+  {
+    Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
+    cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
+  }
+  cmd_list->transition(viewport->taa_curr_input(), ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->taa_curr_output(), ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->deferred_shading_output, ResourceState::UnorderedAccess);
+  {
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_taa_shader;
+    dispatch.arguments = {viewport->taa_curr_arg()};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
+  }
+
+  // --- End TAA pass
 
   // -------
   // Pass: Blit Post-processing reults to render target
 
-  // NOTE: currently direct lighting output to pp-output-texture
-
   BufferHandle render_target = renderer->fetch_swapchain_render_target_buffer(viewport->swapchain);
   cmd_list->transition(render_target, ResourceState::RenderTarget);
-  cmd_list->transition(viewport->postprocessing_output, ResourceState::PixelShaderResource);
+  cmd_list->transition(viewport->deferred_shading_output, ResourceState::PixelShaderResource);
   {
     RenderPassCommand render_pass {};
     render_pass.render_targets = {render_target};
     render_pass.depth_stencil = c_empty_handle;
     render_pass.clear_ds = false;
     render_pass.clear_rt = true;
-    render_pass.area = {viewport->width, viewport->height};
+    render_pass.area = {0, 0, viewport->width, viewport->height};
     cmd_list->begin_render_pass(render_pass);
 
     DrawCommand draw {};
     draw.arguments = {viewport->blit_for_present};
     draw.shader = m_blit_shader;
     cmd_list->draw(draw);
-
+  
     cmd_list->end_render_pass();
   }
 
   // --- End blitting
+
+  // some debug blits
+  if (true) {
+    auto drawer = [&](BufferHandle texture, ShaderArgumentHandle blit_arg) {
+      cmd_list->transition(texture, ResourceState::PixelShaderResource);
+      RenderPassCommand render_pass {};
+      render_pass.render_targets = {render_target};
+      render_pass.depth_stencil = c_empty_handle;
+      render_pass.clear_ds = false;
+      render_pass.clear_rt = false;
+      render_pass.area = {0, 0, viewport->width, viewport->height};
+      cmd_list->begin_render_pass(render_pass);
+
+      DrawCommand draw {};
+      draw.arguments = {blit_arg};
+      draw.shader = m_blit_shader;
+      cmd_list->draw(draw);
+
+      cmd_list->end_render_pass();
+    };
+
+    drawer(viewport->area_light.unshadowed, viewport->area_light.blit_unshadowed);
+  }
 
   // Update frame-counting in the end
   viewport->advance_frame();
@@ -673,7 +825,7 @@ skip_multibounce:
 
 ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   ViewportHandle viewport_h, SceneHandle scene_h) {
-  const RaytracingArgumentKey cache_key {viewport_h, scene_h};
+  const CombinedArgumentKey cache_key {viewport_h, scene_h};
 
   // check cache
   ShaderArgumentHandle* cached_arg = m_raytracing_args.try_get(cache_key);
@@ -706,23 +858,44 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
   return arg;
 }
 
-ShaderArgumentHandle HybridPipeline::fetch_direct_lighting_arg(SceneProxy& scene, int cb_index) {
+ShaderArgumentHandle HybridPipeline::fetch_direct_punctual_lighting_arg(
+  SceneProxy& scene, int cb_index) {
   REI_ASSERT(cb_index >= 0);
-  if (cb_index >= scene.direct_light_arg_cache.size()) {
+  if (cb_index >= scene.punctual_light_arg_cache.size()) {
     Renderer* r = get_renderer();
     REI_ASSERT(r);
 
     ShaderArgumentValue val {};
-    val.const_buffers = {scene.direct_lights};
+    val.const_buffers = {scene.punctual_lights};
     val.const_buffer_offsets = {size_t(cb_index)};
     ShaderArgumentHandle h = r->create_shader_argument(val);
     REI_ASSERT(h);
-    scene.direct_light_arg_cache.reserve(cb_index + 1);
-    scene.direct_light_arg_cache.resize(cb_index + 1);
-    scene.direct_light_arg_cache[cb_index] = h;
+    scene.punctual_light_arg_cache.reserve(cb_index + 1);
+    scene.punctual_light_arg_cache.resize(cb_index + 1);
+    scene.punctual_light_arg_cache[cb_index] = h;
   }
 
-  return scene.direct_light_arg_cache[cb_index];
+  return scene.punctual_light_arg_cache[cb_index];
+}
+
+ShaderArgumentHandle HybridPipeline::fetch_direct_area_lighting_arg(
+  SceneProxy& scene, int cb_index) {
+  REI_ASSERT(cb_index >= 0);
+  if (cb_index >= scene.area_light_arg_cache.size()) {
+    Renderer* r = get_renderer();
+    REI_ASSERT(r);
+
+    ShaderArgumentValue val {};
+    val.const_buffers = {scene.area_lights};
+    val.const_buffer_offsets = {size_t(cb_index)};
+    ShaderArgumentHandle h = r->create_shader_argument(val);
+    REI_ASSERT(h);
+    scene.area_light_arg_cache.reserve(cb_index + 1);
+    scene.area_light_arg_cache.resize(cb_index + 1);
+    scene.area_light_arg_cache[cb_index] = h;
+  }
+
+  return scene.area_light_arg_cache[cb_index];
 }
 
 } // namespace rei

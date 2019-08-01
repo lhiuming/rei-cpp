@@ -171,9 +171,9 @@ BufferHandle Renderer::create_texture_2d(
     REI_ASSERT(SUCCEEDED(hr));
     texture.buffer = tex;
   }
-  #if DEBUG
+#if DEBUG
   texture.name = std::move(debug_name);
-  #endif
+#endif
 
   auto res_data = make_shared<BufferData>(this);
   res_data->res = std::move(texture);
@@ -322,8 +322,8 @@ ShaderHandle Renderer::create_shader(
     D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
     desc.pRootSignature = root_sign;
     desc.CS = {(BYTE*)(compiled->GetBufferPointer()), compiled->GetBufferSize()};
-    desc.NodeMask = 0; // single GPU
-    desc.CachedPSO = {NULL, 0};                                 // no caching currently
+    desc.NodeMask = 0;                           // single GPU
+    desc.CachedPSO = {NULL, 0};                  // no caching currently
     desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // TODO add debug option
     HRESULT hr = device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&shader->pso));
     REI_ASSERT(SUCCEEDED(hr));
@@ -842,6 +842,51 @@ void Renderer::raytrace(const RaytraceCommand& cmd) {
     desc.Depth = UINT(cmd.depth);
     cmd_list->DispatchRays(&desc);
   }
+}
+
+void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea area) {
+  auto device = device_resources->device();
+  auto cmd_list = device_resources->prepare_command_list();
+
+  auto target = to_buffer(handle);
+  REI_ASSERT((target->state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+  REI_ASSERT(target->res.holds<TextureBuffer>());
+  TextureBuffer& tex = target->res.get<TextureBuffer>();
+  ID3D12Resource* res = tex.buffer.Get();
+  auto d3d_desc = res->GetDesc();
+  if (d3d_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
+    REI_ERROR(
+      "Invalid resource type; The texture should created with allowance of unordred access");
+    return;
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor;
+  {
+    UINT* cached_descriptor_index = m_texture_clear_descriptor.try_get(target);
+    if (cached_descriptor_index) {
+      device_resources->cbv_srv_shader_non_visible_heap().get_descriptor_handle(
+        *cached_descriptor_index, &cpu_descriptor, &gpu_descriptor);
+    } else {
+      UINT index = device_resources->cbv_srv_shader_non_visible_heap().alloc(&cpu_descriptor, &gpu_descriptor);
+      m_texture_clear_descriptor.insert({target, index});
+
+      D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
+      desc.ViewDimension = to_usv_dimension(tex.dimension);
+      desc.Format = to_dxgi_format(tex.format);
+      device->CreateUnorderedAccessView(res, NULL, &desc, cpu_descriptor);
+    }
+  }
+
+  FLOAT color[4];
+  fill_vec4(color, clear_value);
+  D3D12_RECT clear_rect; // NOTE DirectX sreen orientation
+  clear_rect.left = area.offset_left;
+  clear_rect.top = area.offset_bottom;
+  clear_rect.bottom = area.offset_bottom + area.height; 
+  clear_rect.right = area.offset_left + area.width;
+  cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
 }
 
 void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_state) {

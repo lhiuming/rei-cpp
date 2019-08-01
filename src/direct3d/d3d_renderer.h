@@ -112,6 +112,8 @@ public:
     cmd.depth = depth;
     raytrace(cmd);
   }
+
+  void clear_texture(BufferHandle target, Vec4 clear_value, RenderArea clear_area);
   void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
 
   // TODO return a command list object
@@ -132,6 +134,7 @@ protected:
   // TODO make unique
   std::shared_ptr<DeviceResources> device_resources;
   std::vector<ComPtr<ID3D12Resource>> m_delayed_release;
+  Hashmap<BufferHandle, UINT> m_texture_clear_descriptor;
 
   bool is_uploading_resources = false;
 
