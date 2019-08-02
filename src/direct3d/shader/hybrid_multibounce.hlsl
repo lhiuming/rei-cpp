@@ -19,6 +19,7 @@ struct Vertex {
 
 // Output buffer
 RWTexture2D<float4> g_render_target : register(u0, space0);
+RWTexture2D<float4> g_render_target_addictive : register(u1, space0);
 
 // Scene TLAS
 RaytracingAccelerationStructure g_scene : register(t0, space0);
@@ -126,6 +127,7 @@ float3 evaluate_lighting(float3 pos, float3 wo, Surface surf, float recur_depth,
 
 void output(float4 color) {
   g_render_target[DispatchRaysIndex().xy] = color;
+  g_render_target_addictive[DispatchRaysIndex().xy] += color;
 }
 
 void output(float3 color) {

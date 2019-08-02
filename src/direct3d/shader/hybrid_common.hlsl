@@ -8,7 +8,7 @@
 // Encoding&Decoding
 //
 
-#define FRAME_LOOP uint(256)
+#define FRAME_LOOP uint(65535)
 #define c_frame_loop FRAME_LOOP
 
 struct PerRenderConstBuffer {

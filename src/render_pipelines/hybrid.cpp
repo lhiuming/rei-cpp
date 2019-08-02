@@ -49,6 +49,7 @@ struct ViewportProxy {
 
   // Multi-bounce GI
   BufferHandle raytracing_output_buffer;
+  ShaderArgumentHandle blit_raytracing_output;
 
   // Statochastic Shadowed area lighting
   struct AreaLightHandles {
@@ -92,7 +93,7 @@ struct ViewportProxy {
   Mat4 proj_inv = Mat4::I();
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
-  byte frame_id = 0;
+  unsigned short frame_id = 0;
   bool view_proj_dirty = true;
 
   void advance_frame() {
@@ -190,8 +191,11 @@ struct HybridRaytracingShaderDesc : RaytracingShaderMetaInfo {
     ShaderParameter space0 {};
     space0.const_buffers = {ConstantBuffer()}; // Per-render CN
     space0.shader_resources = {ShaderResource(), ShaderResource(), ShaderResource(),
-      ShaderResource(), ShaderResource()};           // TLAS ans G-Buffer
-    space0.unordered_accesses = {UnorderedAccess()}; // output buffer
+      ShaderResource(), ShaderResource()}; // TLAS ans G-Buffer
+    space0.unordered_accesses = {
+      UnorderedAccess(), // GI standalone output buffer
+      UnorderedAccess(), // also output to final shading buffer, for now
+    };
     global_signature.param_table = {space0};
 
     ShaderParameter space1 {};
@@ -343,7 +347,10 @@ struct TaaShaderDesc : ComputeShaderMetaInfo {
 };
 
 HybridPipeline::HybridPipeline(RendererPtr renderer)
-    : SimplexPipeline(renderer), m_enable_multibounce(false), m_enabled_accumulated_rtrt(true), m_area_shadow_ssp_per_light(8) {
+    : SimplexPipeline(renderer),
+      m_enable_multibounce(true),
+      m_enabled_accumulated_rtrt(true),
+      m_area_shadow_ssp_per_light(4) {
   Renderer* r = get_renderer();
 
   {
@@ -536,6 +543,13 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     proxy.area_light.blit_denoised_unshadowed = make_blit_arg(proxy.area_light.denoised_unshadowed);
   }
 
+  // Multibounce tracing arguments
+  {
+    // debug blit
+    proxy.blit_raytracing_output = make_blit_arg(proxy.raytracing_output_buffer);
+  }
+
+  // TAA arguments
   {
     ConstBufferLayout lo {};
     lo[0] = ShaderDataType::Float4;
@@ -551,7 +565,6 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     for (int i = 0; i < 2; i++)
       proxy.taa_buffer[i] = make_taa_buffer(i);
   }
-
   {
     auto make_taa_argument = [&](int input, int output) {
       ShaderArgumentValue v {};
@@ -566,6 +579,7 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
       proxy.taa_argument[i] = make_taa_argument(i, (i + 1) % 2);
   }
 
+  // final blit
   proxy.blit_for_present = make_blit_arg(proxy.deferred_shading_output);
 
   return add_viewport(std::move(proxy));
@@ -795,44 +809,6 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   //--- End G-Buffer pass
 
-  if (m_enable_multibounce) {
-    //-------
-    // Pass: Raytraced multi-bounced GI
-
-    // TODO move this to a seperated command queue
-
-    // Update shader Tables
-    {
-      UpdateShaderTable desc = UpdateShaderTable::hitgroup();
-      desc.shader = m_multibounce_shader;
-      desc.shader_table = scene->multibounce_shadetable;
-      for (auto& pair : scene->models) {
-        auto& m = pair.second;
-        desc.index = m.tlas_instance_id;
-        desc.arguments = {m.raytrace_shadertable_arg};
-        cmd_list->update_shader_table(desc);
-      }
-    }
-
-    // Trace
-    cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
-    cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
-    cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
-    cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
-    cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
-    {
-      RaytraceCommand cmd {};
-      cmd.raytrace_shader = m_multibounce_shader;
-      cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
-      cmd.shader_table = scene->multibounce_shadetable;
-      cmd.width = viewport->width;
-      cmd.height = viewport->height;
-      cmd_list->raytrace(cmd);
-    }
-
-    //--- End multi-bounce GI pass
-  }
-
   //-------
   // Pass: Deferred direct lightings, both punctual and area lights
 
@@ -923,6 +899,42 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   }
 
   // --- End Deferred directy lighting
+
+  //-------
+  // Pass: Raytraced multi-bounced GI
+  if (m_enable_multibounce) {
+    // TODO move this to a seperated command queue
+
+    // Update shader Tables
+    {
+      UpdateShaderTable desc = UpdateShaderTable::hitgroup();
+      desc.shader = m_multibounce_shader;
+      desc.shader_table = scene->multibounce_shadetable;
+      for (auto& pair : scene->models) {
+        auto& m = pair.second;
+        desc.index = m.tlas_instance_id;
+        desc.arguments = {m.raytrace_shadertable_arg};
+        cmd_list->update_shader_table(desc);
+      }
+    }
+
+    // Trace
+    cmd_list->transition(viewport->gbuffer0, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->gbuffer1, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->gbuffer2, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->depth_stencil_buffer, ResourceState::ComputeShaderResource);
+    cmd_list->transition(viewport->raytracing_output_buffer, ResourceState::UnorderedAccess);
+    {
+      RaytraceCommand cmd {};
+      cmd.raytrace_shader = m_multibounce_shader;
+      cmd.arguments = {fetch_raytracing_arg(viewport_h, scene_h)};
+      cmd.shader_table = scene->multibounce_shadetable;
+      cmd.width = viewport->width;
+      cmd.height = viewport->height;
+      cmd_list->raytrace(cmd);
+    }
+  }
+  //--- End multi-bounce GI pass
 
   // -------
   // Pass: Stochastic Shadow
@@ -1078,8 +1090,11 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // --- End blitting
 
   // some debug blits
-  if (true) {
-    const size_t blit_height = viewport->height / 7;
+#if !DEBUG
+  if (false)
+#endif
+  {
+    const size_t blit_height = viewport->height / 8;
     const size_t blit_width = blit_height * viewport->width / viewport->height;
     int debug_blit_count = 0;
     const RenderViewaport full_vp = RenderViewaport::full(viewport->width, viewport->height);
@@ -1126,6 +1141,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       viewport->area_light.denoised_shadowed, viewport->area_light.blit_denoised_shadowed);
     debug_blit_pass(
       viewport->area_light.denoised_unshadowed, viewport->area_light.blit_denoised_unshadowed);
+    debug_blit_pass(viewport->raytracing_output_buffer, viewport->blit_raytracing_output);
   }
 
   // Update frame-counting in the end
@@ -1160,7 +1176,10 @@ ShaderArgumentHandle HybridPipeline::fetch_raytracing_arg(
     viewport->gbuffer1,             // t3 G-Buffer::albedo
     viewport->gbuffer2,             // t4 G-Buffer::emissive
   };
-  val.unordered_accesses = {viewport->raytracing_output_buffer};
+  val.unordered_accesses = {
+    viewport->raytracing_output_buffer,
+    viewport->deferred_shading_output,
+  };
   ShaderArgumentHandle arg = r->create_shader_argument(val);
   REI_ASSERT(arg);
 
