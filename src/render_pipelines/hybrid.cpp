@@ -895,12 +895,12 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->barrier(viewport->area_light.unshadowed);
   static std::array<int, 2> area_light_indices = {0, 1};
   static std::array<Vec4, 2> area_light_shapes = {
-    Vec4(3, 2, -3, .5),
-    Vec4(-10, 12, -10, 2),
+    Vec4(-100, 50, 60, 1),
+    Vec4(-5, 4, -3, .5),
   };
   static std::array<Color, 2> area_light_colors {
-    Colors::white * (1/pi),
-    Colors::white * 100,
+    Colors::white * 30000,
+    Colors::white * 400,
   };
   for (int i = 0; i < area_light_indices.size(); i++) {
     int light_index = area_light_indices[i];
@@ -940,14 +940,16 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // NOTE: per light, multiple ray-per-pixel
   HaltonSequence halton {viewport->frame_id};
   for (int i = 0; i < area_light_indices.size(); i++) {
-    for (int sp = 0; sp < m_area_shadow_ssp_per_light; sp++) {
-      int light_index = area_light_indices[i];
-      Vec4 light_color = Vec4(area_light_colors[i]);
-      Vec4 light_shape = area_light_shapes[i];
+    int light_index = area_light_indices[i];
+    Vec4 light_color = Vec4(area_light_colors[i]);
+    Vec4 light_shape = area_light_shapes[i];
 
-      // update light data and random data
-      cmd_list->update_const_buffer(scene->area_lights, light_index, 0, light_shape);
-      cmd_list->update_const_buffer(scene->area_lights, light_index, 1, light_color);
+    // update light data and random data
+    cmd_list->update_const_buffer(scene->area_lights, light_index, 0, light_shape);
+    cmd_list->update_const_buffer(scene->area_lights, light_index, 1, light_color);
+
+    for (int sp = 0; sp < m_area_shadow_ssp_per_light; sp++) {
+      // update random data for each sample pass
       cmd_list->update_const_buffer(scene->area_lights, light_index, 2, halton.next4());
 
       // sample gen
@@ -984,8 +986,9 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       trace.width = viewport->width;
       trace.height = viewport->height;
       cmd_list->raytrace(trace);
-    }
-  }
+    } // end for each ssp
+
+  } // end for each area light
 
   // Two-pass denoise -> output final shade //
   cmd_list->transition(

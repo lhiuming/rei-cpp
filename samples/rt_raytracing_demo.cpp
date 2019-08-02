@@ -73,8 +73,8 @@ void RayTracingApp::on_start() {
   auto sphere = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3));
   auto dot = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3, 0.25f));
   // scene().add_model(Mat4::translate({0, -0.1, 0}), plane, blue_steel, L"plane");
-  scene().add_model(Mat4::translate({2, -0.1, 0}), half_plane, stone, L"left wood plane");
-  scene().add_model(Mat4::translate({-2, -0.1, 0}), half_plane, silver, L"right metal plane");
+  scene().add_model(Mat4::translate({4, -0.1, 0}), plane, stone, L"left wood plane");
+  scene().add_model(Mat4::translate({-4, -0.1, 0}), plane, silver, L"right metal plane");
   scene().add_model(Mat4::translate({1.5, 1.0, 0}), cube, dark_wood, L"cube");
   scene().add_model(Mat4::translate({-1, 1.0, 0}), sphere, yellow_plastic, L"sphere");
   scene().add_model(Mat4::translate({0, 1, -3}), sphere, weak_light, L"light sphere");
