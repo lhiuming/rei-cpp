@@ -48,6 +48,19 @@ constexpr static array<const wchar_t*, 8> c_rt_buffer_names {
   L"Render Target [7]",
 };
 
+// Convertions utils
+template<unsigned int N>
+FixedVec<D3D_SHADER_MACRO, N + 1> to_hlsl_macros(const FixedVec<ShaderCompileConfig::Macro, N>& definitions) {
+  FixedVec<D3D_SHADER_MACRO, N + 1> hlsl_macros {};
+  for (auto& d : definitions) {
+    D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
+    hlsl_macros.push_back(m);
+  }
+  hlsl_macros.push_back({NULL, NULL});
+  return hlsl_macros;
+}
+
+
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
     : hinstance(hinstance), is_dxr_enabled(opt.enable_realtime_raytracing) {
@@ -171,9 +184,9 @@ BufferHandle Renderer::create_texture_2d(
     REI_ASSERT(SUCCEEDED(hr));
     texture.buffer = tex;
   }
-  #if DEBUG
+#if DEBUG
   texture.name = std::move(debug_name);
-  #endif
+#endif
 
   auto res_data = make_shared<BufferData>(this);
   res_data->res = std::move(texture);
@@ -214,12 +227,7 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
   ComPtr<ID3DBlob> vs_bytecode;
   ComPtr<ID3DBlob> ps_bytecode;
   {
-    FixedVec<D3D_SHADER_MACRO, config.defines.max_size + 1> shader_defines {};
-    for (auto& d : config.defines) {
-      D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
-      shader_defines.push_back(m);
-    }
-    shader_defines.push_back({NULL, NULL});
+    auto shader_defines = to_hlsl_macros(config.definitions);
 
     // routine for bytecode compilation
     // TODO use dxcompiler instead
@@ -301,13 +309,14 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
 }
 
 ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta) {
+  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<ComputeShaderData>(this);
 
   shader->meta.init(move(meta));
 
   // compile
-  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1");
+  auto shader_macros = to_hlsl_macros(config.definitions);
+  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1", shader_macros.data());
 
   // get root-signature
   device_resources->get_root_signature(shader->meta.signature.desc, shader->root_signature);
@@ -322,8 +331,8 @@ ShaderHandle Renderer::create_shader(
     D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
     desc.pRootSignature = root_sign;
     desc.CS = {(BYTE*)(compiled->GetBufferPointer()), compiled->GetBufferSize()};
-    desc.NodeMask = 0; // single GPU
-    desc.CachedPSO = {NULL, 0};                                 // no caching currently
+    desc.NodeMask = 0;                           // single GPU
+    desc.CachedPSO = {NULL, 0};                  // no caching currently
     desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE; // TODO add debug option
     HRESULT hr = device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&shader->pso));
     REI_ASSERT(SUCCEEDED(hr));
@@ -537,11 +546,10 @@ BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& d
   return BufferHandle(data);
 }
 
-BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
+BufferHandle Renderer::create_shader_table(
+  size_t intersec_count, ShaderHandle raytracing_shader) {
   auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
   const auto& meta = shader->meta;
-
-  size_t model_count = scene.get_models().size();
 
   auto device = device_resources->dxr_device();
   auto build = [&](size_t max_root_arguments_width, size_t entry_num, const void* shader_id,
@@ -561,13 +569,17 @@ BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle rayt
   ShaderTableBuffer tables;
   tables.shader = shader;
   build(raygen_arg_width, 1, shader->raygen.shader_id, tables.raygen);
-  build(hitgroup_arg_width, model_count, shader->hitgroup.shader_id, tables.hitgroup);
-  build(miss_arg_width, model_count, shader->miss.shader_id, tables.miss);
+  build(hitgroup_arg_width, intersec_count, shader->hitgroup.shader_id, tables.hitgroup);
+  build(miss_arg_width, intersec_count, shader->miss.shader_id, tables.miss);
 
   auto data = new_buffer();
   data->res = move(tables);
   data->state = D3D12_RESOURCE_STATE_UNORDERED_ACCESS; // FIXME really?
   return BufferHandle(data);
+}
+
+BufferHandle Renderer::create_shader_table(const Scene& scene, ShaderHandle raytracing_shader) {
+  return create_shader_table(scene.get_models().size(), raytracing_shader);
 }
 
 void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
@@ -601,6 +613,7 @@ void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
 }
 
 void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
+  const RenderViewaport viewport = cmd.viewport;
   const RenderArea& area = cmd.area;
 
   auto cmd_list = device_resources->prepare_command_list();
@@ -609,10 +622,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   {
     // NOTE: DirectX viewport starts from top-left to bottom-right.
     D3D12_VIEWPORT d3d_vp {};
-    d3d_vp.TopLeftX = 0.0f;
-    d3d_vp.TopLeftY = 0.0f;
-    d3d_vp.Width = float(area.width);
-    d3d_vp.Height = float(area.height);
+    d3d_vp.TopLeftX = viewport.offset_left;
+    d3d_vp.TopLeftY = viewport.offset_top;
+    d3d_vp.Width = viewport.width;
+    d3d_vp.Height = viewport.height;
     d3d_vp.MinDepth = D3D12_MIN_DEPTH;
     d3d_vp.MaxDepth = D3D12_MAX_DEPTH;
     cmd_list->RSSetViewports(1, &d3d_vp);
@@ -620,10 +633,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
 
   {
     D3D12_RECT scissor {};
-    scissor.left = 0;
-    scissor.top = 0;
-    scissor.right = float(area.width);
-    scissor.bottom = float(area.height);
+    scissor.left = float(area.offset_left);
+    scissor.top = float(area.offset_top);
+    scissor.right = float(area.offset_left + area.width);
+    scissor.bottom = float(area.offset_top + area.height);
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
@@ -651,7 +664,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
         rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
       } else {
-        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD;
+        rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
       }
       rt_desc.EndingAccess.Type = D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE;
     }
@@ -778,6 +791,7 @@ void Renderer::draw(const DrawCommand& cmd) {
 void Renderer::dispatch(const DispatchCommand& cmd) {
   auto shader = to_shader<ComputeShaderData>(cmd.compute_shader);
   REI_ASSERT(shader);
+  REI_ASSERT(cmd.dispatch_x * cmd.dispatch_y * cmd.dispatch_z > 0);
 
   auto cmd_list = device_resources->prepare_command_list();
 
@@ -842,6 +856,51 @@ void Renderer::raytrace(const RaytraceCommand& cmd) {
     desc.Depth = UINT(cmd.depth);
     cmd_list->DispatchRays(&desc);
   }
+}
+
+void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea area) {
+  auto device = device_resources->device();
+  auto cmd_list = device_resources->prepare_command_list();
+
+  auto target = to_buffer(handle);
+  REI_ASSERT((target->state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+  REI_ASSERT(target->res.holds<TextureBuffer>());
+  TextureBuffer& tex = target->res.get<TextureBuffer>();
+  ID3D12Resource* res = tex.buffer.Get();
+  auto d3d_desc = res->GetDesc();
+  if (d3d_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
+    REI_ERROR(
+      "Invalid resource type; The texture should created with allowance of unordred access");
+    return;
+  }
+
+  D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor;
+  D3D12_GPU_DESCRIPTOR_HANDLE gpu_descriptor;
+  {
+    UINT* cached_descriptor_index = m_texture_clear_descriptor.try_get(target);
+    if (cached_descriptor_index) {
+      device_resources->cbv_srv_shader_non_visible_heap().get_descriptor_handle(
+        *cached_descriptor_index, &cpu_descriptor, &gpu_descriptor);
+    } else {
+      UINT index = device_resources->cbv_srv_shader_non_visible_heap().alloc(&cpu_descriptor, &gpu_descriptor);
+      m_texture_clear_descriptor.insert({target, index});
+
+      D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
+      desc.ViewDimension = to_usv_dimension(tex.dimension);
+      desc.Format = to_dxgi_format(tex.format);
+      device->CreateUnorderedAccessView(res, NULL, &desc, cpu_descriptor);
+    }
+  }
+
+  FLOAT color[4];
+  fill_vec4(color, clear_value);
+  D3D12_RECT clear_rect; // NOTE DirectX sreen orientation
+  clear_rect.left = area.offset_left;
+  clear_rect.top = area.offset_top;
+  clear_rect.right = area.offset_left + area.width;
+  clear_rect.bottom = area.offset_top + area.height;
+  cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
 }
 
 void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_state) {

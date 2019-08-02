@@ -8,17 +8,36 @@
 // Encoding&Decoding
 //
 
-#define c_frame_loop uint(256)
+#define FRAME_LOOP uint(65535)
+#define c_frame_loop FRAME_LOOP
 
 struct PerRenderConstBuffer {
   // NOTE: see PerFrameConstantBuffer in cpp code
   float4 screen;
+  float4x4 proj_inv;
+  float4x4 view_proj;
   float4x4 proj_to_world;
   float4 camera_pos;
   float4 render_info;
 };
 
-uint get_frame_id(in PerRenderConstBuffer cb) {
+float2 get_screen_size(PerRenderConstBuffer cb) {
+  return cb.screen.xy;
+}
+
+float4x4 get_proj_inv(PerRenderConstBuffer cb) {
+  return cb.proj_inv;
+}
+
+float4x4 get_view_proj(PerRenderConstBuffer cb) {
+  return cb.view_proj;
+}
+
+float4x4 get_view_proj_inv(PerRenderConstBuffer cb) {
+  return cb.proj_to_world;
+}
+
+uint get_frame_id(PerRenderConstBuffer cb) {
   return uint(cb.render_info.x);
 }
 
@@ -57,6 +76,12 @@ void fill_surface(PerMaterialConstBuffer cb, float3 normal, inout Surface surf) 
   surf.emissive = get_emissive(cb);
 }
 
+Surface decode_material(PerMaterialConstBuffer cb, float3 normal) {
+  Surface surf;
+  fill_surface(cb, normal, surf);
+  return surf;
+}
+
 struct GBufferPixel {
   float4 normal_smoothness : SV_TARGET0;
   float4 color_metalness : SV_TARGET1;
@@ -73,6 +98,10 @@ GBufferPixel encode_gbuffer(PerMaterialConstBuffer mat, float3 normal) {
   return rt;
 }
 
+float3 get_normal(float4 rt0) {
+  return rt0.xyz;
+}
+
 // Fill surface properties from GBuffer
 void fill_surface(float4 rt0, float4 rt1, float4 rt2, inout Surface s) {
   s.normal = rt0.xyz;
@@ -80,6 +109,13 @@ void fill_surface(float4 rt0, float4 rt1, float4 rt2, inout Surface s) {
   s.color = rt1.xyz;
   s.metalness = rt1.w;
   s.emissive = rt2.xyz;
+}
+
+// Read surface properties from GBuffer
+Surface decode_gbuffer(float4 rt0, float4 rt1, float4 rt2) {
+  Surface surf;
+  fill_surface(rt0, rt1, rt2, surf);
+  return surf;
 }
 
 //
@@ -93,10 +129,14 @@ struct BXDFSurface {
   float3 albedo;
 };
 
-struct Space {
-  float3 wo; // view vector
-  float3 wi; // light vector
-};
+BXDFSurface to_bxdf(Surface surf) {
+  BXDFSurface bxdf;
+  bxdf.normal = surf.normal;
+  bxdf.roughness_percepted = saturate(1 - surf.smoothness);
+  bxdf.fresnel_0 = lerp(0.03, surf.color, surf.metalness);
+  bxdf.albedo = lerp(surf.color, 0, surf.metalness);
+  return bxdf;
+}
 
 struct BrdfCosine {
   float3 specular;
@@ -106,14 +146,14 @@ struct BrdfCosine {
 // Classic Blinn-Phong specular brdf
 // NOTE: some normalization is applied here, ref:
 // https://seblagarde.wordpress.com/2011/08/17/hello-world/
-BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
+BrdfCosine blinn_phong_classic(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
   float smoothness = 1 - surf.roughness_percepted;
   float a = pow(8192, smoothness);
-  float3 h = normalize(space.wo + space.wi); // fixme redudant normalization
+  float3 h = normalize(wo + wi); // fixme redudant normalization
   float dot_n_h = clamp(dot(surf.normal, h), c_epsilon, 1);
-  float dot_n_l = clamp(dot(surf.normal, space.wi), c_epsilon, 1);
+  float dot_n_l = clamp(dot(surf.normal, wi), c_epsilon, 1);
   float3 color = surf.albedo + surf.fresnel_0 - 0.03;
   float normalizer = (a + 2) / (4 * PI * (2 - pow(2, -0.5 * a)));
   float ks = smoothness; // fake enery conservation
@@ -125,18 +165,18 @@ BrdfCosine blinn_phong_classic(BXDFSurface surf, Space space) {
 
 // Energy Consering Blinn-Phong BRDF simulated with Beckmann Lambda function, with roughness
 // remapped accoordingly. ref: [rtr4], p340
-BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
+BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // <Call of Duty: BlackOps> mapping
   float a = pow(8192, 1 - surf.roughness_percepted);
   // Remap to beckmann roughness, and evalue G2
-  float3 h = normalize(space.wo + space.wi);
-  float dot_v_n = dot(space.wo, surf.normal);
+  float3 h = normalize(wo + wi);
+  float dot_v_n = dot(wo, surf.normal);
   float dot_v_n_2 = dot_v_n * dot_v_n;
   float a_b_for_G = sqrt((0.5 * a + 1) / (1 - dot_v_n_2)) * dot_v_n;
   // Evalute BRDF
-  float dot_l_h = dot(space.wi, h);
-  float dot_l_n = dot(space.wi, surf.normal);
+  float dot_l_h = dot(wi, h);
+  float dot_l_n = dot(wi, surf.normal);
   float dot_h_n = max(dot(h, surf.normal), EPS); // clamp to avoid nan in self-intrusion
   float3 f = F_schlick(surf.fresnel_0, dot_l_h);
   float g1 = G1Smith_beckmann_schlick(a_b_for_G);
@@ -149,17 +189,17 @@ BrdfCosine BRDF_blinn_phong_modified(BXDFSurface surf, Space space) {
   return ret;
 }
 
-BrdfCosine BRDF_GGX_Lambertian(BXDFSurface surf, Space space) {
+BrdfCosine BRDF_GGX_Lambertian(BXDFSurface surf, float3 wo /*view vector*/, float3 wi /*light vector*/) {
   BrdfCosine ret;
   // Disney mapping, ref: [rtr4]
   float _a = surf.roughness_percepted;
   float a = _a * _a;
   // Evalute BRDF
-  float3 h = normalize(space.wo + space.wi);
-  float dot_l_h = dot(space.wi, h);
+  float3 h = normalize(wo + wi);
+  float dot_l_h = dot(wi, h);
   float3 f = F_schlick(surf.fresnel_0, dot_l_h);
-  float dot_l_n = max(dot(space.wi, surf.normal), EPS); // avoid nan in G2
-  float dot_v_n = max(dot(space.wo, surf.normal), EPS); // avoid nan in G2
+  float dot_l_n = max(dot(wi, surf.normal), EPS); // avoid nan in G2
+  float dot_v_n = max(dot(wo, surf.normal), EPS); // avoid nan in G2
   float g2_denom = G2Smith_ggx_hammon_devided(dot_l_n, dot_v_n, a);
   float dot_h_n = max(dot(h, surf.normal), EPS); // avoid nan in d, due to self-intrusion
   float d = D_ggx(dot_h_n, a);

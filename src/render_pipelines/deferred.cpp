@@ -83,12 +83,8 @@ DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(rende
 
   m_default_shader
     = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
-  ShaderCompileConfig lighting_shader_config {};
-  lighting_shader_config.defines = {
-    {"BASE_SHADING", "1"},
-  };
   m_lighting_shader_base = r->create_shader(L"CoreData/shader/deferred_shading.hlsl",
-    std::make_unique<DeferredShadingMeta>(), lighting_shader_config);
+    std::make_unique<DeferredShadingMeta>(), ShaderCompileConfig::defines<1>({{"BASE_SHADING", "1"},}));
   m_lighting_shader_add = r->create_shader(
     L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
 
@@ -244,7 +240,8 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
-    gpass.area = {viewport->width, viewport->height};
+    gpass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    gpass.area = RenderArea::full(viewport->width, viewport->height);
   }
   cmd_list->begin_render_pass(gpass);
   {
@@ -273,7 +270,8 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     shading_pass.depth_stencil = c_empty_handle;
     shading_pass.clear_rt = true;
     shading_pass.clear_ds = false;
-    shading_pass.area = {viewport->width, viewport->height};
+    shading_pass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    shading_pass.area = RenderArea::full(viewport->width, viewport->height);
   }
   cmd_list->begin_render_pass(shading_pass);
   std::vector<Vec4> light_pos = {{0.5, 0.6, 0.9, 0}, {0.5, 0.6, 0.8, 0}};

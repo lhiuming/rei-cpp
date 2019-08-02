@@ -64,6 +64,26 @@ constexpr Color ha = {251, 88, 31};
 constexpr Color kyu = {34, 166, 191};
 constexpr Color final = {255, 255, 255};
 
+namespace fresnel0 {
+
+// Some PBR reference values
+// ref: <Real-Time Rendering> 4th edition, page 323.
+constexpr Color titanium = {.542f, .497f, .449f};
+constexpr Color chromium = {.549f, .556f, .554f};
+constexpr Color iron = {.562f, .565f, .578f};
+// constexpr Color nickel;
+// constexpr Color platinum;
+constexpr Color copper = {.955f, .638f, .538f};
+// constexpr Color palladium;
+// constexpr Color mercury;
+constexpr Color brass_c260 = {.910f, .778f, .423f};
+constexpr Color zinc = {.664f, .824f, .850f};
+constexpr Color gold = {1.000f, .782f, .344f};
+constexpr Color aluminum = {.913f, .922f, .924};
+constexpr Color silver = {.972f, .960f, .915f};
+
+} // namespace fresnel0
+
 } // namespace Colors
 
 } // namespace rei

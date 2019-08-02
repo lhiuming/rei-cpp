@@ -324,9 +324,10 @@ struct RootSignatureDescMemory {
 
     D3D12_ROOT_SIGNATURE_FLAGS flags
       = local ? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE : D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    if (param_memory.size() > 0 || static_sampler_memory.size() > 0)
-      desc.Init(param_memory.size(), param_memory.data(), static_sampler_memory.size(),
-        static_sampler_memory.data(), flags);
+    // NOTE: awaly init the desc
+    //if (param_memory.size() > 0 || static_sampler_memory.size() > 0)
+    desc.Init(param_memory.size(), param_memory.data(), static_sampler_memory.size(),
+      static_sampler_memory.data(), flags);
   }
 };
 

@@ -1,17 +1,34 @@
 # REI: Rendering Experiment Infrastructure
 
-This project is still at its :clap:*initial stage*:clap:, so really no interseted stuff is presented :(.
+This project is basically a personal playground for trying out all king of rendering stuff, mostly in real-time side.
 
-Currently the first goal is to implement a real-time ray-traced physically based renderer, with procedurally generated mesh and several analytical light sources. Stay tuned! :rocket::sparkles:
+Currently the goal is to implement a real-time ray-traced physically-based renderer, capable of rendering some procedurally generated meshes and several analytical light sources. After a initial stage, the built-in hybrid render finally produces some :rocket: nice-looking :sparkles: images. Check the screenshots below!
+
+## Features
+
+- A hybrid render pipeline implemented as raytracing-from-G-buffer, for full-dynamic global illumination
+- Multi-bounce indirect illumination, accumulated across frames (though noisy and converges slowly ...)
+- Stochastic area shadow
+- GGX + Lambertian surface shading
+- Extensible and platform-agonistic Renderer API*
+
+*: potentially :), since the actual implementation is Windows-only at this time...
 
 ## Screenshots
 
+Dynamic soft shadows and multi-bounce indirect illumination (accumulated over frames): 
+
 ![](/docs/img/screenshots/raytraced_demo.png)
-![](/docs/img/screenshots/rasterized_dull_procedural_meshes.png)
+
+You can see how the image converges when the camera is moved (discarding all previous frames): 
+
+![](/docs/img/screenshots/raytraced_demo.gif)
 
 ## Download
 
-Unstable build for samples can be downloaded on [the release page](https://github.com/lhiuming/REI/releases). Notice that for real-time ray-traced samples, only Windows machine equipped with RTX hardware is supported.
+Latest build, containing sample apps that produce the presented screenshots, can be downloaded on [the release page](https://github.com/lhiuming/REI/releases). (Windows Only)
+
+(Notice: in order to run real-time ray-traced samples, you would need a RTX graphic card.)
 
 ## Build
 
@@ -25,14 +42,23 @@ Requirements:
 
 Clone the repository and update submodules, then generate a Visual Studio solution with cmake: 
 
-	// in root directory of this repository
+	// in repository root directory 
 	mkdir build
 	cd build
 	cmake ../
+	// open the solution file
 	ii REI.sln
 
 Now you can build and debug any of the projects under the "REI" solution:
 
 1. Select and set "Samples/rt_raytracing_demo" as start-up project.
-2. Press "F5" to build and start debugging. You should be able to see a floating cube. Try to move the camera with dragging and scrolling.
+2. Press "F5" to build and start debugging. You should be able to see some cuboids and spheres sitting on a thick plane. Try to move the camera with dragging and scrolling.
 
+## Reference 
+
+Here are some excellent articles/papers/talks that help me a lot when I design the abstraction layer and build some of the shinny features: 
+
+1. Colin Barré-Brisebois, et al, ["Hybrid Rendering for Real-Time Ray Tracing" in <Ray Tracing Gems>](http://www.realtimerendering.com/raytracinggems/). Good reference on how to design a hybrid pipeline utilizing today's not-that-powerful raytracing hardware. 
+2. Eric Heitz, Stephen Hill and Morgan McGuire, [<Combining Analytic Direct Illumination and Stochastic Shadows>](https://eheitzresearch.wordpress.com/705-2/). The idea of stochastic (raytraced) shadow for noise-free analytic area lights.
+3. Graham Wihlidal, [<Halcyon: Rapid Innovation using Modern Graphics>](https://www.khronos.org/assets/uploads/developers/library/2019-reboot-develop-blue/SEED-EA_Rapid-Innovation-Using-Modern-Graphics_Apr19.pdf). Shares some great designs decision for an experimental graphic engine. 
+4. Tomas Akenine-Möller, et al, [<Real-Time Rendering>](http://www.realtimerendering.com/). "The Book" for general real-time topics. Chapter 9 is a comprehensive introduction to physically-based rendering, including an up-to-date overview of PBR practice in real-time application. 

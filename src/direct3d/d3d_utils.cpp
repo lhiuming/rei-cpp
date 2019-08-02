@@ -7,7 +7,7 @@ namespace rei {
 namespace d3d {
 
 ComPtr<ID3DBlob> compile_shader(
-  const wchar_t* shader_path, const char* entrypoint, const char* target) {
+  const wchar_t* shader_path, const char* entrypoint, const char* target, const D3D_SHADER_MACRO* macros) {
   UINT compile_flags = 0;
 #if defined(DEBUG) || !defined(NDEBUG)
   compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
@@ -16,9 +16,8 @@ ComPtr<ID3DBlob> compile_shader(
   ComPtr<ID3DBlob> btyecode;
   ComPtr<ID3DBlob> error_msg;
 
-  D3D_SHADER_MACRO* shader_defines = NULL;
   HRESULT hr = D3DCompileFromFile(shader_path, // shader file path
-    shader_defines,                            // preprocessors
+    macros,                                    // preprocessors
     D3D_COMPILE_STANDARD_FILE_INCLUDE,         // "include file with relative path"
     entrypoint,                                // e.g. "VS" or "PS" or "main" or others
     target,                                    // "vs_5_0" or "ps_5_0" or similar

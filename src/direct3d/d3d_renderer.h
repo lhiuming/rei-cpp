@@ -70,7 +70,8 @@ public:
     return create_shader(shader_path, std::move(*meta), config);
   }
 
-  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta);
+  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
 
   ShaderHandle create_shader(const std::wstring& shader_path, RaytracingShaderMetaInfo&& meta,
     const ShaderCompileConfig& config = {});
@@ -85,6 +86,7 @@ public:
 
   GeometryBuffers create_geometry(const GeometryDesc& geometry);
   BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene);
+  BufferHandle create_shader_table(size_t intersection_count, ShaderHandle raytracing_shader);
   BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
   // void update_raygen_shader_record();
@@ -112,6 +114,8 @@ public:
     cmd.depth = depth;
     raytrace(cmd);
   }
+
+  void clear_texture(BufferHandle target, Vec4 clear_value, RenderArea clear_area);
   void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
 
   // TODO return a command list object
@@ -132,6 +136,7 @@ protected:
   // TODO make unique
   std::shared_ptr<DeviceResources> device_resources;
   std::vector<ComPtr<ID3D12Resource>> m_delayed_release;
+  Hashmap<BufferHandle, UINT> m_texture_clear_descriptor;
 
   bool is_uploading_resources = false;
 

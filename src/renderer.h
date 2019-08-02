@@ -116,7 +116,13 @@ struct ShaderCompileConfig {
     Macro() = default;
     Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
   };
-  FixedVec<Macro, 16> defines;
+  FixedVec<Macro, 16> definitions;
+  template<unsigned int N>
+  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
+    static_assert(N <= 16);
+    ShaderCompileConfig ret {defs};
+    return ret;
+  }
 };
 
 struct ShaderArgumentValue {
@@ -248,14 +254,37 @@ struct RaytraceCommand {
   uint32_t depth = 1;
 };
 
-struct RenderArea {
-  size_t width;
-  size_t height;
+template<typename Numeric>
+struct RenderRect {
+  Numeric offset_left = 0;
+  Numeric offset_top = 0;
+  Numeric width = 0;
+  Numeric height = 0;
+
+  RenderRect shrink_to_upper_left(
+    Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_top = 0) const {
+    REI_ASSERT(height >= sheight + pad_top);
+    return {offset_left + pad_left, offset_top + pad_top, swidth, sheight};
+  }
+
+  RenderRect shrink_to_lower_left(
+    Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_bottom = 0) const {
+    REI_ASSERT(height >= sheight + pad_bottom);
+    return {offset_left + pad_left, offset_top + height - (pad_bottom + sheight), swidth, sheight};
+  }
+
+  static RenderRect full(Numeric width, Numeric height) {
+    return {0, 0, Numeric(width), Numeric(height)};
+  }
 };
+
+using RenderViewaport = RenderRect<float>;
+using RenderArea = RenderRect<int>;
 
 struct RenderPassCommand {
   FixedVec<BufferHandle, 8> render_targets;
   BufferHandle depth_stencil;
+  RenderViewaport viewport;
   RenderArea area;
   bool clear_rt;
   bool clear_ds;

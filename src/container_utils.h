@@ -83,11 +83,20 @@ public:
 
   FixedVec(size_t size) : m_size(size) {}
 
-  constexpr FixedVec(const std::initializer_list<T>& l) : m_size(l.size()) {
+  constexpr FixedVec(const std::initializer_list<T>& l) : Base({}), m_size(l.size()) {
     REI_ASSERT(l.size() <= N);
     // static_assert(M <= N, "initializer size is greater than v_array max size");
     std::copy(l.begin(), l.end(), ((Base*)this)->begin());
   }
+
+ template<size_t M>
+  constexpr FixedVec(const FixedVec<T, M>& other) : Base({}), m_size(other.size()) {
+    static_assert(M <= N);
+    for (size_t i = 0; i < other.size(); i++) {
+      (*this)[i] = other[i];
+    }
+  }
+
 
   // TODO do we need modifiable iterator?
   const_iterator cbegin() const { return const_iterator(this->data(), 0); }
@@ -125,8 +134,8 @@ public:
     return r;
   }
 
-  reference back() { return *this[m_size]; }
-  const_reference back() const { return *this[m_size]; }
+  reference back() { return (*this)[m_size-1]; }
+  const_reference back() const { return (*this)[m_size-1]; }
 
   void clear() {
     for (auto& ele : *this) {
