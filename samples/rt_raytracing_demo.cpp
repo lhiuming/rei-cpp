@@ -53,12 +53,12 @@ void RayTracingApp::on_start() {
   auto weak_light = make_shared<Material>(L"Weak Light");
   {
     weak_light->set(L"albedo", Colors::white);
-    weak_light->set(L"emissive", 0.3 / pi * emit_inten);
+    weak_light->set(L"emissive", 0.5 / pi * emit_inten);
   }
   auto mild_light = make_shared<Material>(L"Mild Light");
   {
     mild_light->set(L"albedo", Colors::white);
-    mild_light->set(L"emissive", .75 / pi * emit_inten);
+    mild_light->set(L"emissive", 1 / pi * emit_inten);
   }
   auto super_light = make_shared<Material>(L"Super-Bright Light");
   {
@@ -70,11 +70,13 @@ void RayTracingApp::on_start() {
   auto tube = std::make_shared<Mesh>(Mesh::procudure_cube({1, .1, .1}));
   auto plane = std::make_shared<Mesh>(Mesh::procudure_cube({4, 0.1, 4}));
   auto half_plane = std::make_shared<Mesh>(Mesh::procudure_cube({2, 0.1, 4}));
+  auto small_plane = std::make_shared<Mesh>(Mesh::procudure_cube({4, 0.1, 2}));
   auto sphere = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3));
   auto dot = std::make_shared<Mesh>(Mesh::procudure_sphere_icosahedron(3, 0.25f));
   // scene().add_model(Mat4::translate({0, -0.1, 0}), plane, blue_steel, L"plane");
-  scene().add_model(Mat4::translate({4, -0.1, 0}), plane, stone, L"left wood plane");
-  scene().add_model(Mat4::translate({-4, -0.1, 0}), plane, silver, L"right metal plane");
+  scene().add_model(Mat4::translate({0, -0.1, 0}), plane, stone, L"wood plane");
+  scene().add_model(
+    Mat4::translate_rotate({0, 2.2, -4}, {1, 0, 0}, 90 * degree), small_plane, silver, L"metal plane");
   scene().add_model(Mat4::translate({1.5, 1.0, 0}), cube, dark_wood, L"cube");
   scene().add_model(Mat4::translate({-1, 1.0, 0}), sphere, yellow_plastic, L"sphere");
   scene().add_model(Mat4::translate({0, 1, -3}), sphere, weak_light, L"light sphere");
@@ -113,8 +115,8 @@ void RayTracingApp::on_update() {
 int main() {
   App::Config conf = {};
   conf.title = L"Real-Time Ray-Tracing Demo (REI Sample)";
-  conf.width = 1080;
-  conf.height = 480;
+  conf.width = 1920;
+  conf.height = 1080;
   conf.bg_color = Colors::ayanami_blue;
   conf.render_mode = App::RenderMode::Hybrid;
   auto app = RayTracingApp(conf);
