@@ -46,7 +46,8 @@ void output(uint2 index, float3 radiance) {
 
   float3 delta = g_light.pos_radius.xyz - w_pos;
   float dist_0 = sqrt(dot(delta, delta));
-  float dist = dist_0 - g_light.pos_radius.w;
+  float radius = g_light.pos_radius.w;
+  float dist = dist_0 - radius;
   light_dir = normalize(delta);
   float dist2 = dist + dist;
   light_color = g_light.color.xyz / dist2;

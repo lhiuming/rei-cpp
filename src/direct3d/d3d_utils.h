@@ -26,7 +26,7 @@ constexpr char c_raytracing_shader_target[] = "lib_6_3";
 constexpr wchar_t c_raytracing_shader_target_w[] = L"lib_6_3";
 
 ComPtr<ID3DBlob> compile_shader(
-  const wchar_t* shader_path, const char* entrypoint, const char* target);
+  const wchar_t* shader_path, const char* entrypoint, const char* target, const D3D_SHADER_MACRO* macros = NULL);
 
 ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* entrypoint);
 

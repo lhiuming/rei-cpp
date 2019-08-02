@@ -116,7 +116,13 @@ struct ShaderCompileConfig {
     Macro() = default;
     Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
   };
-  FixedVec<Macro, 16> defines;
+  FixedVec<Macro, 16> definitions;
+  template<unsigned int N>
+  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
+    static_assert(N <= 16);
+    ShaderCompileConfig ret {defs};
+    return ret;
+  }
 };
 
 struct ShaderArgumentValue {

@@ -87,7 +87,7 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
 
   // output
   float3 ray_dir = light_dir;
-  float ray_start = 0.01 / non_grazing; // to avoid self intrusion
+  float ray_start = 0.02 / non_grazing; // to avoid self intrusion
   float ray_end = dist;
   g_stochastic_radiance[tid.xy] += float4(reflectance, 0.0);
   g_stochastic_sample_ray[tid.xy] = float4(ray_dir, ray_start);

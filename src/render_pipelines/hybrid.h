@@ -59,8 +59,8 @@ private:
   ShaderHandle m_stochastic_shadow_sample_gen_shader;
   ShaderHandle m_stochastic_shadow_trace_shader;
   BufferHandle m_stochastic_shadow_trace_shadertable;
-  //ShaderHandle m_stochastic_shadow_denoise_horizontal_shader;
-  //ShaderHandle m_stochastic_shadow_denoise_final_shader;
+  ShaderHandle m_stochastic_shadow_denoise_firstpass_shader;
+  ShaderHandle m_stochastic_shadow_denoise_finalpass_shader;
 
   ShaderHandle m_multibounce_shader;
 

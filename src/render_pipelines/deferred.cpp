@@ -83,12 +83,8 @@ DeferredPipeline::DeferredPipeline(RendererPtr renderer) : SimplexPipeline(rende
 
   m_default_shader
     = r->create_shader(L"CoreData/shader/deferred_base.hlsl", std::make_unique<DeferredBaseMeta>());
-  ShaderCompileConfig lighting_shader_config {};
-  lighting_shader_config.defines = {
-    {"BASE_SHADING", "1"},
-  };
   m_lighting_shader_base = r->create_shader(L"CoreData/shader/deferred_shading.hlsl",
-    std::make_unique<DeferredShadingMeta>(), lighting_shader_config);
+    std::make_unique<DeferredShadingMeta>(), ShaderCompileConfig::defines<1>({{"BASE_SHADING", "1"},}));
   m_lighting_shader_add = r->create_shader(
     L"CoreData/shader/deferred_shading.hlsl", std::make_unique<DeferredShadingMeta>());
 

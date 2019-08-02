@@ -14,6 +14,7 @@
 struct PerRenderConstBuffer {
   // NOTE: see PerFrameConstantBuffer in cpp code
   float4 screen;
+  float4x4 proj_inv;
   float4x4 view_proj;
   float4x4 proj_to_world;
   float4 camera_pos;
@@ -22,6 +23,10 @@ struct PerRenderConstBuffer {
 
 float2 get_screen_size(PerRenderConstBuffer cb) {
   return cb.screen.xy;
+}
+
+float4x4 get_proj_inv(PerRenderConstBuffer cb) {
+  return cb.proj_inv;
 }
 
 float4x4 get_view_proj(PerRenderConstBuffer cb) {
@@ -91,6 +96,10 @@ GBufferPixel encode_gbuffer(PerMaterialConstBuffer mat, float3 normal) {
   rt.color_metalness.w = get_metalness(mat);
   rt.emissive.xyz = get_emissive(mat);
   return rt;
+}
+
+float3 get_normal(float4 rt0) {
+  return rt0.xyz;
 }
 
 // Fill surface properties from GBuffer

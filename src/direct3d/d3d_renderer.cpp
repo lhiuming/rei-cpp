@@ -48,6 +48,19 @@ constexpr static array<const wchar_t*, 8> c_rt_buffer_names {
   L"Render Target [7]",
 };
 
+// Convertions utils
+template<unsigned int N>
+FixedVec<D3D_SHADER_MACRO, N + 1> to_hlsl_macros(const FixedVec<ShaderCompileConfig::Macro, N>& definitions) {
+  FixedVec<D3D_SHADER_MACRO, N + 1> hlsl_macros {};
+  for (auto& d : definitions) {
+    D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
+    hlsl_macros.push_back(m);
+  }
+  hlsl_macros.push_back({NULL, NULL});
+  return hlsl_macros;
+}
+
+
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
     : hinstance(hinstance), is_dxr_enabled(opt.enable_realtime_raytracing) {
@@ -214,12 +227,7 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
   ComPtr<ID3DBlob> vs_bytecode;
   ComPtr<ID3DBlob> ps_bytecode;
   {
-    FixedVec<D3D_SHADER_MACRO, config.defines.max_size + 1> shader_defines {};
-    for (auto& d : config.defines) {
-      D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
-      shader_defines.push_back(m);
-    }
-    shader_defines.push_back({NULL, NULL});
+    auto shader_defines = to_hlsl_macros(config.definitions);
 
     // routine for bytecode compilation
     // TODO use dxcompiler instead
@@ -301,13 +309,14 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
 }
 
 ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta) {
+  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
   auto shader = make_shared<ComputeShaderData>(this);
 
   shader->meta.init(move(meta));
 
   // compile
-  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1");
+  auto shader_macros = to_hlsl_macros(config.definitions);
+  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1", shader_macros.data());
 
   // get root-signature
   device_resources->get_root_signature(shader->meta.signature.desc, shader->root_signature);
@@ -782,6 +791,7 @@ void Renderer::draw(const DrawCommand& cmd) {
 void Renderer::dispatch(const DispatchCommand& cmd) {
   auto shader = to_shader<ComputeShaderData>(cmd.compute_shader);
   REI_ASSERT(shader);
+  REI_ASSERT(cmd.dispatch_x * cmd.dispatch_y * cmd.dispatch_z > 0);
 
   auto cmd_list = device_resources->prepare_command_list();
 

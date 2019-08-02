@@ -58,13 +58,16 @@ struct ViewportProxy {
     BufferHandle stochastic_unshadowed;
     BufferHandle stochastic_shadowed;
     // BufferHandle stochastic_variance;
-    // BufferHandle denoised_0; // not necessay a seperated buffer
+    BufferHandle denoised_unshadowed;
+    BufferHandle denoised_shadowed;
+
     ShaderArgumentHandle unshadowed_pass_arg;
     ShaderArgumentHandle sample_gen_pass_arg;
     // ShaderArgumentHandle variance_pass_arg;
     // ShaderArgumentHandle variance_filter_pass_arg;
-    ShaderArgumentHandle denoise_horizontal_pass_arg;
-    ShaderArgumentHandle denoise_final_pass_arg;
+    ShaderArgumentHandle denoise_fistpass_arg0;
+    ShaderArgumentHandle denoise_finalpass_arg0;
+    ShaderArgumentHandle denoise_common_arg1;
 
     // debug pass
     ShaderArgumentHandle blit_unshadowed;
@@ -72,6 +75,8 @@ struct ViewportProxy {
     ShaderArgumentHandle blit_stochastic_sample_radiance;
     ShaderArgumentHandle blit_stochastic_unshadowed;
     ShaderArgumentHandle blit_stochastic_shadowed;
+    ShaderArgumentHandle blit_denoised_unshadowed;
+    ShaderArgumentHandle blit_denoised_shadowed;
   } area_light;
 
   // TAA resources
@@ -83,6 +88,8 @@ struct ViewportProxy {
   ShaderArgumentHandle blit_for_present;
 
   Vec4 cam_pos = {0, 1, 8, 1};
+  Mat4 proj = Mat4::I();
+  Mat4 proj_inv = Mat4::I();
   Mat4 view_proj = Mat4::I();
   Mat4 view_proj_inv = Mat4::I();
   byte frame_id = 0;
@@ -262,15 +269,14 @@ struct HybridStochasticGenShaderDesc : ComputeShaderMetaInfo {
   }
 };
 
-struct HybridShtochasticShadowTraceShaderDesc: RaytracingShaderMetaInfo {
+struct HybridShtochasticShadowTraceShaderDesc : RaytracingShaderMetaInfo {
   HybridShtochasticShadowTraceShaderDesc() {
     ShaderParameter space0 {};
-    space0.const_buffers = {ConstantBuffer()}; // Per-render CN
-    space0.shader_resources = {
-      ShaderResource(),  // TLAS
-      ShaderResource(), // depth buffer
-      ShaderResource(), // sample ray
-      ShaderResource()}; // sample radiance
+    space0.const_buffers = {ConstantBuffer()};       // Per-render CN
+    space0.shader_resources = {ShaderResource(),     // TLAS
+      ShaderResource(),                              // depth buffer
+      ShaderResource(),                              // sample ray
+      ShaderResource()};                             // sample radiance
     space0.unordered_accesses = {UnorderedAccess()}; // output buffer
     global_signature.param_table = {space0};
 
@@ -281,6 +287,36 @@ struct HybridShtochasticShadowTraceShaderDesc: RaytracingShaderMetaInfo {
   }
 };
 
+struct HybridStochasticShadowDenoiseShaderDesc : ComputeShaderMetaInfo {
+  HybridStochasticShadowDenoiseShaderDesc(bool finalpass = false) {
+    ShaderParameter space0 {};
+    space0.shader_resources = {
+      ShaderResource(), // two input
+      ShaderResource(),
+    };
+    if (finalpass) {
+      space0.unordered_accesses = {
+        UnorderedAccess(), // sigle output
+      };
+    } else {
+      space0.unordered_accesses = {
+        UnorderedAccess(), // two output
+        UnorderedAccess(),
+      };
+    }
+    ShaderParameter space1 {};
+    space1.shader_resources = {
+      ShaderResource(), // depth
+      ShaderResource(), // gbuffers - rt0 normal
+      ShaderResource(), // unshadowd analytic radiance
+      // ShaderResource(), // stochastic variance estimate
+    };
+    space1.const_buffers = {
+      ConstantBuffer(), // per-render data
+    };
+    signature.param_table = {space0, space1};
+  }
+};
 
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
   BlitShaderDesc() {
@@ -307,7 +343,7 @@ struct TaaShaderDesc : ComputeShaderMetaInfo {
 };
 
 HybridPipeline::HybridPipeline(RendererPtr renderer)
-    : SimplexPipeline(renderer), m_enable_multibounce(false), m_area_shadow_ssp_per_light(8) {
+    : SimplexPipeline(renderer), m_enable_multibounce(false), m_enabled_accumulated_rtrt(true), m_area_shadow_ssp_per_light(8) {
   Renderer* r = get_renderer();
 
   {
@@ -333,6 +369,13 @@ HybridPipeline::HybridPipeline(RendererPtr renderer)
         HybridShtochasticShadowTraceShaderDesc());
     m_stochastic_shadow_trace_shadertable
       = r->create_shader_table(1, m_stochastic_shadow_trace_shader);
+    m_stochastic_shadow_denoise_firstpass_shader
+      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_denoise.hlsl",
+        HybridStochasticShadowDenoiseShaderDesc());
+    m_stochastic_shadow_denoise_finalpass_shader
+      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_denoise.hlsl",
+        HybridStochasticShadowDenoiseShaderDesc(true),
+        ShaderCompileConfig::defines<1>({{"FINAL_PASS", "1"}}));
   }
 
   {
@@ -348,6 +391,7 @@ HybridPipeline::HybridPipeline(RendererPtr renderer)
   {
     ConstBufferLayout lo = {
       ShaderDataType::Float4,   // screen size
+      ShaderDataType::Float4x4, // := camera proj_inv
       ShaderDataType::Float4x4, // world_to_proj := camera view_proj
       ShaderDataType::Float4x4, // proj_to_world := camera view_proj inverse
       ShaderDataType::Float4,   // camera pos
@@ -402,6 +446,12 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
   proxy.area_light.stochastic_shadowed = r->create_texture_2d(
     TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
     ResourceState::UnorderedAccess, L"Area Light Stochastic Shadowed");
+  proxy.area_light.denoised_shadowed = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Denoised Shadowed");
+  proxy.area_light.denoised_unshadowed = r->create_texture_2d(
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    ResourceState::UnorderedAccess, L"Area Light Denoised Unshadowed");
 
   // helper routine
   auto make_blit_arg = [&](BufferHandle source) {
@@ -448,8 +498,8 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     ShaderArgumentValue val {};
     val.shader_resources
       = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
-    val.unordered_accesses
-      = {proxy.area_light.stochastic_unshadowed, proxy.area_light.stochastic_sample_ray, proxy.area_light.stochastic_sample_radiance};
+    val.unordered_accesses = {proxy.area_light.stochastic_unshadowed,
+      proxy.area_light.stochastic_sample_ray, proxy.area_light.stochastic_sample_radiance};
     val.const_buffers = {m_per_render_buffer};
     val.const_buffer_offsets
       = {0}; // FIXME current all viewport using the same part of per-render buffer
@@ -457,11 +507,33 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     REI_ASSERT(proxy.area_light.sample_gen_pass_arg);
     proxy.area_light.blit_stochastic_unshadowed
       = make_blit_arg(proxy.area_light.stochastic_unshadowed);
-    proxy.area_light.blit_stochastic_sample_ray = make_blit_arg(proxy.area_light.stochastic_sample_ray);
-    proxy.area_light.blit_stochastic_sample_radiance = make_blit_arg(proxy.area_light.stochastic_sample_radiance);
+    proxy.area_light.blit_stochastic_sample_ray
+      = make_blit_arg(proxy.area_light.stochastic_sample_ray);
+    proxy.area_light.blit_stochastic_sample_radiance
+      = make_blit_arg(proxy.area_light.stochastic_sample_radiance);
   }
   {
     proxy.area_light.blit_stochastic_shadowed = make_blit_arg(proxy.area_light.stochastic_shadowed);
+  }
+  {
+    ShaderArgumentValue val1 {};
+    val1.const_buffers = {m_per_render_buffer};
+    val1.const_buffer_offsets = {0};
+    val1.shader_resources
+      = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.area_light.unshadowed};
+    proxy.area_light.denoise_common_arg1 = r->create_shader_argument(val1);
+    ShaderArgumentValue first0 {};
+    first0.shader_resources
+      = {proxy.area_light.stochastic_shadowed, proxy.area_light.stochastic_unshadowed};
+    first0.unordered_accesses
+      = {proxy.area_light.denoised_shadowed, proxy.area_light.denoised_unshadowed};
+    proxy.area_light.denoise_fistpass_arg0 = r->create_shader_argument(first0);
+    ShaderArgumentValue final0 = first0;
+    final0.unordered_accesses = {proxy.deferred_shading_output};
+    proxy.area_light.denoise_finalpass_arg0 = r->create_shader_argument(final0);
+
+    proxy.area_light.blit_denoised_shadowed = make_blit_arg(proxy.area_light.denoised_shadowed);
+    proxy.area_light.blit_denoised_unshadowed = make_blit_arg(proxy.area_light.denoised_unshadowed);
   }
 
   {
@@ -504,14 +576,15 @@ void HybridPipeline::transform_viewport(ViewportHandle handle, const Camera& cam
   REI_ASSERT(viewport);
   Renderer* r = get_renderer();
   REI_ASSERT(r);
-
-  viewport->cam_pos = camera.position();
   Mat4 new_vp = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
   Mat4 diff_mat = new_vp - viewport->view_proj;
   if (!m_enabled_accumulated_rtrt || diff_mat.norm2() > 0) {
-    viewport->view_proj_dirty = true;
+    viewport->cam_pos = camera.position();
+    viewport->proj = camera.project();
+    viewport->proj_inv = viewport->proj.inv();
     viewport->view_proj = new_vp;
     viewport->view_proj_inv = new_vp.inv();
+    viewport->view_proj_dirty = true;
   }
 }
 
@@ -656,15 +729,16 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   double taa_blend_factor
     = viewport->view_proj_dirty ? 1.0 : (m_enabled_accumulated_rtrt ? 0.01 : 0.5);
 
-  // Update scene-wide const buffer (per-frame CB)
+  // Update pre-render const buffer (aka per-frame CB)
   {
     Vec4 screen = Vec4(viewport->width, viewport->height, 0, 0);
     cmd_list->update_const_buffer(m_per_render_buffer, 0, 0, screen);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->view_proj);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->view_proj_inv);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, viewport->cam_pos);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 1, viewport->proj_inv);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 2, viewport->view_proj);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 3, viewport->view_proj_inv);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 4, viewport->cam_pos);
     Vec4 render_info = Vec4(viewport->frame_id, -1, -1, -1);
-    cmd_list->update_const_buffer(m_per_render_buffer, 0, 4, render_info);
+    cmd_list->update_const_buffer(m_per_render_buffer, 0, 5, render_info);
   }
 
   // Update material buffer
@@ -785,7 +859,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->transition(viewport->deferred_shading_output, ResourceState::UnorderedAccess);
   // currently both taa and direct-lighting write to the same UA buffer
   cmd_list->barrier(viewport->deferred_shading_output);
-  int light_count = 2;
+  int light_count = 0;
   static int light_indices[] = {0, 1};
   static Color light_colors[] = {Colors::white * 1.3, Colors::white * 1};
   static Vec4 light_pos_dirs[] = {{Vec3(1, 2, 1).normalized(), 0}, {0, 2, 0, 1}};
@@ -819,12 +893,14 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   cmd_list->clear_texture(viewport->area_light.unshadowed, {0, 0, 0, 0},
     RenderArea::full(viewport->width, viewport->height));
   cmd_list->barrier(viewport->area_light.unshadowed);
-  static std::array<int, 1> area_light_indices = {0};
-  static std::array<Vec4, 1> area_light_shapes = {
-    Vec4(-4, 6, 1, .5),
+  static std::array<int, 2> area_light_indices = {0, 1};
+  static std::array<Vec4, 2> area_light_shapes = {
+    Vec4(3, 2, -3, .5),
+    Vec4(-10, 12, -10, 2),
   };
-  static std::array<Color, 1> area_light_colors {
-    Colors::white * 80,
+  static std::array<Color, 2> area_light_colors {
+    Colors::white * (1/pi),
+    Colors::white * 100,
   };
   for (int i = 0; i < area_light_indices.size(); i++) {
     int light_index = area_light_indices[i];
@@ -853,8 +929,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   cmd_list->transition(viewport->area_light.stochastic_unshadowed, ResourceState::UnorderedAccess);
   cmd_list->transition(viewport->area_light.stochastic_shadowed, ResourceState::UnorderedAccess);
-  cmd_list->clear_texture(viewport->area_light.stochastic_unshadowed, {0, 0, 0, 0}, RenderArea::full(viewport->width, viewport->height));
-  cmd_list->clear_texture(viewport->area_light.stochastic_shadowed, {0, 0, 0, 0}, RenderArea::full(viewport->width, viewport->height));
+  cmd_list->clear_texture(viewport->area_light.stochastic_unshadowed, {0, 0, 0, 0},
+    RenderArea::full(viewport->width, viewport->height));
+  cmd_list->clear_texture(viewport->area_light.stochastic_shadowed, {0, 0, 0, 0},
+    RenderArea::full(viewport->width, viewport->height));
   cmd_list->barrier(viewport->area_light.stochastic_unshadowed);
   cmd_list->barrier(viewport->area_light.stochastic_shadowed);
 
@@ -873,10 +951,14 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       cmd_list->update_const_buffer(scene->area_lights, light_index, 2, halton.next4());
 
       // sample gen
-      cmd_list->transition(viewport->area_light.stochastic_sample_ray, ResourceState::UnorderedAccess);
-      cmd_list->transition(viewport->area_light.stochastic_sample_radiance, ResourceState::UnorderedAccess);
-      cmd_list->clear_texture(viewport->area_light.stochastic_sample_ray, {0, 0, 0, 0},RenderArea::full(viewport->width, viewport->height));
-      cmd_list->clear_texture(viewport->area_light.stochastic_sample_radiance, {0, 0, 0, 0},RenderArea::full(viewport->width, viewport->height));
+      cmd_list->transition(
+        viewport->area_light.stochastic_sample_ray, ResourceState::UnorderedAccess);
+      cmd_list->transition(
+        viewport->area_light.stochastic_sample_radiance, ResourceState::UnorderedAccess);
+      cmd_list->clear_texture(viewport->area_light.stochastic_sample_ray, {0, 0, 0, 0},
+        RenderArea::full(viewport->width, viewport->height));
+      cmd_list->clear_texture(viewport->area_light.stochastic_sample_radiance, {0, 0, 0, 0},
+        RenderArea::full(viewport->width, viewport->height));
       cmd_list->barrier(viewport->area_light.stochastic_sample_ray);
       cmd_list->barrier(viewport->area_light.stochastic_sample_radiance);
       DispatchCommand dispatch {};
@@ -889,8 +971,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       cmd_list->dispatch(dispatch);
 
       // shadow trace
-      cmd_list->transition(viewport->area_light.stochastic_sample_ray, ResourceState::ComputeShaderResource);
-      cmd_list->transition(viewport->area_light.stochastic_sample_radiance, ResourceState::ComputeShaderResource);
+      cmd_list->transition(
+        viewport->area_light.stochastic_sample_ray, ResourceState::ComputeShaderResource);
+      cmd_list->transition(
+        viewport->area_light.stochastic_sample_radiance, ResourceState::ComputeShaderResource);
       cmd_list->barrier(viewport->area_light.stochastic_sample_ray);
       cmd_list->barrier(viewport->area_light.stochastic_sample_radiance);
       RaytraceCommand trace {};
@@ -901,6 +985,44 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       trace.height = viewport->height;
       cmd_list->raytrace(trace);
     }
+  }
+
+  // Two-pass denoise -> output final shade //
+  cmd_list->transition(
+    viewport->area_light.stochastic_shadowed, ResourceState::ComputeShaderResource);
+  cmd_list->transition(
+    viewport->area_light.stochastic_unshadowed, ResourceState::ComputeShaderResource);
+  cmd_list->transition(viewport->area_light.denoised_shadowed, ResourceState::UnorderedAccess);
+  cmd_list->transition(viewport->area_light.denoised_unshadowed, ResourceState::UnorderedAccess);
+  cmd_list->clear_texture(viewport->area_light.denoised_shadowed, Vec4(0, 0, 0, 0),
+    RenderArea::full(viewport->width, viewport->height));
+  cmd_list->clear_texture(viewport->area_light.denoised_unshadowed, Vec4(0, 0, 0, 0),
+    RenderArea::full(viewport->width, viewport->height));
+  cmd_list->barrier(viewport->area_light.denoised_shadowed);
+  cmd_list->barrier(viewport->area_light.denoised_unshadowed);
+  {
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_stochastic_shadow_denoise_firstpass_shader;
+    dispatch.arguments
+      = {viewport->area_light.denoise_fistpass_arg0, viewport->area_light.denoise_common_arg1};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
+  }
+  cmd_list->transition(
+    viewport->area_light.denoised_shadowed, ResourceState::ComputeShaderResource);
+  cmd_list->transition(
+    viewport->area_light.denoised_unshadowed, ResourceState::ComputeShaderResource);
+  {
+    DispatchCommand dispatch {};
+    dispatch.compute_shader = m_stochastic_shadow_denoise_finalpass_shader;
+    dispatch.arguments
+      = {viewport->area_light.denoise_finalpass_arg0, viewport->area_light.denoise_common_arg1};
+    dispatch.dispatch_x = viewport->width / 8;
+    dispatch.dispatch_y = viewport->height / 8;
+    dispatch.dispatch_z = 1;
+    cmd_list->dispatch(dispatch);
   }
 
   //--- End Stochastic Shadow
@@ -954,7 +1076,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 
   // some debug blits
   if (true) {
-    const size_t blit_height = viewport->height / 5;
+    const size_t blit_height = viewport->height / 7;
     const size_t blit_width = blit_height * viewport->width / viewport->height;
     int debug_blit_count = 0;
     const RenderViewaport full_vp = RenderViewaport::full(viewport->width, viewport->height);
@@ -997,6 +1119,10 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
       viewport->area_light.blit_stochastic_sample_radiance);
     debug_blit_pass(
       viewport->area_light.stochastic_shadowed, viewport->area_light.blit_stochastic_shadowed);
+    debug_blit_pass(
+      viewport->area_light.denoised_shadowed, viewport->area_light.blit_denoised_shadowed);
+    debug_blit_pass(
+      viewport->area_light.denoised_unshadowed, viewport->area_light.blit_denoised_unshadowed);
   }
 
   // Update frame-counting in the end

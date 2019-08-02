@@ -23,7 +23,7 @@ ConstantBuffer<PerRenderConstBuffer> g_render : register(b0, space0);
 typedef BuiltInTriangleIntersectionAttributes HitAttr;
 
 struct RayPayload {
-  bool hit;
+  bool miss;
 };
 
 struct StochasticSample {
@@ -47,38 +47,42 @@ StochasticSample get_sample(uint2 id) {
 [shader("raygeneration")] void raygen_shader() {
   uint2 id = DispatchRaysIndex().xy;
   float depth = g_depth[id];
+  
+  // skip background
+  if (depth < EPS) { return; }
 
+  // Reconstruct world pos (ray origin is not in stochastic-sample texture)
   float2 uv = float2(id) / float2(DispatchRaysDimensions().xy);
   float4 ndc = float4(uv * 2.f - 1.f, depth, 1.0f);
   ndc.y = -ndc.y;
   float4 world_pos_h = mul(g_render.proj_to_world, ndc);
   float3 world_pos = world_pos_h.xyz / world_pos_h.w;
 
-  // reject on background
-  if (depth <= EPS) {
-    return;
-  }
-
-  // read sample
+  // Read sample
   StochasticSample ssample = get_sample(id);
+
+  // skip empty sample 
   if (ssample.ray_end <= EPS) { return; }
 
   // Trace shadow ray
-  RayPayload payload = {true};
+  RayPayload payload = {false};
   RayDesc ray;
   ray.Origin = world_pos;
   ray.Direction = ssample.ray_dir;
   ray.TMin = ssample.ray_start;
   ray.TMax = ssample.ray_end;
+  // NOTE: we just want to check if this ray will miss, so closest-hit/any-hit shader are redudant
   TraceRay(g_scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH & RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, ~0,
     0, 0, 0, ray, payload);
 
-  float3 radiance = payload.hit ? 0 : ssample.radiance;
-  g_shadowed_radiance[id] += float4(radiance, 0.0);
+  // NOTE nothing to do if in shadow
+  if (payload.miss) {
+    g_shadowed_radiance[id] += float4(ssample.radiance, 0.0);
+  }
 }
 
 [shader("closesthit")] void closest_hit_shader(inout RayPayload payload, in HitAttr attr) {}
 
 [shader("miss")] void miss_shader(inout RayPayload payload) {
-  payload.hit = false;
+  payload.miss = true;
 }

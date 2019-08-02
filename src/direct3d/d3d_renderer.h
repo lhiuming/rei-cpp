@@ -70,7 +70,8 @@ public:
     return create_shader(shader_path, std::move(*meta), config);
   }
 
-  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta);
+  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
 
   ShaderHandle create_shader(const std::wstring& shader_path, RaytracingShaderMetaInfo&& meta,
     const ShaderCompileConfig& config = {});
