@@ -75,8 +75,10 @@ float blue_noise(uint2 xy) {
 
 // screen pos input, generating 2 sample
 float2 blue_noise2(uint2 xy) {
-  float n0 = fbm(float2(xy) / 128);
-  float n1 = fbm(float2(xy) / 64);
+  float2 s = float2(xy) / 31;
+  float2 r = float2(s.y, -s.x) + float2(31.9, 23);
+  float n0 = fbm(s);
+  float n1 = fbm(r);
   return float2(n0, n1);
 }
 
