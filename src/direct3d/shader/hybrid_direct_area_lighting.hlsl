@@ -49,8 +49,12 @@ void output(uint2 index, float3 radiance) {
   float radius = g_light.pos_radius.w;
   float dist = dist_0 - radius;
   light_dir = normalize(delta);
-  float dist2 = dist + dist;
-  light_color = g_light.color.xyz / dist2;
+  float dist2 = dist * dist;
+  // fake disk-like area light with solid angle 
+  float rant = radius / dist;
+  float theta = atan2(radius, dist);
+  float solid_angle = (1 - cos(theta)) * PI_2;
+  light_color = g_light.color.xyz * solid_angle;
 
   // Evalute BRDF for surface
   float4 rt0 = g_rt0[tid.xy];
@@ -61,8 +65,8 @@ void output(uint2 index, float3 radiance) {
   float3 viewer_dir = normalize(g_render.camera_pos.xyz - w_pos);
   BrdfCosine brdf_cos = BRDF_GGX_Lambertian(bxdf, viewer_dir, light_dir);
 
-  // TODO shadow
-  float attenuation = 1.0;
+  // fake de decrease for highlight
+  float attenuation = pow(max(1 - surf.smoothness, EPS), 2);
 
   float3 reflectance = (brdf_cos.specular + brdf_cos.diffuse) * light_color * attenuation;
   output(tid.xy, reflectance);

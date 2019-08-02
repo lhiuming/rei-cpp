@@ -28,8 +28,9 @@ RWTexture2D<float4> g_stochastic_sample_radiance: register(u2, space1);
 ConstantBuffer<PerRenderConstBuffer> g_render : register(b0, space1);
 
 // uniform sample on the projected disk
-float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, float rnd1) {
-  float3 axis_y = normalize(viewer - center);
+float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, float rnd1, out float pdf) {
+  float3 delta = (viewer - center);
+  float3 axis_y = normalize(delta);
   float3 pre_z = float3(0, 1, 0);
   if (abs(axis_y.y) >= (1 - EPS)) {
     pre_z = float3(1, 0, 0);
@@ -43,6 +44,8 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
   float y = r * sin(theta);
   float z = sqrt(radius * radius - x * x - y * y);
   float3 p = center + axis_x * x + axis_y * y + axis_z * z;
+  float dist2 = dot(delta, delta);
+  pdf = dist2 / (radius * radius); // approximated
   return p;
 }
 
@@ -62,12 +65,14 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
   // Take a random light position
   float2 blue_rnd = blue_noise2(tid.xy);
   float2 rnd = frac(g_light.noise_offset.zw + blue_rnd);
-  float3 p = shpere_sample(g_light.pos_radius.xyz, g_light.pos_radius.w, w_pos, rnd.x, rnd.y);
+  float pdf;
+  float3 p = shpere_sample(g_light.pos_radius.xyz, g_light.pos_radius.w, w_pos, rnd.x, rnd.y, pdf);
   float3 delta = p - w_pos;
   float dist2 = dot(delta, delta);
   float dist = sqrt(dist2);
   float3 light_dir = delta / dist;
   float3 light_color = g_light.color.xyz / dist2;
+  light_color = g_light.color.xyz;
 
   // Evalute BRDF for surface
   float4 rt0 = g_rt0[tid.xy];
@@ -83,7 +88,7 @@ float3 shpere_sample(float3 center, float radius, float3 viewer, float rnd0, flo
   BXDFSurface bxdf = to_bxdf(surf);
   float3 viewer_dir = normalize(g_render.camera_pos.xyz - w_pos);
   BrdfCosine brdf_cos = BRDF_GGX_Lambertian(bxdf, viewer_dir, light_dir);
-  float3 reflectance = (brdf_cos.specular + brdf_cos.diffuse) * light_color;
+  float3 reflectance = (brdf_cos.specular + brdf_cos.diffuse) * light_color / pdf;
 
   // output
   float3 ray_dir = light_dir;
