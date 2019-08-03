@@ -1,8 +1,8 @@
 # REI: Rendering Experiment Infrastructure
 
-This project is basically a personal playground for trying out all king of rendering stuff, mostly in real-time side.
+This project is basically a personal playground for trying out all kinds of rendering stuff, mostly in real-time side.
 
-Currently the goal is to implement a real-time ray-traced physically-based renderer, capable of rendering some procedurally generated meshes and several analytical light sources. After a initial stage, the built-in hybrid render finally produces some :rocket: nice-looking :sparkles: images. Check the screenshots below!
+Currently the goal is to implement a real-time ray-traced physically-based renderer, capable of rendering some procedurally generated meshes and several analytical light sources. After a initial stage, the built-in hybrid pipeline finally produces some :rocket: nice-looking :sparkles: images. Check the screenshots below!
 
 ## Features
 
