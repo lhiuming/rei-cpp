@@ -13,9 +13,10 @@ class Renderer;
 
 enum class ResourceFormat {
   Undefined,
-  R32G32B32A32_FLOAT,
-  B8G8R8A8_UNORM,
-  D24_UNORM_S8_UINT,
+  R32G32B32A32Float,
+  R32G32Float,
+  R8G8B8A8Unorm,
+  D24Unorm_S8Uint,
   AcclerationStructure,
   Count
 };
@@ -37,6 +38,8 @@ enum class ResourceState {
   Present,
   RenderTarget,
   DeptpWrite,
+  CopySource,
+  CopyDestination,
   PixelShaderResource,
   ComputeShaderResource,
   UnorderedAccess,

@@ -26,6 +26,7 @@ namespace rei {
 namespace d3d {
 
 using Microsoft::WRL::ComPtr;
+using std::move;
 
 // Some contants
 constexpr DXGI_FORMAT c_index_format = DXGI_FORMAT_R16_UINT;
@@ -34,13 +35,29 @@ constexpr DXGI_FORMAT c_accel_struct_vertex_pos_format = DXGI_FORMAT_R32G32B32_F
 // Reminder: using right-hand coordinate throughout the pipeline
 constexpr bool is_right_handed = true;
 
+inline static constexpr UINT64 get_bytesize(DXGI_FORMAT format) {
+  switch (format) {
+    case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+    case DXGI_FORMAT_R8G8B8A8_SINT:
+    case DXGI_FORMAT_R8G8B8A8_SNORM:
+    case DXGI_FORMAT_R8G8B8A8_UNORM:
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+      return 4;
+    default:
+      REI_ERROR("Unhandeled format");
+      return 1;
+  }
+}
+
 inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
   switch (format) {
-    case ResourceFormat::R32G32B32A32_FLOAT:
+    case ResourceFormat::R32G32B32A32Float:
       return DXGI_FORMAT_R32G32B32A32_FLOAT;
-    case ResourceFormat::B8G8R8A8_UNORM:
+    case ResourceFormat::R32G32Float:
+      return DXGI_FORMAT_R32G32_FLOAT;
+    case ResourceFormat::R8G8B8A8Unorm:
       return DXGI_FORMAT_R8G8B8A8_UNORM;
-    case ResourceFormat::D24_UNORM_S8_UINT:
+    case ResourceFormat::D24Unorm_S8Uint:
       return DXGI_FORMAT_D24_UNORM_S8_UINT;
     case ResourceFormat::AcclerationStructure:
       return DXGI_FORMAT_UNKNOWN;
@@ -52,7 +69,7 @@ inline static constexpr DXGI_FORMAT to_dxgi_format(ResourceFormat format) {
 }
 
 inline static constexpr DXGI_FORMAT to_dxgi_format_srv(ResourceFormat format) {
-  if (format == ResourceFormat::D24_UNORM_S8_UINT) { return DXGI_FORMAT_R24_UNORM_X8_TYPELESS; }
+  if (format == ResourceFormat::D24Unorm_S8Uint) { return DXGI_FORMAT_R24_UNORM_X8_TYPELESS; }
   return to_dxgi_format(format);
 }
 
@@ -117,6 +134,10 @@ inline static constexpr D3D12_RESOURCE_STATES to_res_state(ResourceState state) 
       return D3D12_RESOURCE_STATE_RENDER_TARGET;
     case ResourceState::DeptpWrite:
       return D3D12_RESOURCE_STATE_DEPTH_WRITE;
+    case ResourceState::CopySource:
+      return D3D12_RESOURCE_STATE_COPY_SOURCE;
+    case ResourceState::CopyDestination:
+      return D3D12_RESOURCE_STATE_COPY_DEST;
     case ResourceState::PixelShaderResource:
       return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     case ResourceState::ComputeShaderResource:
@@ -192,62 +213,6 @@ struct SwapchainData : BaseSwapchainData {
 
   BufferHandle get_curr_render_target() const { return render_targets[curr_rt_index]; }
   void advance_curr_rt() { curr_rt_index = (curr_rt_index + 1) % render_targets.size(); }
-};
-
-struct IndexBuffer {
-  ComPtr<ID3D12Resource> buffer;
-  UINT index_count;
-  UINT bytesize;
-  DXGI_FORMAT format;
-};
-
-struct VertexBuffer {
-  ComPtr<ID3D12Resource> buffer;
-  UINT vertex_count;
-  UINT bytesize;
-  UINT stride;
-};
-
-struct TextureBuffer {
-  ComPtr<ID3D12Resource> buffer;
-  ResourceFormat format;
-  ResourceDimension dimension;
-  #if DEBUG
-  std::wstring name;
-  #endif
-};
-
-struct ConstBuffer {
-  std::unique_ptr<UploadBuffer> buffer;
-  ConstBufferLayout layout;
-};
-
-struct BlasBuffer {
-  ComPtr<ID3D12Resource> buffer;
-};
-
-struct TlasBuffer {
-  ComPtr<ID3D12Resource> buffer;
-};
-
-struct RaytracingShaderData; // see below
-struct ShaderTableBuffer {
-  std::shared_ptr<RaytracingShaderData> shader;
-  std::shared_ptr<ShaderTable> raygen;
-  std::shared_ptr<ShaderTable> hitgroup;
-  std::shared_ptr<ShaderTable> miss;
-};
-
-// Holds a variant of buffer/texture resources
-struct BufferData : BaseBufferData {
-  using BaseBufferData::BaseBufferData;
-  using ResourceVariant = Var<std::monostate, IndexBuffer, VertexBuffer, TextureBuffer, ConstBuffer,
-    BlasBuffer, TlasBuffer, ShaderTableBuffer>;
-
-  ResourceVariant res;
-  D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
-
-  ID3D12Resource* get_res();
 };
 
 struct MeshUploadResult {
@@ -331,6 +296,32 @@ struct RootSignatureDescMemory {
   }
 };
 
+struct VertexInputLayoutMemory {
+  using MetaInput = decltype(RasterizationShaderMetaInfo().vertex_input_desc);
+  FixedVec<std::string, MetaInput::max_size> semantic_names;
+  FixedVec<D3D12_INPUT_ELEMENT_DESC, MetaInput::max_size> descs;
+  
+  void init(MetaInput&& metas) { 
+    semantic_names.clear();
+    descs.clear();
+    for (auto&& meta: metas) {
+      semantic_names.emplace_back(move(meta.semantic));
+      D3D12_INPUT_ELEMENT_DESC d3d_desc {};
+      d3d_desc.SemanticName = semantic_names.back().data();
+      d3d_desc.SemanticIndex = meta.sementic_index;
+      d3d_desc.Format = to_dxgi_format(meta.format);
+      // todo check alignment
+      d3d_desc.AlignedByteOffset = meta.byte_offset;
+      descs.emplace_back(move(d3d_desc));
+    }
+  }
+
+  D3D12_INPUT_LAYOUT_DESC get_layout_desc() const {
+    if (descs.size() == 0) { return {c_input_layout, c_input_layout_num}; }
+    return {descs.data(), UINT(descs.size())};
+  }
+};
+
 struct RasterShaderDesc {
   CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
   CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
@@ -340,33 +331,44 @@ struct RasterShaderDesc {
   CD3DX12_STATIC_SAMPLER_DESC static_sampler_desc {};
   RootSignatureDescMemory root_signature {};
 
-  // TODO allow configuration of input layout
-  D3D12_INPUT_LAYOUT_DESC input_layout = {c_input_layout, c_input_layout_num};
+  VertexInputLayoutMemory input_layout {};
 
   FixedVec<DXGI_FORMAT, 8> rt_formats;
 
   RasterShaderDesc() {
     REI_ASSERT(is_right_handed);
-    raster_state.FrontCounterClockwise = true;
-    depth_stencil.DepthFunc
-      = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
+    // we use right-hand coordiante throughout the pipeline
+    depth_stencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
   }
 
   RasterShaderDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
 
   void init(RasterizationShaderMetaInfo&& meta) {
+    input_layout.init(move(meta.vertex_input_desc));
     root_signature.init_signature(meta.signature, false);
     root_signature.desc.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
     for (auto& rt_desc : meta.render_target_descs) {
       rt_formats.push_back(to_dxgi_format(rt_desc.format));
     }
     is_depth_stencil_null = meta.is_depth_stencil_disabled;
-    if (meta.is_blending_addictive) {
+    if (meta.merge.is_alpha_blending) {
       blend_state.RenderTarget[0].BlendEnable = true;
+      blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
       blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+      blend_state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+      blend_state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    } else if (meta.merge.is_blending_addictive) {
+      blend_state.RenderTarget[0].BlendEnable = true;
       blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+      blend_state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
+      blend_state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
     }
+    raster_state.FrontCounterClockwise = !meta.front_clockwise;
   }
 
   UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const {

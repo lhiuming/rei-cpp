@@ -13,6 +13,7 @@
 
 using std::make_shared;
 using std::make_unique;
+using std::move;
 using std::runtime_error;
 using std::shared_ptr;
 using std::string;
@@ -82,8 +83,10 @@ DeviceResources::DeviceResources(HINSTANCE h_inst, Options opt)
   current_frame_fence = 0;
 
   // Create  descriptor heaps
-  m_cbv_srv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 256, D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
-  m_cbv_srv_shader_nonvisible_heap= NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64);
+  m_cbv_srv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 256,
+    D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+  m_cbv_srv_shader_nonvisible_heap
+    = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64);
   m_rtv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 8);
   m_dsv_heap = NaiveDescriptorHeap(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 8);
 }
@@ -120,112 +123,6 @@ void DeviceResources::create_root_signature(
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void DeviceResources::create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res) {
-  // Collect the source data
-  // TODO pool this vectors
-  vector<VertexElement> vertices;
-  vector<std::uint16_t> indices;
-  for (const auto& v : mesh.get_vertices())
-    vertices.emplace_back(v.coord, v.color, v.normal);
-  for (const auto& t : mesh.get_triangles()) {
-    indices.push_back(t.a);
-    indices.push_back(t.b);
-    indices.push_back(t.c);
-  }
-
-  ID3D12Device* device = this->device();
-  ID3D12GraphicsCommandList* cmd_list = this->prepare_command_list();
-
-  const void* p_vertices = vertices.data();
-  const UINT64 vert_bytesize = vertices.size() * sizeof(vertices[0]);
-  const void* p_indices = indices.data();
-  const UINT64 ind_bytesize = indices.size() * sizeof(indices[0]);
-
-  // Create vertices buffer and upload data
-  ComPtr<ID3D12Resource> vert_buffer = create_default_buffer(device, vert_bytesize);
-  ComPtr<ID3D12Resource> vert_upload_buffer
-    = upload_to_default_buffer(device, cmd_list, p_vertices, vert_bytesize, vert_buffer.Get());
-
-  // Create indices buffer and update data
-  ComPtr<ID3D12Resource> ind_buffer = create_default_buffer(device, ind_bytesize);
-  ComPtr<ID3D12Resource> ind_upload_buffer
-    = upload_to_default_buffer(device, cmd_list, p_indices, ind_bytesize, ind_buffer.Get());
-
-  // populate the result
-  res.vert_buffer = vert_buffer;
-  res.vert_upload_buffer = vert_upload_buffer;
-  res.vertex_num = vertices.size();
-
-  res.ind_buffer = ind_buffer;
-  res.ind_upload_buffer = ind_upload_buffer;
-  res.index_num = indices.size();
-
-  if (is_dxr_enabled) {
-    D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
-    common_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    common_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-    // Build BLAS for this mesh
-    ComPtr<ID3D12Resource> blas_buffer;
-    ComPtr<ID3D12Resource> scratch_buffer; // TODO release this a proper timming, or pool this
-    {
-      ID3D12Device5* dxr_device = this->dxr_device();
-      ID3D12GraphicsCommandList4* dxr_cmd_list = this->prepare_command_list_dxr();
-
-      const bool is_opaque = true;
-
-      D3D12_RAYTRACING_GEOMETRY_DESC geo_desc {};
-      geo_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-      geo_desc.Triangles.Transform3x4 = NULL; // not used TODO check this
-      geo_desc.Triangles.IndexFormat = c_index_format;
-      geo_desc.Triangles.VertexFormat = c_accel_struct_vertex_pos_format;
-      geo_desc.Triangles.IndexCount = indices.size();
-      geo_desc.Triangles.VertexCount = vertices.size();
-      geo_desc.Triangles.IndexBuffer = ind_buffer->GetGPUVirtualAddress();
-      geo_desc.Triangles.VertexBuffer.StartAddress = vert_buffer->GetGPUVirtualAddress();
-      geo_desc.Triangles.VertexBuffer.StrideInBytes = sizeof(VertexElement);
-      if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-
-      const UINT c_mesh_count = 1;
-
-      D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bl_prebuild = {};
-      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevel_input = {};
-      bottomlevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-      bottomlevel_input.Flags
-        = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
-      bottomlevel_input.NumDescs = c_mesh_count;
-      bottomlevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-      bottomlevel_input.pGeometryDescs = &geo_desc;
-      dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevel_input, &bl_prebuild);
-      REI_ASSERT(bl_prebuild.ResultDataMaxSizeInBytes > 0);
-
-      // Create scratch space
-      UINT64 scratch_size = bl_prebuild.ScratchDataSizeInBytes;
-      scratch_buffer = create_uav_buffer(dxr_device, scratch_size);
-
-      // Allocate BLAS buffer
-      blas_buffer = create_accel_struct_buffer(dxr_device, bl_prebuild.ResultDataMaxSizeInBytes);
-
-      // BLAS desc
-      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blas_desc {};
-      blas_desc.DestAccelerationStructureData = blas_buffer->GetGPUVirtualAddress();
-      blas_desc.Inputs = bottomlevel_input;
-      blas_desc.SourceAccelerationStructureData = NULL; // used when updating
-      blas_desc.ScratchAccelerationStructureData = scratch_buffer->GetGPUVirtualAddress();
-
-      // Build
-      // TODO investigate the postbuild info
-      dxr_cmd_list->BuildRaytracingAccelerationStructure(&blas_desc, 0, nullptr);
-      dxr_cmd_list->ResourceBarrier(
-        1, &CD3DX12_RESOURCE_BARRIER::UAV(blas_buffer.Get())); // sync before use
-    }
-
-    // populate the result
-    res.blas_buffer = blas_buffer;
-    res.scratch_buffer = scratch_buffer;
-  }
-}
-
 ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12PipelineState* init_pso) {
   if (!is_using_cmd_list) {
     HRESULT hr = m_command_list->Reset(m_command_alloc.Get(), nullptr);
@@ -237,6 +134,7 @@ ID3D12GraphicsCommandList4* DeviceResources::prepare_command_list(ID3D12Pipeline
 
 void DeviceResources::flush_command_list() {
   // TODO check is not empty
+  REI_ASSERT(is_using_cmd_list);
   HRESULT hr = m_command_list->Close();
   REI_ASSERT(SUCCEEDED(hr));
   is_using_cmd_list = false;

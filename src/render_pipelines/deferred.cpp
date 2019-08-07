@@ -30,13 +30,13 @@ struct SceneData {
   // holding for default material
   BufferHandle objects_cb;
   struct ModelData {
-    GeometryBuffers geometry;
+    GeometryBufferHandles geometry;
     // TODO should use an offset in cb instead, rather than a brand-new descriptor
     ShaderArgumentHandle arg;
     size_t cb_index;
     Mat4 trans;
   };
-  Hashmap<Scene::GeometryUID, GeometryBuffers> geometries;
+  Hashmap<Scene::GeometryUID, GeometryBufferHandles> geometries;
   Hashmap<Scene::ModelUID, ModelData> m_models;
 };
 
@@ -52,8 +52,8 @@ struct DeferredBaseMeta : RasterizationShaderMetaInfo {
     ShaderParameter space1 {};
     space1.const_buffers = {ConstantBuffer()};
 
-    RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
-    RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
+    RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32Float};
+    RenderTargetDesc rt_albedo {ResourceFormat::R8G8B8A8Unorm};
     render_target_descs = {rt_normal, rt_albedo};
 
     signature.param_table = {space0, space1};
@@ -70,11 +70,11 @@ struct DeferredShadingMeta : RasterizationShaderMetaInfo {
     space1.static_samplers = {StaticSampler()};
     signature.param_table = {space0, space1};
 
-    RenderTargetDesc rt_color {ResourceFormat::B8G8R8A8_UNORM};
+    RenderTargetDesc rt_color {ResourceFormat::R8G8B8A8Unorm};
     render_target_descs = {rt_color};
 
     is_depth_stencil_disabled = true;
-    is_blending_addictive = true;
+    merge.init_as_addictive();
   }
 };
 
@@ -115,9 +115,9 @@ DeferredPipeline::ViewportHandle DeferredPipeline::register_viewport(ViewportCon
   proxy.height = conf.height;
   proxy.swapchain = r->create_swapchain(conf.window_id, conf.width, conf.height, 2);
   proxy.normal_buffer = r->create_texture_2d(
-    conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Normal Buffer");
+    conf.width, conf.height, ResourceFormat::R32G32B32A32Float, L"Normal Buffer");
   proxy.albedo_buffer = r->create_texture_2d(
-    conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM, L"Albedo Buffer");
+    conf.width, conf.height, ResourceFormat::R8G8B8A8Unorm, L"Albedo Buffer");
   {
     TextureDesc ds_desc = TextureDesc::depth_stencil(conf.width, conf.height);
     proxy.depth_stencil_buffer

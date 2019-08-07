@@ -4,6 +4,8 @@
 #include <memory>
 #include <unordered_map>
 
+#include <imgui.h>
+
 #include "../graphic_handle.h"
 #include "../renderer.h"
 
@@ -12,6 +14,7 @@ namespace rei {
 struct ViewportConfig {
   size_t width, height;
   SystemWindowID window_id;
+  ImGuiContext* imgui_context;
 };
 
 struct SceneConfig {

@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <sstream>
 
+#include <imgui.h>
+
 #include "../debug.h"
 #include "../rmath.h"
 
@@ -31,6 +33,9 @@ WinApp::WinApp(Config config) : config(config) {
     d3d_renderer = make_shared<d3d::Renderer>(hinstance, r_opts);
     m_renderer = d3d_renderer;
     switch (config.render_mode) {
+      case RenderMode::UIOnly:
+        m_pipeline = make_shared<ImGuiPipeline>(d3d_renderer);
+        break;
       case RenderMode::Rasterization:
         m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
         break;
@@ -44,6 +49,11 @@ WinApp::WinApp(Config config) : config(config) {
     }
   }
 
+  if (config.enable_dev_gui) {
+    IMGUI_CHECKVERSION();
+    m_imgui_context = ImGui::CreateContext();
+  }
+
   // Default viewer
   m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
   m_viewer->set_input_bus(m_input_bus);
@@ -52,6 +62,7 @@ WinApp::WinApp(Config config) : config(config) {
     conf.window_id = m_viewer->get_window_id();
     conf.width = config.width;
     conf.height = config.height;
+    conf.imgui_context = m_imgui_context;
     m_viewport_h = m_pipeline->register_viewport(conf);
   }
   // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
@@ -109,11 +120,28 @@ void WinApp::update_camera_control() {
   if (config.default_camera_control_enabled) {
     const Vec3 up {0, 1, 0};
 
+    // UI interaction
+    if (m_imgui_context) {
+      ImGuiIO& io = ImGui::GetIO();
+      if (!m_input_bus->empty<CursorMove>()) {
+        Vec3 cursor_pos;
+        for (const auto& move : m_input_bus->get<CursorMove>()) {
+          cursor_pos = move.stop;
+        }
+        ImGui::SetCurrentContext(m_imgui_context);
+        // NOTE: ImGUI use top-left base
+        io.MousePos.x = m_input_bus->cursor_left_top().x + cursor_pos.x;
+        io.MousePos.y = m_input_bus->cursor_right_bottom().y - cursor_pos.y;
+        io.MouseClickedPos[0] = io.MousePos;
+      }
+      io.MouseDown[0] = !m_input_bus->empty<CursorDown>();
+      io.MouseClicked[0] = !m_input_bus->empty<CursorUp>();
+    }
+
     // Rotate around target, and translate in the view plane
     Vec3 rotate;
     Vec3 translate;
-    for (auto& input : m_input_bus->get<CursorDrag>()) {
-      auto mov = *(input.get<CursorDrag>());
+    for (auto& mov: m_input_bus->get<CursorDrag>()) {
       if (mov.alter == CursorAlterType::Left || mov.alter == CursorAlterType::None) {
         rotate += (mov.stop - mov.start);
       } else {
@@ -137,8 +165,7 @@ void WinApp::update_camera_control() {
 
     // Zoom in-or-out
     double zoom_in = 0;
-    for (auto& input : m_input_bus->get<Zoom>()) {
-      auto zoom = *(input.get<Zoom>());
+    for (auto& zoom: m_input_bus->get<Zoom>()) {
       zoom_in += zoom.delta;
     }
     if (std::abs(zoom_in) != 0) {

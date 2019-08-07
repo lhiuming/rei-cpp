@@ -89,7 +89,15 @@ public:
     std::copy(l.begin(), l.end(), ((Base*)this)->begin());
   }
 
- template<size_t M>
+  template<size_t M>
+  constexpr FixedVec(const T (&other)[M]) : Base({}), m_size(other.size()) {
+    static_assert(M <= N);
+    for (size_t i = 0; i < other.size(); i++) {
+      (*this)[i] = other[i];
+    }
+  }
+
+  template <size_t M>
   constexpr FixedVec(const FixedVec<T, M>& other) : Base({}), m_size(other.size()) {
     static_assert(M <= N);
     for (size_t i = 0; i < other.size(); i++) {

@@ -9,8 +9,8 @@ namespace d3d {
 
 RenderTargetSpec::RenderTargetSpec() {
   sample_desc = DXGI_SAMPLE_DESC {1, 0};
-  rt_format = ResourceFormat::B8G8R8A8_UNORM;
-  ds_format = ResourceFormat::D24_UNORM_S8_UINT;
+  rt_format = ResourceFormat::R8G8B8A8Unorm;
+  ds_format = ResourceFormat::D24Unorm_S8Uint;
   dxgi_rt_format = DXGI_FORMAT_R8G8B8A8_UNORM;
   dxgi_ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
   REI_ASSERT(is_right_handed);
@@ -35,18 +35,6 @@ const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
       sizeof(VertexElement::pos)
         + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
-
-ID3D12Resource* BufferData::get_res() {
-  return res.match( //
-    [](const TextureBuffer& tex) { return tex.buffer.Get(); },
-    [](const BlasBuffer& blas) { return blas.buffer.Get(); },
-    [](const auto& b) {
-      REI_NOT_IMPLEMENT();
-      const std::type_info& i = typeid(b);
-      warning(i.name());
-      return (ID3D12Resource*)NULL;
-    });
-}
 
 } // namespace d3d
 

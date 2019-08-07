@@ -76,6 +76,11 @@ struct Var : std::variant<Args...> {
     return std::get<T>(self_reference());
   }
 
+  template <typename T>
+  const std::remove_reference_t<T>& get() const {
+    return std::get<T>(self_reference());
+  }
+
   template <typename... Lmbds>
   auto match(Lmbds... lambds) {
     return std::visit(variant_utils::overloaded {lambds...}, self_reference());

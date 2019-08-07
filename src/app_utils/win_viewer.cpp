@@ -101,7 +101,22 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
   // Some user-define input event
   if (!input_bus.expired()) {
     InputBus& input = (*input_bus.lock());
+    RECT rect;
+    ::GetWindowRect(hwnd, &rect); // this return window bounds in monitor coordinates
+    Vec3 left_top {0, 0, 0};
+    Vec3 right_bottom {double(rect.right - rect.left), double(rect.bottom - rect.top), 0};
+    input.set_cursor_range(left_top, right_bottom);
     switch (msg) {
+      case WM_LBUTTONUP:
+      case WM_MBUTTONUP:
+      case WM_RBUTTONUP:
+        input.push(CursorUp());
+        break;
+      case WM_LBUTTONDOWN:
+      case WM_MBUTTONDOWN:
+      case WM_RBUTTONDOWN:
+        input.push(CursorDown());
+        break;
       case WM_MOUSEMOVE:
         POINTS p1 = regularize(MAKEPOINTS(lParam));
         if (mouse_in_window) {

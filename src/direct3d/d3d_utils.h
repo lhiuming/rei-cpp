@@ -22,11 +22,29 @@ namespace d3d {
 
 using Microsoft::WRL::ComPtr;
 
+inline void debug_name(ID3D12Resource* res_ptr, const wchar_t* name) {
+#if DEBUG
+  HRESULT hr = res_ptr->SetName(name);
+  REI_ASSERT(SUCCEEDED(hr));
+#endif
+}
+
+inline void debug_name(ComPtr<ID3D12Resource> res, const std::wstring& name) {
+  debug_name(res.Get(), name.data());
+}
+
+inline void debug_name(ComPtr<ID3D12Resource> res, const wchar_t* name) {
+  debug_name(res.Get(), name);
+}
+
 constexpr char c_raytracing_shader_target[] = "lib_6_3";
 constexpr wchar_t c_raytracing_shader_target_w[] = L"lib_6_3";
 
 ComPtr<ID3DBlob> compile_shader(
   const wchar_t* shader_path, const char* entrypoint, const char* target, const D3D_SHADER_MACRO* macros = NULL);
+
+ComPtr<ID3DBlob> compile_shader(const char* shader_name, const char* shader_text,
+  const char* entrypoint, const char* target);
 
 ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* entrypoint);
 

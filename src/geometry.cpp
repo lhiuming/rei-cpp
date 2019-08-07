@@ -31,7 +31,7 @@ void Mesh::set(std::vector<Vertex>&& va, std::vector<Triangle>&& ta) {
 // Debug print info
 wstring Mesh::summary() const {
   std::wostringstream oss;
-  oss << "Mesh name: " << name << ", vertices : " << m_vertices.size()
+  oss << "Mesh name: " << m_name << ", vertices : " << m_vertices.size()
       << ", triangles: " << m_triangles.size() << endl;
   oss << "  first 3 vertices: " << endl;
   for (int i = 0; i < 3; ++i) {

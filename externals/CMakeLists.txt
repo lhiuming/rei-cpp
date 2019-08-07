@@ -108,6 +108,18 @@ target_include_directories(assimp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/assimp/incl
 list(APPEND external_libs assimp)
 
 
+#----------------------------------------------------------------------------
+# ImGUI sources
+
+add_library(dear_imgui STATIC 
+	"imgui/imgui.cpp"
+	"imgui/imgui_demo.cpp"
+	"imgui/imgui_draw.cpp"
+	"imgui/imgui_widgets.cpp"
+)
+target_include_directories(dear_imgui PUBLIC "imgui/")
+list(APPEND external_libs dear_imgui)
+
 # --- End of Resolving Externals --- #
 # Propagate the list to toplevel project
 set_property(GLOBAL PROPERTY rei_external_libs ${external_libs})

@@ -39,6 +39,39 @@ ComPtr<ID3DBlob> compile_shader(
   return btyecode;
 }
 
+ComPtr<ID3DBlob> compile_shader(const char* shader_name, const char* shader_text, const char* entrypoint, const char* target) {
+
+  UINT compile_flags = 0;
+#if defined(DEBUG) || !defined(NDEBUG)
+  compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+  ComPtr<ID3DBlob> btyecode;
+  ComPtr<ID3DBlob> error_msg;
+
+  HRESULT hr = D3DCompile(shader_text, strlen(shader_text), shader_name,
+    nullptr,                                    // preprocessors
+    D3D_COMPILE_STANDARD_FILE_INCLUDE,         // "include file with relative path"
+    entrypoint,                                // e.g. "VS" or "PS" or "main" or others
+    target,                                    // "vs_5_0" or "ps_5_0" or similar
+    compile_flags,                             // options
+    0,                                         // more options
+    &btyecode,                                 // result
+    &error_msg                                 // message if error
+  );
+
+  if (FAILED(hr)) {
+    if (error_msg) {
+      char* err_str = (char*)error_msg->GetBufferPointer();
+      REI_ERROR(err_str);
+    } else {
+      REI_ERROR("Shader compilation failed with no error messagable available.");
+    }
+  }
+
+  return btyecode;
+}
+
 ComPtr<IDxcBlob> compile_dxr_shader(const wchar_t* shader_path, const wchar_t* entrypoint) {
   HRESULT hr;
 
@@ -113,9 +146,9 @@ ComPtr<ID3D12Resource> create_upload_buffer(
   if (REI_WARNINGIF(bytesize == 0)) bytesize = 1;
 
   D3D12_HEAP_PROPERTIES heap_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-  D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bytesize);
   D3D12_HEAP_FLAGS heap_flags = D3D12_HEAP_FLAG_NONE;
-  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_GENERIC_READ;
+  D3D12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bytesize);
+  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_GENERIC_READ; // required in upload heap
   D3D12_CLEAR_VALUE* p_clear_value = nullptr; // optional
   ComPtr<ID3D12Resource> upload_buffer;
   HRESULT hr = device->CreateCommittedResource(

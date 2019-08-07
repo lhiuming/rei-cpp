@@ -15,6 +15,8 @@
 //#include "app.h"
 #include "win_viewer.h"
 
+class ImGuiContext;
+
 namespace rei {
 
 class WinApp {
@@ -23,6 +25,7 @@ public:
     Rasterization,
     RealtimeRaytracing,
     Hybrid,
+    UIOnly,
   };
 
   struct Config {
@@ -35,6 +38,7 @@ public:
     RenderMode render_mode = RenderMode::RealtimeRaytracing;
     bool default_camera_control_enabled = true;
     bool enable_grid_line = true;
+    bool enable_dev_gui = true;
   };
 
   WinApp(Config config);
@@ -64,6 +68,8 @@ protected:
 
 private:
   HINSTANCE hinstance = NULL;
+
+  ImGuiContext* m_imgui_context = nullptr;
 
   std::shared_ptr<Renderer> m_renderer;
   std::unique_ptr<Viewer> m_viewer;

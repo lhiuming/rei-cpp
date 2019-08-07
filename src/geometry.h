@@ -14,10 +14,12 @@ namespace rei {
 // Base class for all geometry object
 class Geometry : public NoCopy {
 public:
-  Geometry(std::wstring name) : name(name) {};
+  Geometry(Name name) : m_name(name) {};
   virtual ~Geometry() = 0;
 
   Geometry(Geometry&& other) = default;
+
+  const Name name() const { return m_name; }
 
   // Debug info
   virtual std::wstring summary() const { return L"<Base Geomtry>"; }
@@ -26,7 +28,7 @@ public:
   }
 
 protected:
-  std::wstring name;
+  Name m_name;
 };
 
 typedef std::shared_ptr<Geometry> GeometryPtr;

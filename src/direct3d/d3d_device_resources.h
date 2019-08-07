@@ -17,12 +17,16 @@
 #include "../common.h"
 #include "../scene.h"
 #include "d3d_common_resources.h"
+#include "d3d_resource_types.h"
 
 namespace rei {
 
 namespace d3d {
 
-using Microsoft::WRL::ComPtr;
+struct ResourceCreate {
+  D3D12_RESOURCE_STATES init_state = D3D12_RESOURCE_STATE_COMMON;
+  D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
+};
 
 class DeviceResources : NoCopy {
 public:
@@ -54,8 +58,6 @@ public:
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
   void create_root_signature(
     const D3D12_ROOT_SIGNATURE_DESC& root_desc, ComPtr<ID3D12RootSignature>& root_sign);
-
-  void create_mesh_buffer(const Mesh& mesh, MeshUploadResult& res);
 
   ID3D12GraphicsCommandList4* prepare_command_list(ID3D12PipelineState* init_pso = nullptr);
   // TODO remove this, just use the new prepare_cmd_list

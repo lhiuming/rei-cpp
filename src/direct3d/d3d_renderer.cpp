@@ -20,6 +20,8 @@
 #include "d3d_shader_struct.h"
 #include "d3d_utils.h"
 
+#include "d3d_renderer_resources.h"
+
 using std::array;
 using std::make_shared;
 using std::make_unique;
@@ -49,8 +51,9 @@ constexpr static array<const wchar_t*, 8> c_rt_buffer_names {
 };
 
 // Convertions utils
-template<unsigned int N>
-FixedVec<D3D_SHADER_MACRO, N + 1> to_hlsl_macros(const FixedVec<ShaderCompileConfig::Macro, N>& definitions) {
+template <unsigned int N>
+FixedVec<D3D_SHADER_MACRO, N + 1> to_hlsl_macros(
+  const FixedVec<ShaderCompileConfig::Macro, N>& definitions) {
   FixedVec<D3D_SHADER_MACRO, N + 1> hlsl_macros {};
   for (auto& d : definitions) {
     D3D_SHADER_MACRO m = {d.name.c_str(), d.definition.c_str()};
@@ -60,6 +63,9 @@ FixedVec<D3D_SHADER_MACRO, N + 1> to_hlsl_macros(const FixedVec<ShaderCompileCon
   return hlsl_macros;
 }
 
+struct RenderImpl {
+  static bool Foo(Renderer* r) { return r != nullptr; }
+};
 
 // Default Constructor
 Renderer::Renderer(HINSTANCE hinstance, Options opt)
@@ -125,8 +131,7 @@ SwapchainHandle Renderer::create_swapchain(
       ComPtr<ID3D12Resource> rt_buffer;
       HRESULT hr = swapchain_obj->GetBuffer(i, IID_PPV_ARGS(&rt_buffer));
       REI_ASSERT(SUCCEEDED(hr));
-      hr = rt_buffer->SetName(c_rt_buffer_names[i]);
-      REI_ASSERT(SUCCEEDED(hr));
+      debug_name(rt_buffer, c_rt_buffer_names[i]);
 
       TextureBuffer render_target;
       render_target.buffer = rt_buffer;
@@ -151,8 +156,8 @@ BufferHandle Renderer::fetch_swapchain_render_target_buffer(SwapchainHandle hand
   return swapchain->render_targets[curr_rt_index];
 }
 
-BufferHandle Renderer::create_texture_2d(
-  const TextureDesc& desc, ResourceState init_state, std::wstring&& debug_name) {
+BufferHandle Renderer::create_texture(
+  const TextureDesc& desc, ResourceState init_state, const Name& name) {
   auto device = device_resources->device();
   DXGI_FORMAT dxgi_format = to_dxgi_format(desc.format);
   D3D12_RESOURCE_STATES d3d_init_state = to_res_state(init_state);
@@ -180,12 +185,11 @@ BufferHandle Renderer::create_texture_2d(
     HRESULT hr = device->CreateCommittedResource(
       &heap_desc, heap_flags, &res_desc, d3d_init_state, optimized_clear_ptr, IID_PPV_ARGS(&tex));
     REI_ASSERT(SUCCEEDED(hr));
-    hr = tex->SetName(debug_name.c_str());
-    REI_ASSERT(SUCCEEDED(hr));
+    debug_name(tex, name);
     texture.buffer = tex;
   }
 #if DEBUG
-  texture.name = std::move(debug_name);
+  texture.name = name;
 #endif
 
   auto res_data = make_shared<BufferData>(this);
@@ -194,8 +198,81 @@ BufferHandle Renderer::create_texture_2d(
   return BufferHandle(res_data);
 }
 
+void Renderer::upload_texture(BufferHandle handle, const void* pixels) {
+  REI_ASSERT(handle != c_empty_handle);
+  REI_ASSERT(pixels);
+  auto buffer = to_buffer(handle);
+  REI_ASSERT(buffer->res.holds<TextureBuffer>());
+  TextureBuffer& texture = buffer->res.get<TextureBuffer>();
+
+  ID3D12Device* device = device_resources->device();
+  ID3D12GraphicsCommandList* cmd_list = device_resources->prepare_command_list();
+
+  auto desc = texture.buffer->GetDesc();
+  const UINT64 width = desc.Width;
+  const UINT64 height = desc.Height;
+  const UINT stride = get_bytesize(desc.Format);
+  const UINT upload_pitch = (width * stride + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u);
+  const UINT upload_size = height * upload_pitch;
+  ComPtr<ID3D12Resource> upload_buffer;
+  {
+    D3D12_RESOURCE_DESC desc {};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    desc.Alignment = 0;
+    desc.Width = upload_size;
+    desc.Height = 1;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_UNKNOWN;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    D3D12_HEAP_PROPERTIES props {};
+    props.Type = D3D12_HEAP_TYPE_UPLOAD;
+    props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+    HRESULT hr = device->CreateCommittedResource(&props, D3D12_HEAP_FLAG_NONE, &desc,
+      D3D12_RESOURCE_STATE_GENERIC_READ, NULL, IID_PPV_ARGS(&upload_buffer));
+
+    REI_ASSERT(SUCCEEDED(hr));
+
+    void* mapped;
+    upload_buffer->Map(0, nullptr, &mapped);
+    for (int y = 0; y < height; y++)
+      memcpy((void*)((uintptr_t)mapped + y * upload_pitch), (const byte*)pixels + y * width * stride, width * stride);
+    upload_buffer->Unmap(0, nullptr);
+
+    debug_name(upload_buffer, L"Texture Upload");
+  }
+
+  if ((buffer->state & D3D12_RESOURCE_STATE_COPY_DEST) != D3D12_RESOURCE_STATE_COPY_DEST) {
+    this->transition(handle, ResourceState::CopyDestination);
+  }
+
+  D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+  srcLocation.pResource = upload_buffer.Get();
+  srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+  srcLocation.PlacedFootprint.Footprint.Format = desc.Format;
+  srcLocation.PlacedFootprint.Footprint.Width = width;
+  srcLocation.PlacedFootprint.Footprint.Height = height;
+  srcLocation.PlacedFootprint.Footprint.Depth = 1;
+  srcLocation.PlacedFootprint.Footprint.RowPitch = upload_pitch;
+  D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+  dstLocation.pResource = texture.buffer.Get();
+  dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+  dstLocation.SubresourceIndex = 0;
+  cmd_list->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, NULL);
+
+  m_delayed_release_raw.push_back(upload_buffer);
+
+  buffer->state = D3D12_RESOURCE_STATE_COPY_DEST;
+}
+
 BufferHandle Renderer::create_const_buffer(
-  const ConstBufferLayout& layout, size_t num, wstring&& name) {
+  const ConstBufferLayout& layout, size_t num, const Name& name) {
   auto device = device_resources->device();
 
   ConstBuffer cb;
@@ -264,6 +341,22 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
     ps_bytecode = compile("PS", "ps_5_1");
   }
 
+  return finalize_shader_creation(vs_bytecode, ps_bytecode, shader);
+}
+
+ShaderHandle Renderer::create_shader(const char* vertex_shader, const char* pixel_shader,
+  RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
+  auto shader = make_shared<RasterizationShaderData>(this);
+  shader->meta.init(std::move(meta));
+
+  ComPtr<ID3DBlob> vs_bytecode = compile_shader(nullptr, vertex_shader, "VS", "vs_5_1");
+  ComPtr<ID3DBlob> ps_bytecode = compile_shader(nullptr, pixel_shader, "PS", "ps_5_1");
+
+  return finalize_shader_creation(vs_bytecode, ps_bytecode, shader);
+}
+
+ShaderHandle Renderer::finalize_shader_creation(ComPtr<ID3DBlob> vs_bytecode,
+  ComPtr<ID3DBlob> ps_bytecode, std::shared_ptr<RasterizationShaderData> shader) {
   if (!(ps_bytecode && vs_bytecode)) {
     REI_ERROR("Shader compilation faild");
     return c_empty_handle;
@@ -290,7 +383,7 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
     desc.SampleMask = UINT_MAX; // 0xFFFFFFFF, sample all points if MSAA enabled
     desc.RasterizerState = meta.raster_state;
     desc.DepthStencilState = meta.depth_stencil;
-    desc.InputLayout = meta.input_layout;
+    desc.InputLayout = meta.input_layout.get_layout_desc();
     desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = meta.get_rtv_formats(desc.RTVFormats);
@@ -308,15 +401,16 @@ ShaderHandle Renderer::create_shader(const std::wstring& shader_path,
   return ShaderHandle(shader);
 }
 
-ShaderHandle Renderer::create_shader(
-  const std::wstring& shader_path, ComputeShaderMetaInfo&& meta, const ShaderCompileConfig& config) {
+ShaderHandle Renderer::create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta,
+  const ShaderCompileConfig& config) {
   auto shader = make_shared<ComputeShaderData>(this);
 
   shader->meta.init(move(meta));
 
   // compile
   auto shader_macros = to_hlsl_macros(config.definitions);
-  ComPtr<ID3DBlob> compiled = compile_shader(shader_path.c_str(), "CS", "cs_5_1", shader_macros.data());
+  ComPtr<ID3DBlob> compiled
+    = compile_shader(shader_path.c_str(), "CS", "cs_5_1", shader_macros.data());
 
   // get root-signature
   device_resources->get_root_signature(shader->meta.signature.desc, shader->root_signature);
@@ -410,17 +504,17 @@ ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_va
     buffer->res.match( // TODO handle other cases
       [](auto& arg) { REI_NOT_IMPLEMENTED },
       [&](IndexBuffer& ind) {
-        create_ptr = ind.buffer.Get();
+        create_ptr = ind.res.ptr.Get();
         // Raw/typeless buffer view
         desc.Format = DXGI_FORMAT_R32_TYPELESS; // TODO really?
         desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         desc.Buffer.FirstElement = 0;
-        desc.Buffer.NumElements = ind.bytesize / sizeof(int32_t); // pack as R32 typeless
-        desc.Buffer.StructureByteStride = 0;                      // Typeless?
+        desc.Buffer.NumElements = ind.res.bytesize / sizeof(int32_t); // pack as R32 typeless
+        desc.Buffer.StructureByteStride = 0;                          // Typeless?
         desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
       },
       [&](VertexBuffer& vert) {
-        create_ptr = vert.buffer.Get();
+        create_ptr = vert.res.ptr.Get();
         desc.Format = DXGI_FORMAT_UNKNOWN; // TODO really?
         desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
         desc.Buffer.FirstElement = 0;
@@ -473,48 +567,225 @@ ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_va
   return ShaderArgumentHandle(arg_data);
 }
 
-GeometryBuffers Renderer::create_geometry(const GeometryDesc& desc) {
-  // TODO currently only support mesh type
-  auto& mesh = dynamic_cast<const Mesh&>(*(desc.geometry));
-  MeshUploadResult res;
-  device_resources->create_mesh_buffer(mesh, res);
-  GeometryBuffers ret {};
+GeometryBufferHandles Renderer::create_geometry(const LowLevelGeometryDesc& geometry, const Name& name) {
+  ID3D12GraphicsCommandList* cmd_list = device_resources->prepare_command_list();
+  ID3D12Device* device = device_resources->device();
+
+  auto upload = [&](ID3D12Resource* dest_buffer, ID3D12Resource* upload_buffer, const void* data,
+                  UINT64 bytesize) {
+    // pre-upload transition
+    D3D12_RESOURCE_BARRIER pre_upload = CD3DX12_RESOURCE_BARRIER::Transition(
+      dest_buffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
+    cmd_list->ResourceBarrier(1, &pre_upload);
+
+    // upload it using the upload-buffer as an intermediate space
+    UINT upload_offset = 0;
+    UINT upload_first_sub_res = 0;
+    D3D12_SUBRESOURCE_DATA sub_res_data = {};
+    sub_res_data.pData = data;        // memory for uploading from
+    sub_res_data.RowPitch = bytesize; // length of memory to copy
+    sub_res_data.SlicePitch
+      = sub_res_data.SlicePitch; // for buffer-type sub-res, same with row pitch  TODO check this
+    UpdateSubresources(
+      cmd_list, dest_buffer, upload_buffer, upload_offset, upload_first_sub_res, 1, &sub_res_data);
+
+    // post-upload transition
+    D3D12_RESOURCE_BARRIER post_upload = CD3DX12_RESOURCE_BARRIER::Transition(
+      dest_buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
+    cmd_list->ResourceBarrier(1, &post_upload);
+  };
+
+  auto create = [&](UINT64 bsize, const void* init_data, bool dynamic, bool uploadable) {
+    ComPtr<ID3D12Resource> ret_buffer;
+    if (uploadable) {
+      ret_buffer = create_upload_buffer(device, bsize, init_data);
+    } else {
+      ret_buffer = create_default_buffer(device, bsize);
+      ComPtr<ID3D12Resource> upload_buffer = create_upload_buffer(device, bsize);
+      upload(ret_buffer.Get(), upload_buffer.Get(), init_data, bsize);
+      m_delayed_release_raw.emplace_back(upload_buffer);
+      debug_name(upload_buffer, L"Geometry Upload");
+    }
+    return CommittedResource(ret_buffer, bsize, uploadable);
+  };
+
+  // both dynamic in content and dynamic in size
+  const bool is_uploadable = geometry.flags.dynamic;
+  const bool is_dynamic = geometry.flags.dynamic;
+
+  const UINT64 index_bsize = geometry.index.element_bytesize * geometry.index.element_count;
+  const UINT64 vertex_bsize = geometry.vertex.element_bytesize * geometry.vertex.element_count;
+
+  GeometryBufferHandles ret {};
+  ID3D12Resource* i_buffer;
   {
     IndexBuffer ib;
-    ib.buffer = res.ind_buffer;
-    ib.index_count = res.index_num;
-    ib.bytesize = res.index_num * sizeof(uint16_t); // FIXME really ?
+    ib.res = create(index_bsize, geometry.index.addr, is_dynamic, is_uploadable);
+    i_buffer = ib.res.ptr.Get();
     ib.format = c_index_format;
+    ib.index_count = geometry.index.element_count;
     auto data = new_buffer();
     data->res = move(ib);
     data->state = D3D12_RESOURCE_STATE_INDEX_BUFFER;
     ret.index_buffer = std::move(data);
   }
+  ID3D12Resource* v_buffer;
   {
     VertexBuffer vb;
-    vb.buffer = res.vert_buffer;
-    vb.vertex_count = res.vertex_num;
-    vb.bytesize = res.vertex_num * sizeof(VertexElement);
-    vb.stride = sizeof(VertexElement);
+    vb.res = create(vertex_bsize, geometry.vertex.addr, is_dynamic, is_uploadable);
+    v_buffer = vb.res.ptr.Get();
+    vb.vertex_count = geometry.vertex.element_count;
+    vb.stride = geometry.vertex.element_bytesize;
     auto data = new_buffer();
     data->res = move(vb);
     data->state = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER;
     ret.vertex_buffer = std::move(data);
   }
-  {
+  debug_name(i_buffer, name);
+  debug_name(v_buffer, name);
+  if (geometry.flags.include_blas) {
+    D3D12_SHADER_RESOURCE_VIEW_DESC common_desc = {};
+    common_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    common_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+    // Build BLAS for this mesh
+    ComPtr<ID3D12Resource> blas_buffer;
+    ComPtr<ID3D12Resource> scratch_buffer;
+    {
+      ID3D12Device5* dxr_device = device_resources->dxr_device();
+      ID3D12GraphicsCommandList4* dxr_cmd_list = device_resources->prepare_command_list_dxr();
+
+      const bool is_opaque = true;
+
+      D3D12_RAYTRACING_GEOMETRY_DESC geo_desc {};
+      geo_desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+      geo_desc.Triangles.Transform3x4 = NULL; // not used TODO check this
+      geo_desc.Triangles.IndexFormat = c_index_format;
+      geo_desc.Triangles.VertexFormat = c_accel_struct_vertex_pos_format;
+      geo_desc.Triangles.IndexCount = geometry.index.element_count;
+      geo_desc.Triangles.VertexCount = geometry.vertex.element_count;
+      geo_desc.Triangles.IndexBuffer = i_buffer->GetGPUVirtualAddress();
+      geo_desc.Triangles.VertexBuffer.StartAddress = v_buffer->GetGPUVirtualAddress();
+      geo_desc.Triangles.VertexBuffer.StrideInBytes = geometry.vertex.element_bytesize;
+      if (is_opaque) geo_desc.Flags |= D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+      const UINT c_mesh_count = 1;
+
+      D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bl_prebuild = {};
+      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottomlevel_input = {};
+      bottomlevel_input.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+      bottomlevel_input.Flags
+        = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE; // High quality
+      bottomlevel_input.NumDescs = c_mesh_count;
+      bottomlevel_input.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+      bottomlevel_input.pGeometryDescs = &geo_desc;
+      dxr_device->GetRaytracingAccelerationStructurePrebuildInfo(&bottomlevel_input, &bl_prebuild);
+      REI_ASSERT(bl_prebuild.ResultDataMaxSizeInBytes > 0);
+
+      // Create scratch space
+      UINT64 scratch_size = bl_prebuild.ScratchDataSizeInBytes;
+      scratch_buffer = create_uav_buffer(dxr_device, scratch_size);
+
+      // Allocate BLAS buffer
+      blas_buffer = create_accel_struct_buffer(dxr_device, bl_prebuild.ResultDataMaxSizeInBytes);
+
+      // BLAS desc
+      D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC blas_desc {};
+      blas_desc.DestAccelerationStructureData = blas_buffer->GetGPUVirtualAddress();
+      blas_desc.Inputs = bottomlevel_input;
+      blas_desc.SourceAccelerationStructureData = NULL; // used when updating
+      blas_desc.ScratchAccelerationStructureData = scratch_buffer->GetGPUVirtualAddress();
+
+      // Build
+      // TODO investigate the postbuild info
+      dxr_cmd_list->BuildRaytracingAccelerationStructure(&blas_desc, 0, nullptr);
+      dxr_cmd_list->ResourceBarrier(
+        1, &CD3DX12_RESOURCE_BARRIER::UAV(blas_buffer.Get())); // sync before use
+    }
+
+    m_delayed_release_raw.push_back(scratch_buffer);
+    debug_name(scratch_buffer, L"BLAS scratch");
+    debug_name(blas_buffer, name);
+
     BlasBuffer blas;
-    blas.buffer = res.blas_buffer;
+    blas.res = CommittedResource(blas_buffer, -1, false);
     auto data = new_buffer();
     data->res = move(blas);
     ret.blas_buffer = move(data);
   }
-  m_delayed_release.emplace_back(std::move(res.ind_upload_buffer));
-  m_delayed_release.emplace_back(std::move(res.vert_upload_buffer));
-  m_delayed_release.emplace_back(std::move(res.scratch_buffer));
   return ret;
 }
 
-BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& desc) {
+GeometryBufferHandles Renderer::create_geometry(const GeometryDesc& desc) {
+  auto& mesh = dynamic_cast<const Mesh&>(*(desc.geometry));
+  using index_t = uint16_t;
+  using vertex_t = VertexElement;
+  const size_t i_count = mesh.get_triangles().size() * 3;
+  const size_t v_count = mesh.get_vertices().size();
+  vector<index_t> indicies;
+  indicies.reserve(i_count);
+  vector<vertex_t> vertices;
+  vertices.reserve(v_count);
+  for (auto t : mesh.get_triangles()) {
+    indicies.push_back(t.a);
+    indicies.push_back(t.b);
+    indicies.push_back(t.c);
+  }
+  for (auto v : mesh.get_vertices()) {
+    vertices.emplace_back(VertexElement(v.coord, v.color, v.normal));
+  }
+  LowLevelGeometryDesc ll_desc {};
+  ll_desc.index = {indicies.data(), i_count, sizeof(index_t)};
+  ll_desc.vertex = {vertices.data(), v_count, sizeof(vertex_t)};
+  ll_desc.flags = desc.flags;
+  return create_geometry(ll_desc, desc.geometry->name());
+}
+
+void Renderer::update_geometry(
+  BufferHandle handle, LowLevelGeometryData data, size_t dest_element_offset) {
+  auto buffer = to_buffer(handle);
+
+  ID3D12Device* device = device_resources->device();
+
+  UINT min_count = data.element_count + dest_element_offset;
+  UINT64 required_bytesize = data.element_bytesize * min_count;
+
+  auto update = [&](CommittedResource& res) {
+    if (!res.is_system_memory) {
+      REI_ERROR("Updating GPU-local bufer is illegal!");
+      return;
+    }
+
+    if (res.bytesize < required_bytesize) {
+      res.ptr = create_upload_buffer(device, required_bytesize);
+      res.bytesize = required_bytesize;
+    }
+
+    buffer->state == D3D12_RESOURCE_STATE_GENERIC_READ;
+
+    // Write data if required
+    if (data.addr) {
+      UINT64 upload_bytesize = data.element_count * data.element_bytesize;
+      byte* sys_mem;
+      res.ptr->Map(0, nullptr, (void**)&sys_mem);
+      memcpy(sys_mem + dest_element_offset * data.element_bytesize, data.addr, upload_bytesize);
+      res.ptr->Unmap(0, nullptr);
+    }
+  };
+
+  buffer->res.match(                                   //
+    [](auto& a) { REI_ERROR("Invalid Buffer Type"); }, //
+    [&](IndexBuffer& ib) {
+      update(ib.res);
+      ib.index_count = (std::max)(ib.index_count, min_count);
+    },
+    [&](VertexBuffer& vb) {
+      update(vb.res);
+      vb.vertex_count = (std::max)(vb.vertex_count, min_count);
+    });
+}
+
+BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& desc, const Name& name) {
   const size_t model_count = desc.blas_buffer.size();
 
   // Collect geometries and models for AS building
@@ -534,11 +805,9 @@ BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& d
     scene.blas = blas.data();
     scene.instance_id = desc.instance_id.data();
     scene.transform = desc.transform.data();
-    ComPtr<ID3D12Resource> scratch;
-    build_dxr_acceleration_structure(std::move(scene), scratch, tlas.buffer);
-    // scratch buffer is released after build is finished, e.g. just before next render call
-    m_delayed_release.emplace_back(std::move(scratch));
+    build_dxr_acceleration_structure(std::move(scene), tlas.buffer);
   }
+  debug_name(tlas.buffer, name);
 
   auto data = new_buffer();
   data->res = move(tlas);
@@ -546,8 +815,7 @@ BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& d
   return BufferHandle(data);
 }
 
-BufferHandle Renderer::create_shader_table(
-  size_t intersec_count, ShaderHandle raytracing_shader) {
+BufferHandle Renderer::create_shader_table(size_t intersec_count, ShaderHandle raytracing_shader) {
   auto& shader = to_shader<RaytracingShaderData>(raytracing_shader);
   const auto& meta = shader->meta;
 
@@ -631,7 +899,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
     cmd_list->RSSetViewports(1, &d3d_vp);
   }
 
-  {
+  if (!area.is_empty()) {
     D3D12_RECT scissor {};
     scissor.left = float(area.offset_left);
     scissor.top = float(area.offset_top);
@@ -743,6 +1011,17 @@ void Renderer::draw(const DrawCommand& cmd) {
   ID3D12PipelineState* this_pso = shader->pso.Get();
   cmd_list->SetPipelineState(this_pso);
 
+  // Optional: scissor
+  if (!cmd.override_area.is_empty()) {
+    const RenderArea& area = cmd.override_area;
+    D3D12_RECT scissor {};
+    scissor.left = float(area.offset_left);
+    scissor.top = float(area.offset_top);
+    scissor.right = float(area.offset_left + area.width);
+    scissor.bottom = float(area.offset_top + area.height);
+    cmd_list->RSSetScissorRects(1, &scissor);
+  }
+
   // Bind shader arguments
   {
     for (UINT i = 0; i < cmd.arguments.size(); i++) {
@@ -764,22 +1043,26 @@ void Renderer::draw(const DrawCommand& cmd) {
       auto& ib = buffer->res.get<IndexBuffer>();
       index_count = ib.index_count;
       D3D12_INDEX_BUFFER_VIEW ibv;
-      ibv.BufferLocation = ib.buffer->GetGPUVirtualAddress();
+      ibv.BufferLocation = ib.res.ptr->GetGPUVirtualAddress();
       ibv.Format = ib.format;
-      ibv.SizeInBytes = ib.bytesize;
+      ibv.SizeInBytes = ib.res.bytesize;
       cmd_list->IASetIndexBuffer(&ibv);
     }
     {
       auto buffer = to_buffer(cmd.vertex_buffer);
       auto& vb = buffer->res.get<VertexBuffer>();
       D3D12_VERTEX_BUFFER_VIEW vbv;
-      vbv.BufferLocation = vb.buffer->GetGPUVirtualAddress();
-      vbv.SizeInBytes = vb.bytesize;
+      vbv.BufferLocation = vb.res.ptr->GetGPUVirtualAddress();
+      vbv.SizeInBytes = vb.res.bytesize;
       vbv.StrideInBytes = vb.stride;
       cmd_list->IASetVertexBuffers(0, 1, &vbv);
     }
     // Draw
-    cmd_list->DrawIndexedInstanced(index_count, 1, 0, 0, 0);
+    REI_ASSERT(cmd.index_count == SIZE_MAX || cmd.index_count <= index_count);
+    UINT draw_index_count = cmd.index_count == SIZE_MAX ? index_count : UINT(cmd.index_count);
+    cmd_list->DrawIndexedInstanced(
+      draw_index_count, 1, UINT(cmd.index_offset), UINT(cmd.vertex_offset), 0);
+
   } else {
     // FIXME better shortcut for blit pass
     cmd_list->IASetVertexBuffers(0, 0, NULL);
@@ -863,13 +1146,15 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
   auto cmd_list = device_resources->prepare_command_list();
 
   auto target = to_buffer(handle);
-  REI_ASSERT((target->state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  REI_ASSERT((target->state & D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+             == D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
   REI_ASSERT(target->res.holds<TextureBuffer>());
   TextureBuffer& tex = target->res.get<TextureBuffer>();
   ID3D12Resource* res = tex.buffer.Get();
   auto d3d_desc = res->GetDesc();
-  if (d3d_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
+  if (d3d_desc.Flags
+      & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
     REI_ERROR(
       "Invalid resource type; The texture should created with allowance of unordred access");
     return;
@@ -883,7 +1168,8 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
       device_resources->cbv_srv_shader_non_visible_heap().get_descriptor_handle(
         *cached_descriptor_index, &cpu_descriptor, &gpu_descriptor);
     } else {
-      UINT index = device_resources->cbv_srv_shader_non_visible_heap().alloc(&cpu_descriptor, &gpu_descriptor);
+      UINT index = device_resources->cbv_srv_shader_non_visible_heap().alloc(
+        &cpu_descriptor, &gpu_descriptor);
       m_texture_clear_descriptor.insert({target, index});
 
       D3D12_UNORDERED_ACCESS_VIEW_DESC desc {};
@@ -900,7 +1186,8 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
   clear_rect.top = area.offset_top;
   clear_rect.right = area.offset_left + area.width;
   clear_rect.bottom = area.offset_top + area.height;
-  cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
+  cmd_list->ClearUnorderedAccessViewFloat(
+    gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
 }
 
 void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_state) {
@@ -975,13 +1262,17 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
 
 void Renderer::upload_resources() {
   // NOTE: if the cmd_list is closed, we don need to submit it
-  if (is_uploading_resources) {
+  bool has_delayed_release = !m_delayed_release.empty() || !m_delayed_release_raw.empty();
+  if (is_uploading_resources || has_delayed_release) {
     device_resources->flush_command_list();
+    device_resources->flush_command_queue_for_frame();
     is_uploading_resources = false;
   }
 
   // Done with the delayed relased resources
+  // NOTE: both resource type can be release with smart pointer
   m_delayed_release.clear();
+  m_delayed_release_raw.clear();
 }
 
 void Renderer::build_raytracing_pso(const std::wstring& shader_path,
@@ -1058,8 +1349,7 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene,
-  ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer) {
+void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene, ComPtr<ID3D12Resource>& tlas_buffer) {
   auto device = device_resources->dxr_device();
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
@@ -1077,7 +1367,7 @@ void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene,
 
   // Create scratch space (shared by two AS contruction)
   UINT64 scratch_size = tl_prebuild.ScratchDataSizeInBytes;
-  scratch_buffer = create_uav_buffer(device, scratch_size);
+  ComPtr<ID3D12Resource> scratch_buffer = create_uav_buffer(device, scratch_size);
 
   // Allocate BLAS and TLAS buffer
   tlas_buffer = create_accel_struct_buffer(device, tl_prebuild.ResultDataMaxSizeInBytes);
@@ -1118,11 +1408,11 @@ void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene,
   cmd_list->BuildRaytracingAccelerationStructure(&tlas_desc, 0, nullptr);
   cmd_list->ResourceBarrier(
     1, &CD3DX12_RESOURCE_BARRIER::UAV(tlas_buffer.Get())); // sync before use
-
-  // FIXME finish uploading before the locally created test buffer out ot scope
-  // e.g. instance buffer and stractch buffer
-  device_resources->flush_command_list();
-  device_resources->flush_command_queue_for_frame();
+  
+  m_delayed_release_raw.emplace_back(instance_buffer);
+  debug_name(instance_buffer, L"TLAS instance buffer");
+  m_delayed_release_raw.emplace_back(scratch_buffer);
+  debug_name(scratch_buffer, L"TLAS scratch buffer");
 }
 
 void Renderer::set_const_buffer(

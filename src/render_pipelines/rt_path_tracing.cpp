@@ -55,7 +55,7 @@ struct SceneData {
   // Raytracing resources
   BufferHandle tlas_buffer;
   BufferHandle shader_table;
-  Hashmap<Scene::ModelUID, GeometryBuffers> geometry_buffers;
+  Hashmap<Scene::ModelUID, GeometryBufferHandles> geometry_buffers;
   // NOTE: index by instance id
   std::vector<ShaderArgumentHandle> shader_table_args;
 };
@@ -80,7 +80,7 @@ RealtimePathTracingPipeline::ViewportHandle RealtimePathTracingPipeline::registe
   viewport->width = conf.width;
   viewport->height = conf.height;
   viewport->raytracing_output_buffer = renderer->create_unordered_access_buffer_2d(
-    conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM);
+    conf.width, conf.height, ResourceFormat::R8G8B8A8Unorm);
 
   {
     ConstBufferLayout layout = {5};
@@ -118,7 +118,7 @@ RealtimePathTracingPipeline::SceneHandle RealtimePathTracingPipeline::register_s
   // create mesh buffesr
   {
     for (auto& g : conf.scene->geometries()) {
-      GeometryBuffers gb = renderer->create_geometry({g});
+      GeometryBufferHandles gb = renderer->create_geometry({g});
       scene->geometry_buffers.insert({conf.scene->get_id(g), gb});
     }
   }

@@ -17,6 +17,7 @@
  * Implement a Direct3D11-based renderer.
  */
 #include "d3d_common_resources.h"
+#include "d3d_renderer_resources.h"
 
 namespace rei {
 
@@ -27,6 +28,9 @@ class ViewportResources;
 struct ShaderData;
 struct ViewportData;
 struct CullingData;
+
+struct CommittedResource;
+struct RenderImpl;
 
 class Renderer : public rei::Renderer {
   using Self = typename Renderer;
@@ -44,31 +48,39 @@ public:
     SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
 
-  BufferHandle create_texture_2d(
-    const TextureDesc& desc, ResourceState init_state, std::wstring&& debug_name);
+  BufferHandle create_texture(const TextureDesc& desc, ResourceState init_state, const Name& debug_name);
+  void upload_texture(BufferHandle texture, const void* pixels);
+  [[deprecated]] BufferHandle create_texture_2d(const TextureDesc& desc, ResourceState init_state,
+    const std::wstring& debug_name) {
+    return create_texture(desc, init_state, debug_name);
+  }
   [[deprecated]] BufferHandle create_texture_2d(
-    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name) {
+    size_t width, size_t height, ResourceFormat format, const Name& debug_name) {
     TextureDesc desc {width, height, format};
-    return create_texture_2d(desc, ResourceState::Undefined, std::move(debug_name));
+    return create_texture_2d(desc, ResourceState::Undefined, debug_name);
   }
   [[deprecated]] BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height,
-    ResourceFormat format, std::wstring&& debug_name = L"Unnamed UA Buffer") {
+    ResourceFormat format, const Name& debug_name = L"Unnamed UA Buffer") {
     return create_texture_2d(TextureDesc::unorder_access(width, height, format),
-      ResourceState::UnorderedAccess, std ::move(debug_name));
+      ResourceState::UnorderedAccess, debug_name);
   }
 
   BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num,
-    std::wstring&& debug_name = L"Unnamed ConstBuffer");
+    const Name& debug_name = L"Unnamed ConstBuffer");
 
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
   void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
 
-  ShaderHandle create_shader(const std::wstring& shader_path, RasterizationShaderMetaInfo&& meta,
-    const ShaderCompileConfig& config = {});
+  ShaderHandle create_shader(const std::wstring& shader_path, RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config = {});
+  ShaderHandle create_shader(const char* vertex_shader, const char* index_shader,
+    RasterizationShaderMetaInfo&& meta, const ShaderCompileConfig& config = {});
+  [[deprecated]]
   ShaderHandle create_shader(const std::wstring& shader_path,
     std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
     return create_shader(shader_path, std::move(*meta), config);
   }
+  ShaderHandle finalize_shader_creation(
+    ComPtr<ID3DBlob> vs, ComPtr<ID3DBlob> ps, std::shared_ptr<RasterizationShaderData> shader);
 
   ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta,
     const ShaderCompileConfig& config = {});
@@ -84,8 +96,11 @@ public:
   void update_shader_argument(
     ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
 
-  GeometryBuffers create_geometry(const GeometryDesc& geometry);
-  BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene);
+  GeometryBufferHandles create_geometry(const LowLevelGeometryDesc& geometry, const Name& debug_name = L"Unamed Goemetry");
+  GeometryBufferHandles create_geometry(const GeometryDesc& geometry);
+  void update_geometry(BufferHandle handle, LowLevelGeometryData data, size_t dest_element_offset = 0);
+
+  BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene, const Name& debug_name = L"Unamed TLAS");
   BufferHandle create_shader_table(size_t intersection_count, ShaderHandle raytracing_shader);
   BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
 
@@ -127,6 +142,8 @@ public:
   bool is_depth_range_01() const override { return true; }
 
 protected:
+  friend RenderImpl;
+
   HINSTANCE hinstance;
   const bool is_dxr_enabled;
 
@@ -135,7 +152,8 @@ protected:
 
   // TODO make unique
   std::shared_ptr<DeviceResources> device_resources;
-  std::vector<ComPtr<ID3D12Resource>> m_delayed_release;
+  std::vector<CommittedResource> m_delayed_release;
+  std::vector<ComPtr<ID3D12Resource>> m_delayed_release_raw;
   Hashmap<BufferHandle, UINT> m_texture_clear_descriptor;
 
   bool is_uploading_resources = false;
@@ -161,8 +179,7 @@ protected:
     const UINT* instance_id;
     const Mat4* transform;
   };
-  void build_dxr_acceleration_structure(BuildAccelStruct&& desc,
-    ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
+  void build_dxr_acceleration_structure(BuildAccelStruct&& desc, ComPtr<ID3D12Resource>& tlas_buffer);
 
   void set_const_buffer(
     BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);

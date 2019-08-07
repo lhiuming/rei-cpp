@@ -109,21 +109,6 @@ struct ShaderSignature {
   FixedVec<ShaderParameter, 4> param_table;
 };
 
-struct ShaderCompileConfig {
-  struct Macro {
-    std::string name;
-    std::string definition;
-    Macro() = default;
-    Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
-  };
-  FixedVec<Macro, 16> definitions;
-  template<unsigned int N>
-  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
-    static_assert(N <= 16);
-    ShaderCompileConfig ret {defs};
-    return ret;
-  }
-};
 
 struct ShaderArgumentValue {
   constexpr static size_t c_buf_max = 8;
@@ -140,14 +125,37 @@ struct ShaderArgumentValue {
 };
 
 struct RenderTargetDesc {
-  ResourceFormat format = ResourceFormat::B8G8R8A8_UNORM;
+  ResourceFormat format = ResourceFormat::R8G8B8A8Unorm;
+};
+
+struct VertexInputDesc {
+  std::string semantic;
+  unsigned char sementic_index;
+  ResourceFormat format;
+  unsigned char byte_offset;
+};
+
+// TODO allow more customized configuration
+struct MergeDesc {
+  bool is_blending_addictive = false;
+  bool is_alpha_blending = false;
+  void init_as_addictive() {
+    is_blending_addictive = true;
+    is_alpha_blending = false;
+  }
+  void init_as_alpha_blending() {
+    is_blending_addictive = false;
+    is_alpha_blending = true;
+  }
 };
 
 struct RasterizationShaderMetaInfo {
   ShaderSignature signature {};
   FixedVec<RenderTargetDesc, 8> render_target_descs {RenderTargetDesc()};
+  FixedVec<VertexInputDesc, 8> vertex_input_desc;
+  MergeDesc merge;
   bool is_depth_stencil_disabled = false;
-  bool is_blending_addictive = false;
+  bool front_clockwise = false;
 };
 
 struct ComputeShaderMetaInfo {
@@ -166,6 +174,22 @@ struct RaytracingShaderMetaInfo {
   // std::wstring any_hit_name;
   // std::wstring intersection_name;
   std::wstring miss_name;
+};
+
+struct ShaderCompileConfig {
+  struct Macro {
+    std::string name;
+    std::string definition;
+    Macro() = default;
+    Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
+  };
+  FixedVec<Macro, 16> definitions;
+  template<unsigned int N>
+  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
+    static_assert(N <= 16);
+    ShaderCompileConfig ret {defs};
+    return ret;
+  }
 };
 
 // TODO make this type safe
@@ -190,19 +214,40 @@ struct TextureDesc {
     return {width, height, format, {true, false, false}};
   }
   static TextureDesc depth_stencil(
-    size_t width, size_t height, ResourceFormat format = ResourceFormat::D24_UNORM_S8_UINT) {
+    size_t width, size_t height, ResourceFormat format = ResourceFormat::D24Unorm_S8Uint) {
     return {width, height, format, {false, true, false}};
   }
   static TextureDesc unorder_access(size_t width, size_t height, ResourceFormat format) {
     return {width, height, format, {false, false, true}};
   }
+  static TextureDesc simple_2d(size_t width, size_t height, ResourceFormat format) {
+    return { width, height, format, {false, false, false} };
+  }
+};
+
+struct GeometryFlags {
+  bool dynamic : 1;
+  bool include_blas : 1;
+};
+
+struct LowLevelGeometryData {
+  const void* addr = nullptr;
+  size_t element_count = 0;
+  size_t element_bytesize = 0;
+};
+
+struct LowLevelGeometryDesc {
+  LowLevelGeometryData index {};
+  LowLevelGeometryData vertex {};
+  GeometryFlags flags {};
 };
 
 struct GeometryDesc {
   GeometryPtr geometry;
+  GeometryFlags flags {};
 };
 
-struct GeometryBuffers {
+struct GeometryBufferHandles {
   BufferHandle vertex_buffer;
   BufferHandle index_buffer;
   BufferHandle blas_buffer;
@@ -230,36 +275,14 @@ struct UpdateShaderTable {
   static UpdateShaderTable hitgroup() { return {TableType::Hitgroup}; }
 };
 
-struct DrawCommand {
-  BufferHandle vertex_buffer = c_empty_handle;
-  BufferHandle index_buffer = c_empty_handle;
-  ShaderHandle shader = c_empty_handle;
-  ShaderArguments arguments;
-};
-
-struct DispatchCommand {
-  ShaderHandle compute_shader;
-  ShaderArguments arguments;
-  uint32_t dispatch_x;
-  uint32_t dispatch_y;
-  uint32_t dispatch_z = 1;
-};
-
-struct RaytraceCommand {
-  ShaderHandle raytrace_shader;
-  ShaderArguments arguments;
-  BufferHandle shader_table;
-  uint32_t width;
-  uint32_t height;
-  uint32_t depth = 1;
-};
-
 template<typename Numeric>
 struct RenderRect {
   Numeric offset_left = 0;
   Numeric offset_top = 0;
   Numeric width = 0;
   Numeric height = 0;
+
+  bool is_empty() const { return width <= 0 || height <= 0; }
 
   RenderRect shrink_to_upper_left(
     Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_top = 0) const {
@@ -283,11 +306,39 @@ using RenderArea = RenderRect<int>;
 
 struct RenderPassCommand {
   FixedVec<BufferHandle, 8> render_targets;
-  BufferHandle depth_stencil;
+  BufferHandle depth_stencil = c_empty_handle;
   RenderViewaport viewport;
   RenderArea area;
   bool clear_rt;
   bool clear_ds;
+};
+
+struct DrawCommand {
+  BufferHandle vertex_buffer = c_empty_handle;
+  BufferHandle index_buffer = c_empty_handle;
+  ShaderHandle shader = c_empty_handle;
+  ShaderArguments arguments {};
+  size_t index_count = SIZE_MAX;
+  size_t index_offset = 0;
+  size_t vertex_offset = 0;
+  RenderArea override_area; // optional
+};
+
+struct DispatchCommand {
+  ShaderHandle compute_shader;
+  ShaderArguments arguments;
+  uint32_t dispatch_x;
+  uint32_t dispatch_y;
+  uint32_t dispatch_z = 1;
+};
+
+struct RaytraceCommand {
+  ShaderHandle raytrace_shader;
+  ShaderArguments arguments;
+  BufferHandle shader_table;
+  uint32_t width;
+  uint32_t height;
+  uint32_t depth = 1;
 };
 
 class Renderer : private NoCopy {

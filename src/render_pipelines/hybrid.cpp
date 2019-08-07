@@ -138,7 +138,7 @@ struct SceneProxy {
     double& emissive() { return parset1.z; }
   };
   struct ModelData {
-    GeometryBuffers geo_buffers;
+    GeometryBufferHandles geo_buffers;
     // TODO support root cb offseting
     ShaderArgumentHandle raster_arg;
     ShaderArgumentHandle raytrace_shadertable_arg;
@@ -149,7 +149,7 @@ struct SceneProxy {
     // JUST COPY THAT SH*T
     MaterialData mat;
   };
-  Hashmap<Scene::GeometryUID, GeometryBuffers> geometries;
+  Hashmap<Scene::GeometryUID, GeometryBufferHandles> geometries;
   Hashmap<Scene::MaterialUID, MaterialData> materials;
   Hashmap<Scene::ModelUID, ModelData> models;
 
@@ -177,9 +177,9 @@ struct HybridGPassShaderDesc : RasterizationShaderMetaInfo {
     ShaderParameter space2 {};
     space2.const_buffers = {ConstantBuffer()};
 
-    RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32_FLOAT};
-    RenderTargetDesc rt_albedo {ResourceFormat::B8G8R8A8_UNORM};
-    RenderTargetDesc rt_emissive {ResourceFormat::R32G32B32A32_FLOAT};
+    RenderTargetDesc rt_normal {ResourceFormat::R32G32B32A32Float};
+    RenderTargetDesc rt_albedo {ResourceFormat::R8G8B8A8Unorm};
+    RenderTargetDesc rt_emissive {ResourceFormat::R32G32B32A32Float};
     render_target_descs = {rt_normal, rt_albedo, rt_emissive};
 
     signature.param_table = {space0, space1};
@@ -331,7 +331,7 @@ struct BlitShaderDesc : RasterizationShaderMetaInfo {
 
     this->is_depth_stencil_disabled = true;
 
-    RenderTargetDesc dest {ResourceFormat::B8G8R8A8_UNORM};
+    RenderTargetDesc dest {ResourceFormat::R8G8B8A8Unorm};
     this->render_target_descs = {dest};
   }
 };
@@ -421,43 +421,43 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     = r->create_texture_2d(TextureDesc::depth_stencil(conf.width, conf.height),
       ResourceState::DeptpWrite, L"Depth Stencil");
   proxy.gbuffer0 = r->create_texture_2d(
-    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::RenderTarget, L"Normal Buffer");
   proxy.gbuffer1 = r->create_texture_2d(
-    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::B8G8R8A8_UNORM),
+    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R8G8B8A8Unorm),
     ResourceState::RenderTarget, L"Albedo Buffer");
   proxy.gbuffer2 = r->create_texture_2d(
-    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::render_target(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::RenderTarget, L"Emissive Buffer");
 
   proxy.raytracing_output_buffer = r->create_unordered_access_buffer_2d(
-    conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT, L"Raytracing Output Buffer");
+    conf.width, conf.height, ResourceFormat::R32G32B32A32Float, L"Raytracing Output Buffer");
 
   proxy.deferred_shading_output = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Deferred Shading Output");
 
   // area light resources
   proxy.area_light.unshadowed = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Unshadowed");
   proxy.area_light.stochastic_unshadowed = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Stochastic Unshadowed");
   proxy.area_light.stochastic_sample_ray = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Ray");
   proxy.area_light.stochastic_sample_radiance = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Radiance");
   proxy.area_light.stochastic_shadowed = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Stochastic Shadowed");
   proxy.area_light.denoised_shadowed = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Denoised Shadowed");
   proxy.area_light.denoised_unshadowed = r->create_texture_2d(
-    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+    TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
     ResourceState::UnorderedAccess, L"Area Light Denoised Unshadowed");
 
   // helper routine
@@ -559,7 +559,7 @@ HybridPipeline::ViewportHandle HybridPipeline::register_viewport(ViewportConfig 
     static const wchar_t* taa_names[2] = {L"TAA_Buffer[0]", L"TAA_Buffer[1]"};
     auto make_taa_buffer = [&](int idx) {
       return r->create_texture_2d(
-        TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32_FLOAT),
+        TextureDesc::unorder_access(conf.width, conf.height, ResourceFormat::R32G32B32A32Float),
         ResourceState::UnorderedAccess, taa_names[idx]);
     };
     for (int i = 0; i < 2; i++)
@@ -615,7 +615,10 @@ HybridPipeline::SceneHandle HybridPipeline::register_scene(SceneConfig conf) {
   // Initialize Geometries
   {
     for (const GeometryPtr& geo : scene->geometries()) {
-      GeometryBuffers buffers = r->create_geometry({geo});
+      GeometryDesc desc {geo};
+      desc.flags.dynamic = false;
+      desc.flags.include_blas = true;
+      GeometryBufferHandles buffers = r->create_geometry(desc);
       Scene::GeometryUID id = conf.scene->get_id(geo);
       proxy.geometries.insert({id, buffers});
     }

@@ -118,7 +118,7 @@ int main() {
   conf.width = 1920;
   conf.height = 1080;
   conf.bg_color = Colors::ayanami_blue;
-  conf.render_mode = App::RenderMode::Hybrid;
+  conf.render_mode = App::RenderMode::UIOnly;
   auto app = RayTracingApp(conf);
   app.run();
   return 0;
