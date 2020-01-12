@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../direct3d/d3d_renderer.h"
+#include "../renderer.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -64,7 +64,7 @@ struct SceneData {
 using namespace rtpt;
 
 RealtimePathTracingPipeline::RealtimePathTracingPipeline(RendererPtr renderer_wptr)
-    : SimplexPipeline(std::dynamic_pointer_cast<d3d::Renderer>(renderer_wptr.lock())) {
+    : SimplexPipeline(std::dynamic_pointer_cast<Renderer>(renderer_wptr.lock())) {
   auto renderer = m_renderer.lock();
   std::wstring shader_path = L"CoreData/shader/raytracing.hlsl";
   pathtracing_shader

@@ -8,15 +8,14 @@
 #include <windows.h>
 #endif
 
-#include "container_utils.h"
-#include "type_utils.h"
-
 #include "camera.h"
 #include "color.h"
-#include "scene.h"
-
+#include "container_utils.h"
+#include "direct3d/d3d_common_resources.h"
 #include "graphic_handle.h"
+#include "scene.h"
 #include "shader_struct.h"
+#include "type_utils.h"
 
 /*
  * renderer.h
@@ -117,8 +116,8 @@ struct ShaderCompileConfig {
     Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
   };
   FixedVec<Macro, 16> definitions;
-  template<unsigned int N>
-  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
+  template <unsigned int N>
+  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) {
     static_assert(N <= 16);
     ShaderCompileConfig ret {defs};
     return ret;
@@ -254,7 +253,7 @@ struct RaytraceCommand {
   uint32_t depth = 1;
 };
 
-template<typename Numeric>
+template <typename Numeric>
 struct RenderRect {
   Numeric offset_left = 0;
   Numeric offset_top = 0;
@@ -290,12 +289,116 @@ struct RenderPassCommand {
   bool clear_ds;
 };
 
-class Renderer : private NoCopy {
-public:
-  Renderer() {}
-  virtual ~Renderer() {}
 
-  virtual bool is_depth_range_01() const = 0;
+namespace d3d {
+class DeviceResources;
+// class ViewportResources;
+struct ShaderData;
+// struct ViewportData;
+// struct CullingData;
+}
+
+class Renderer : private NoCopy {
+  using Self = typename Renderer;
+
+  template <typename T>
+  using ComPtr = typename d3d::ComPtr<T>;
+
+  using DeviceResources = typename d3d::DeviceResources;
+
+public:
+  struct Options {
+    bool enable_realtime_raytracing = true;
+  };
+
+  Renderer(HINSTANCE hinstance, Options options = {});
+  ~Renderer() = default;
+
+  SwapchainHandle create_swapchain(
+    SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
+  BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
+
+  BufferHandle create_texture_2d(
+    const TextureDesc& desc, ResourceState init_state, std::wstring&& debug_name);
+  [[deprecated]] BufferHandle create_texture_2d(
+    size_t width, size_t height, ResourceFormat format, std::wstring&& debug_name) {
+    TextureDesc desc {width, height, format};
+    return create_texture_2d(desc, ResourceState::Undefined, std::move(debug_name));
+  }
+  [[deprecated]] BufferHandle create_unordered_access_buffer_2d(size_t width, size_t height,
+    ResourceFormat format, std::wstring&& debug_name = L"Unnamed UA Buffer") {
+    return create_texture_2d(TextureDesc::unorder_access(width, height, format),
+      ResourceState::UnorderedAccess, std ::move(debug_name));
+  }
+
+  BufferHandle create_const_buffer(const ConstBufferLayout& layout, size_t num,
+    std::wstring&& debug_name = L"Unnamed ConstBuffer");
+
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Vec4 value);
+  void update_const_buffer(BufferHandle buffer, size_t index, size_t member, Mat4 value);
+
+  ShaderHandle create_shader(const std::wstring& shader_path, RasterizationShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
+  ShaderHandle create_shader(const std::wstring& shader_path,
+    std::unique_ptr<RasterizationShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
+    return create_shader(shader_path, std::move(*meta), config);
+  }
+
+  ShaderHandle create_shader(const std::wstring& shader_path, ComputeShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
+
+  ShaderHandle create_shader(const std::wstring& shader_path, RaytracingShaderMetaInfo&& meta,
+    const ShaderCompileConfig& config = {});
+  ShaderHandle create_raytracing_shader(const std::wstring& shader_path,
+    std::unique_ptr<RaytracingShaderMetaInfo>&& meta, const ShaderCompileConfig& config = {}) {
+    return create_shader(shader_path, std::move(*meta), config);
+  }
+
+  ShaderArgumentHandle create_shader_argument(ShaderArgumentValue arg_value);
+  void update_shader_argument(
+    ShaderHandle shader, ShaderArgumentValue arg_value, ShaderArgumentHandle& arg_handle);
+
+  GeometryBuffers create_geometry(const GeometryDesc& geometry);
+  BufferHandle create_raytracing_accel_struct(const RaytraceSceneDesc& scene);
+  BufferHandle create_shader_table(size_t intersection_count, ShaderHandle raytracing_shader);
+  BufferHandle create_shader_table(const Scene& scene, ShaderHandle raytracing_shader);
+
+  // void update_raygen_shader_record();
+  void update_shader_table(const UpdateShaderTable& cmd);
+
+  void begin_render_pass(const RenderPassCommand& cmd);
+  void end_render_pass();
+
+  void transition(BufferHandle buffer, ResourceState state);
+  void barrier(BufferHandle buffer);
+
+  void draw(const DrawCommand& cmd);
+
+  void dispatch(const DispatchCommand& dispatch);
+
+  void raytrace(const RaytraceCommand& cmd);
+  void raytrace(ShaderHandle raytrace_shader, ShaderArguments arguments, BufferHandle shader_table,
+    size_t width, size_t height, size_t depth = 1) {
+    RaytraceCommand cmd {};
+    cmd.raytrace_shader = raytrace_shader;
+    cmd.arguments = std::move(arguments);
+    cmd.shader_table = std::move(shader_table);
+    cmd.width = width;
+    cmd.height = height;
+    cmd.depth = depth;
+    raytrace(cmd);
+  }
+
+  void clear_texture(BufferHandle target, Vec4 clear_value, RenderArea clear_area);
+  void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
+
+  // TODO return a command list object
+  Renderer* prepare();
+  void present(SwapchainHandle swapchain, bool vsync);
+
+  DeviceResources& device() const { return *device_resources; }
+
+  bool is_depth_range_01() const { return true; }
 
 protected:
   // Convert from handle to data
@@ -308,6 +411,73 @@ protected:
       // return std::reinterpret_pointer_cast<Data>(handle);
     }
     return nullptr;
+  }
+
+protected:
+  HINSTANCE hinstance;
+  const bool is_dxr_enabled;
+
+  // some const config
+  constexpr static VectorTarget model_trans_target = VectorTarget::Column;
+
+  // TODO make unique
+  std::shared_ptr<DeviceResources> device_resources;
+  std::vector<ComPtr<ID3D12Resource>> m_delayed_release;
+  Hashmap<BufferHandle, UINT> m_texture_clear_descriptor;
+
+  bool is_uploading_resources = false;
+
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_dsv_cache {};
+  Hashmap<const ID3D12Resource*, D3D12_CPU_DESCRIPTOR_HANDLE> m_rtv_cache {};
+
+  // TODO move state to cmd_list object
+  const d3d::RenderTargetSpec curr_target_spec {};
+
+  // Ray Tracing Resources //
+  UINT next_tlas_instance_id = 0;
+  UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
+
+  void upload_resources();
+
+  void build_raytracing_pso(const std::wstring& shader_path,
+    const d3d::RaytracingShaderData& shader_data, d3d::ComPtr<ID3D12StateObject>& pso);
+
+  struct BuildAccelStruct {
+    size_t instance_count;
+    ID3D12Resource* const* blas;
+    const UINT* instance_id;
+    const Mat4* transform;
+  };
+  void build_dxr_acceleration_structure(BuildAccelStruct&& desc,
+    ComPtr<ID3D12Resource>& scratch_buffer, ComPtr<ID3D12Resource>& tlas_buffer);
+
+  void set_const_buffer(
+    BufferHandle buffer, size_t index, size_t member, const void* value, size_t width);
+
+  // TODO move to device resource
+  D3D12_CPU_DESCRIPTOR_HANDLE get_rtv_cpu(ID3D12Resource* texture);
+  D3D12_CPU_DESCRIPTOR_HANDLE get_dsv_cpu(ID3D12Resource* texture);
+
+  // Handle createtions
+  std::shared_ptr<d3d::BufferData> new_buffer() { return std::make_shared<d3d::BufferData>(this); }
+
+  // Handle conversion
+
+  std::shared_ptr<d3d::SwapchainData> to_swapchain(SwapchainHandle h) {
+    return get_data<SwapchainHandle, d3d::SwapchainData>(h);
+  }
+
+  std::shared_ptr<d3d::BufferData> to_buffer(BufferHandle h) {
+    return get_data<BufferHandle, d3d::BufferData>(h);
+  }
+
+  template <typename T>
+  std::shared_ptr<T> to_shader(ShaderHandle h) {
+    return get_data<ShaderHandle, T>(h);
+  }
+
+  std::shared_ptr<d3d::ShaderArgumentData> to_argument(ShaderArgumentHandle h) {
+    return get_data<ShaderArgumentHandle, d3d::ShaderArgumentData>(h);
   }
 };
 

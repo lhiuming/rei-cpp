@@ -1,8 +1,6 @@
 #ifndef REI_DIRECT3D_D3D_UTILS_H
 #define REI_DIRECT3D_D3D_UTILS_H
 
-#if DIRECT3D_ENABLED
-
 #include <d3d12.h>
 #include <d3dcompiler.h>
 #include <d3dx12.h>
@@ -367,4 +365,3 @@ protected:
 
 #endif
 
-#endif

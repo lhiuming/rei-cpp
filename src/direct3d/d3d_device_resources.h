@@ -1,8 +1,6 @@
 #ifndef REI_D3D_DEVICE_RESOURCES_H
 #define REI_D3D_DEVICE_RESOURCES_H
 
-#if DIRECT3D_ENABLED
-
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -99,4 +97,3 @@ private:
 
 #endif
 
-#endif

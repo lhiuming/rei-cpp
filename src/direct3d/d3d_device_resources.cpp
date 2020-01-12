@@ -1,4 +1,3 @@
-#if DIRECT3D_ENABLED
 #include "d3d_device_resources.h"
 
 #if !NDEBUG
@@ -279,4 +278,3 @@ void DeviceResources::flush_command_queue_for_frame() {
 
 } // namespace rei
 
-#endif

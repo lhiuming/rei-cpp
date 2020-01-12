@@ -1,8 +1,6 @@
 #ifndef REI_D3D_COMMON_RESOURCES_H
 #define REI_D3D_COMMON_RESOURCES_H
 
-#if DIRECT3D_ENABLED
-
 #include <array>
 #include <memory>
 
@@ -13,15 +11,21 @@
 #include <windows.h>
 #include <wrl.h>
 
-#include "..//scene.h"
+#include "../scene.h"
 #include "../algebra.h"
 #include "../camera.h"
 #include "../color.h"
 #include "../common.h"
-#include "../renderer.h"
+#include "../shader_struct.h"
+
 #include "d3d_utils.h"
 
 namespace rei {
+
+class ShaderSignature;
+class RasterizationShaderMetaInfo;
+class ComputeShaderMetaInfo;
+class RaytracingShaderMetaInfo;
 
 namespace d3d {
 
@@ -279,56 +283,7 @@ struct RootSignatureDescMemory {
   RootSignatureDescMemory(RootSignatureDescMemory&& other) = delete;
 
   // Convert high-level shader signature to D3D12 Root Signature Desc
-  inline void init_signature(const ShaderSignature& signature, bool local) {
-    auto& param_table = signature.param_table;
-
-    range_memory.clear();
-    param_memory.clear();
-
-    for (int space = 0; space < param_table.size(); space++) {
-      auto& params = param_table[space];
-      size_t range_offset = range_memory.size();
-
-      // CBV/SRV/UAVs
-      if (params.const_buffers.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
-      if (params.shader_resources.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
-      if (params.unordered_accesses.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
-
-      // Sampler
-      // TODO support sampler
-      // TODO check that sampler is in standalone heap
-      if (params.samplers.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
-
-      UINT new_range_count = UINT(range_memory.size() - range_offset);
-      if (new_range_count > 0) {
-        param_memory.emplace_back().InitAsDescriptorTable(
-          new_range_count, &range_memory[range_offset]);
-      }
-
-      // Static Sampler
-      for (int i = 0; i < params.static_samplers.size(); i++) {
-        // auto sampler = params.static_samplers[i];
-        auto& sampler_desc = static_sampler_memory.emplace_back();
-        sampler_desc.Init(i, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT);
-        sampler_desc.RegisterSpace = space;
-      }
-    }
-
-    D3D12_ROOT_SIGNATURE_FLAGS flags
-      = local ? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE : D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    // NOTE: awaly init the desc
-    //if (param_memory.size() > 0 || static_sampler_memory.size() > 0)
-    desc.Init(param_memory.size(), param_memory.data(), static_sampler_memory.size(),
-      static_sampler_memory.data(), flags);
-  }
+  void init_signature(const ShaderSignature& signature, bool local);
 };
 
 struct RasterShaderDesc {
@@ -352,22 +307,9 @@ struct RasterShaderDesc {
       = D3D12_COMPARISON_FUNC_GREATER; // we use right-hand coordiante throughout the pipeline
   }
 
-  RasterShaderDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
+  RasterShaderDesc(RasterizationShaderMetaInfo&& meta);
 
-  void init(RasterizationShaderMetaInfo&& meta) {
-    root_signature.init_signature(meta.signature, false);
-    root_signature.desc.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-    for (auto& rt_desc : meta.render_target_descs) {
-      rt_formats.push_back(to_dxgi_format(rt_desc.format));
-    }
-    is_depth_stencil_null = meta.is_depth_stencil_disabled;
-    if (meta.is_blending_addictive) {
-      blend_state.RenderTarget[0].BlendEnable = true;
-      blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-      blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-    }
-  }
+  void init(RasterizationShaderMetaInfo&& meta);
 
   UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const {
     for (int i = 0; i < rt_formats.size(); i++) {
@@ -388,7 +330,7 @@ struct ComputeShaderDesc {
   RootSignatureDescMemory signature {};
 
   ComputeShaderDesc() {}
-  void init(ComputeShaderMetaInfo&& meta) { signature.init_signature(meta.signature, false); }
+  void init(ComputeShaderMetaInfo&& meta);
 };
 
 struct RayTraceShaderDesc {
@@ -405,18 +347,9 @@ struct RayTraceShaderDesc {
 
   RayTraceShaderDesc() {}
 
-  RayTraceShaderDesc(RaytracingShaderMetaInfo&& meta) { init(std::move(meta)); }
+  RayTraceShaderDesc(RaytracingShaderMetaInfo&& meta);
 
-  void init(RaytracingShaderMetaInfo&& meta) {
-    hitgroup_name = std::move(meta.hitgroup_name);
-    closest_hit_name = std::move(meta.closest_hit_name);
-    raygen_name = std::move(meta.raygen_name);
-    miss_name = std::move(meta.miss_name);
-    global.init_signature(meta.global_signature, false);
-    hitgroup.init_signature(meta.hitgroup_signature, true);
-    raygen.init_signature(meta.raygen_signature, true);
-    miss.init_signature(meta.miss_signature, true);
-  }
+  void init(RaytracingShaderMetaInfo&& meta);
 
 private:
   // any form of copying is not allow
@@ -481,4 +414,3 @@ struct RaytracingShaderData : ShaderData {
 
 #endif
 
-#endif

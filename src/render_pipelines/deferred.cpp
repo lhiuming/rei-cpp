@@ -4,7 +4,7 @@
 #include <unordered_map>
 
 #include "../container_utils.h"
-#include "../direct3d/d3d_renderer.h"
+#include "../renderer.h"
 
 namespace rei {
 

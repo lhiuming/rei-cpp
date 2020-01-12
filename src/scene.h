@@ -27,7 +27,8 @@ namespace rei {
 class Model {
 public:
   // Default construct
-  [[depreacated]] Model(const std::string& n) {REI_DEPRECATED} Model(const std::wstring& n)
+  Model(const std::string& n) {REI_DEPRECATED} 
+  Model(const std::wstring& n)
       : Model(n, Mat4::I(), nullptr, nullptr) {}
   Model(const std::wstring& n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
       : name(n), transform(trans), geometry(geometry), material(material) {}

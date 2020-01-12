@@ -10,21 +10,16 @@
 
 namespace rei {
 
+class Renderer;
+
 namespace rtpt {
 // Forward Declaration
 struct ViewportData;
 struct SceneData;
 } // namespace rtpt
 
-// FIXME lazy
-namespace d3d {
-class Renderer;
-}
-
 class RealtimePathTracingPipeline
-    : public SimplexPipeline<rtpt::ViewportData, rtpt::SceneData, d3d::Renderer> {
-  // FIXME lazyness
-  using Renderer = d3d::Renderer;
+    : public SimplexPipeline<rtpt::ViewportData, rtpt::SceneData, Renderer> {
 
 public:
   RealtimePathTracingPipeline(RendererPtr renderer);
