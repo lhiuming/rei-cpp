@@ -86,7 +86,7 @@ public:
     m_swapchain = get_renderer()->create_swapchain(conf.window_id, conf.width, conf.height, 2);
 
     // Init ImGUI //
-    d3d::Renderer* r = get_renderer();
+    Renderer* r = get_renderer();
     ImGui::SetCurrentContext(m_imgui_context);
 
     // Config 
@@ -144,7 +144,7 @@ public:
   void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {}
   void render(ViewportHandle viewport, SceneHandle scene) override { render(); }
 
-  ImGuiPipeline(std::weak_ptr<d3d::Renderer> renderer) : m_renderer(renderer) { }
+  ImGuiPipeline(std::weak_ptr<Renderer> renderer) : m_renderer(renderer) { }
 
   void render() {
     auto r = get_renderer();
@@ -274,7 +274,7 @@ public:
   }
 
 private:
-  std::weak_ptr<d3d::Renderer> m_renderer;
+  std::weak_ptr<Renderer> m_renderer;
   bool show_demo_window = true;
 
   size_t width;
@@ -290,7 +290,7 @@ private:
   BufferHandle m_imgui_fonts_texture;
   ShaderArgumentHandle m_fonts_arg;
 
-  d3d::Renderer* get_renderer() { return m_renderer.lock().get(); }
+  Renderer* get_renderer() { return m_renderer.lock().get(); }
 };
 
 } // namespace rei

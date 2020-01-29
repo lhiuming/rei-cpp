@@ -1,5 +1,3 @@
-#if DIRECT3D_ENABLED
-
 #include "d3d_utils.h";
 
 namespace rei {
@@ -220,4 +218,3 @@ ComPtr<ID3D12Resource> upload_to_default_buffer(ID3D12Device* device,
 
 } // namespace rei
 
-#endif

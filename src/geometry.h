@@ -7,7 +7,7 @@
 #include "algebra.h"
 #include "color.h"
 #include "common.h"
-#include "graphic_handle.h"
+#include "renderer/graphics_handle.h"
 
 namespace rei {
 

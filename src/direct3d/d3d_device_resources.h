@@ -1,8 +1,6 @@
 #ifndef REI_D3D_DEVICE_RESOURCES_H
 #define REI_D3D_DEVICE_RESOURCES_H
 
-#if DIRECT3D_ENABLED
-
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -13,9 +11,9 @@
 #include <windows.h>
 #include <wrl.h>
 
-#include "../algebra.h"
-#include "../common.h"
-#include "../scene.h"
+#include "common.h"
+//#include "algebra.h"
+//#include "scene.h"
 #include "d3d_common_resources.h"
 #include "d3d_resource_types.h"
 
@@ -101,4 +99,3 @@ private:
 
 #endif
 
-#endif

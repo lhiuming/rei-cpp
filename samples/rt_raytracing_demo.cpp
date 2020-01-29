@@ -4,7 +4,6 @@
 #include <scene.h>
 
 #include <app_utils/app.h>
-#include <direct3d/d3d_renderer.h>
 
 using namespace std;
 using namespace rei;

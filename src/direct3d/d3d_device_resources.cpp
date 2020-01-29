@@ -1,4 +1,3 @@
-#if DIRECT3D_ENABLED
 #include "d3d_device_resources.h"
 
 #if !NDEBUG
@@ -8,7 +7,6 @@
 
 #include <d3dx12.h>
 
-#include "../debug.h"
 #include "d3d_utils.h"
 
 using std::make_shared;
@@ -177,4 +175,3 @@ void DeviceResources::flush_command_queue_for_frame() {
 
 } // namespace rei
 
-#endif

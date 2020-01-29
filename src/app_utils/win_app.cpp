@@ -10,7 +10,7 @@
 #include "../debug.h"
 #include "../rmath.h"
 
-#include "../direct3d/d3d_renderer.h"
+#include "../renderer.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -28,9 +28,9 @@ WinApp::WinApp(Config config) : config(config) {
 
   // Default renderer & pipeline
   {
-    shared_ptr<d3d::Renderer> d3d_renderer;
-    d3d::Renderer::Options r_opts = {};
-    d3d_renderer = make_shared<d3d::Renderer>(hinstance, r_opts);
+    shared_ptr<Renderer> d3d_renderer;
+    Renderer::Options r_opts = {};
+    d3d_renderer = make_shared<Renderer>(hinstance, r_opts);
     m_renderer = d3d_renderer;
     switch (config.render_mode) {
       case RenderMode::UIOnly:

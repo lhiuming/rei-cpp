@@ -6,8 +6,8 @@
 
 #include <imgui.h>
 
-#include "../graphic_handle.h"
-#include "../renderer.h"
+#include "renderer/graphics_handle.h"
+#include "renderer.h"
 
 namespace rei {
 

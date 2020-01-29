@@ -5,10 +5,7 @@
 
 namespace rei {
 
-// FIXME lazyness
-namespace d3d {
 class Renderer;
-}
 
 // Forwared decl
 namespace deferred {
@@ -17,9 +14,7 @@ struct SceneData;
 } // namespace deferred
 
 class DeferredPipeline
-    : public SimplexPipeline<deferred::ViewportData, deferred::SceneData, d3d::Renderer> {
-  // FIXME lazyness
-  using Renderer = d3d::Renderer;
+    : public SimplexPipeline<deferred::ViewportData, deferred::SceneData, Renderer> {
 
 public:
   DeferredPipeline(RendererPtr renderer);

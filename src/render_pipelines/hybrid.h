@@ -8,10 +8,7 @@
 
 namespace rei {
 
-// FIXME lazyness
-namespace d3d {
 class Renderer;
-}
 
 // Forwared decl
 namespace hybrid {
@@ -23,9 +20,7 @@ struct SceneProxy;
 // Hybrid pipeline mixing deferred-rasterizing and raytracing
 //
 class HybridPipeline
-    : public SimplexPipeline<hybrid::ViewportProxy, hybrid::SceneProxy, d3d::Renderer> {
-  // FIXME lazyness
-  using Renderer = d3d::Renderer;
+    : public SimplexPipeline<hybrid::ViewportProxy, hybrid::SceneProxy, Renderer> {
   using ViewportProxy = hybrid::ViewportProxy;
   using SceneProxy = hybrid::SceneProxy;
 
@@ -78,8 +73,8 @@ private:
     }
     size_t operator()(const CombinedArgumentKey& key) const {
       size_t seed = 0;
-      combine(seed, std::hash_value(key.first));
-      combine(seed, std::hash_value(key.second));
+      combine(seed, std::hash<ViewportHandle>{}(key.first));
+      combine(seed, std::hash<SceneHandle>{}(key.second));
       return seed;
     }
   };

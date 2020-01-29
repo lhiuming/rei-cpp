@@ -1,8 +1,6 @@
 #ifndef REI_D3D_RENDERER_RESOURCE
 #define REI_D3D_RENDERER_RESOURCE
 
-#if DIRECT3D_ENABLED
-
 #include <d3d12.h>
 #include <d3dx12.h>
 #include <windows.h>
@@ -66,21 +64,9 @@ struct BufferData : BaseBufferData {
   ResourceVariant res;
   D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
 
-  ID3D12Resource* get_res() {
-    return res.match( //
-      [](const TextureBuffer& tex) { return tex.buffer.Get(); },
-      [](const BlasBuffer& blas) { return blas.res.ptr.Get(); },
-      [](const auto& b) {
-        REI_NOT_IMPLEMENT();
-        const std::type_info& i = typeid(b);
-        warning(i.name());
-        return (ID3D12Resource*)NULL;
-      });
-  }
+  ID3D12Resource* get_res();
 };
 
 } // namespace rei::d3d
-
-#endif
 
 #endif

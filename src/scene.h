@@ -5,7 +5,7 @@
 #include <set>
 
 #include "algebra.h"
-#include "graphic_handle.h"
+#include "renderer/graphics_handle.h"
 
 #include "geometry.h"
 #include "material.h"
@@ -27,7 +27,8 @@ namespace rei {
 class Model {
 public:
   // Default construct
-  [[depreacated]] Model(const std::string& n) {REI_DEPRECATED} Model(const std::wstring& n)
+  Model(const std::string& n) {REI_DEPRECATED} 
+  Model(const std::wstring& n)
       : Model(n, Mat4::I(), nullptr, nullptr) {}
   Model(const std::wstring& n, Mat4 trans, GeometryPtr geometry, MaterialPtr material)
       : name(n), transform(trans), geometry(geometry), material(material) {}

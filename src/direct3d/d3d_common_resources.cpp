@@ -1,7 +1,8 @@
-#if DIRECT3D_ENABLED
 #include "d3d_common_resources.h"
 
 #include <typeinfo>
+
+#include "../renderer.h"
 
 namespace rei {
 
@@ -18,26 +19,19 @@ RenderTargetSpec::RenderTargetSpec() {
   ds_clear.Stencil = 0;
 }
 
-const D3D12_INPUT_ELEMENT_DESC c_input_layout[3]
-  = {{
-       "POSITION", 0,                  // a Name and an Index to map elements in the shader
-       DXGI_FORMAT_R32G32B32A32_FLOAT, // enum member of DXGI_FORMAT; define the format of the
-                                       // element
-       0,                              // input slot; kind of a flexible and optional configuration
-       0,                              // byte offset
-       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, // ADVANCED, discussed later; about instancing
-       0                                           // ADVANCED; also for instancing
-     },
-    {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
-      sizeof(VertexElement::pos), // skip the first 3 coordinate data
-      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-    {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
-      sizeof(VertexElement::pos)
-        + sizeof(VertexElement::color), // skip the fisrt 3 coordinnate and 4 colors ata
-      D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}};
+ID3D12Resource* BufferData::get_res() {
+  return res.match( //
+    [](const TextureBuffer& tex) { return tex.buffer.Get(); },
+    [](const BlasBuffer& blas) { return blas.res.ptr.Get(); },
+    [](const auto& b) {
+      REI_NOT_IMPLEMENT();
+      const std::type_info& i = typeid(b);
+      warning(i.name());
+      return (ID3D12Resource*)NULL;
+    });
+}
+
 
 } // namespace d3d
 
 } // namespace rei
-
-#endif

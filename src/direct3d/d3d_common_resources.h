@@ -1,8 +1,6 @@
 #ifndef REI_D3D_COMMON_RESOURCES_H
 #define REI_D3D_COMMON_RESOURCES_H
 
-#if DIRECT3D_ENABLED
-
 #include <array>
 #include <memory>
 
@@ -13,15 +11,24 @@
 #include <windows.h>
 #include <wrl.h>
 
-#include "..//scene.h"
-#include "../algebra.h"
-#include "../camera.h"
-#include "../color.h"
-#include "../common.h"
-#include "../renderer.h"
+#include "common.h"
+//#include "../scene.h"
+//#include "../algebra.h"
+//#include "../camera.h"
+//#include "../color.h"
+//#include "../shader_struct.h"
+
 #include "d3d_utils.h"
 
+#include "renderer/graphics_handle.h"
+#include "renderer/graphics_desc.h"
+
 namespace rei {
+
+class ShaderSignature;
+class RasterizationShaderMetaInfo;
+class ComputeShaderMetaInfo;
+class RaytracingShaderMetaInfo;
 
 namespace d3d {
 
@@ -32,8 +39,6 @@ using std::move;
 constexpr DXGI_FORMAT c_index_format = DXGI_FORMAT_R16_UINT;
 constexpr DXGI_FORMAT c_accel_struct_vertex_pos_format = DXGI_FORMAT_R32G32B32_FLOAT;
 
-// Reminder: using right-hand coordinate throughout the pipeline
-constexpr bool is_right_handed = true;
 
 inline static constexpr UINT64 get_bytesize(DXGI_FORMAT format) {
   switch (format) {
@@ -174,9 +179,6 @@ struct VertexElement {
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 };
 
-constexpr UINT c_input_layout_num = 3;
-extern const D3D12_INPUT_ELEMENT_DESC c_input_layout[3];
-
 struct RenderTargetSpec {
   DXGI_SAMPLE_DESC sample_desc; // multi-sampling parameters
   ResourceFormat rt_format;
@@ -226,204 +228,6 @@ struct MeshUploadResult {
 
   ComPtr<ID3D12Resource> blas_buffer;
   ComPtr<ID3D12Resource> scratch_buffer;
-};
-
-struct RootSignatureDescMemory {
-  CD3DX12_ROOT_SIGNATURE_DESC desc = CD3DX12_ROOT_SIGNATURE_DESC(D3D12_DEFAULT);
-  // probably no more than 4 space
-  using ParamContainer = FixedVec<CD3DX12_ROOT_PARAMETER, 4>;
-  ParamContainer param_memory;
-  // probably no more than 4 space * 4 range-types
-  using RangeContainer = FixedVec<CD3DX12_DESCRIPTOR_RANGE, 16>;
-  RangeContainer range_memory;
-  // probably no more than 8 static sampler
-  using StaticSamplerContainer = FixedVec<CD3DX12_STATIC_SAMPLER_DESC, 8>;
-  StaticSamplerContainer static_sampler_memory;
-
-  RootSignatureDescMemory(const RootSignatureDescMemory& other) = delete;
-  RootSignatureDescMemory(RootSignatureDescMemory&& other) = delete;
-
-  // Convert high-level shader signature to D3D12 Root Signature Desc
-  inline void init_signature(const ShaderSignature& signature, bool local) {
-    auto& param_table = signature.param_table;
-
-    range_memory.clear();
-    param_memory.clear();
-
-    for (int space = 0; space < param_table.size(); space++) {
-      auto& params = param_table[space];
-      size_t range_offset = range_memory.size();
-
-      // CBV/SRV/UAVs
-      if (params.const_buffers.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_CBV, params.const_buffers.size(), 0, space);
-      if (params.shader_resources.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SRV, params.shader_resources.size(), 0, space);
-      if (params.unordered_accesses.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_UAV, params.unordered_accesses.size(), 0, space);
-
-      // Sampler
-      // TODO support sampler
-      // TODO check that sampler is in standalone heap
-      if (params.samplers.size())
-        range_memory.emplace_back(
-          D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, params.samplers.size(), 0, space);
-
-      UINT new_range_count = UINT(range_memory.size() - range_offset);
-      if (new_range_count > 0) {
-        param_memory.emplace_back().InitAsDescriptorTable(
-          new_range_count, &range_memory[range_offset]);
-      }
-
-      // Static Sampler
-      for (int i = 0; i < params.static_samplers.size(); i++) {
-        // auto sampler = params.static_samplers[i];
-        auto& sampler_desc = static_sampler_memory.emplace_back();
-        sampler_desc.Init(i, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT);
-        sampler_desc.RegisterSpace = space;
-      }
-    }
-
-    D3D12_ROOT_SIGNATURE_FLAGS flags
-      = local ? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE : D3D12_ROOT_SIGNATURE_FLAG_NONE;
-    // NOTE: awaly init the desc
-    //if (param_memory.size() > 0 || static_sampler_memory.size() > 0)
-    desc.Init(param_memory.size(), param_memory.data(), static_sampler_memory.size(),
-      static_sampler_memory.data(), flags);
-  }
-};
-
-struct VertexInputLayoutMemory {
-  using MetaInput = decltype(RasterizationShaderMetaInfo().vertex_input_desc);
-  FixedVec<std::string, MetaInput::max_size> semantic_names;
-  FixedVec<D3D12_INPUT_ELEMENT_DESC, MetaInput::max_size> descs;
-  
-  void init(MetaInput&& metas) { 
-    semantic_names.clear();
-    descs.clear();
-    for (auto&& meta: metas) {
-      semantic_names.emplace_back(move(meta.semantic));
-      D3D12_INPUT_ELEMENT_DESC d3d_desc {};
-      d3d_desc.SemanticName = semantic_names.back().data();
-      d3d_desc.SemanticIndex = meta.sementic_index;
-      d3d_desc.Format = to_dxgi_format(meta.format);
-      // todo check alignment
-      d3d_desc.AlignedByteOffset = meta.byte_offset;
-      descs.emplace_back(move(d3d_desc));
-    }
-  }
-
-  D3D12_INPUT_LAYOUT_DESC get_layout_desc() const {
-    if (descs.size() == 0) { return {c_input_layout, c_input_layout_num}; }
-    return {descs.data(), UINT(descs.size())};
-  }
-};
-
-struct RasterShaderDesc {
-  CD3DX12_RASTERIZER_DESC raster_state = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-  CD3DX12_DEPTH_STENCIL_DESC depth_stencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-  bool is_depth_stencil_null = false;
-  CD3DX12_BLEND_DESC blend_state = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-
-  CD3DX12_STATIC_SAMPLER_DESC static_sampler_desc {};
-  RootSignatureDescMemory root_signature {};
-
-  VertexInputLayoutMemory input_layout {};
-
-  FixedVec<DXGI_FORMAT, 8> rt_formats;
-
-  RasterShaderDesc() {
-    REI_ASSERT(is_right_handed);
-    // we use right-hand coordiante throughout the pipeline
-    depth_stencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-  }
-
-  RasterShaderDesc(RasterizationShaderMetaInfo&& meta) { this->init(std::move(meta)); }
-
-  void init(RasterizationShaderMetaInfo&& meta) {
-    input_layout.init(move(meta.vertex_input_desc));
-    root_signature.init_signature(meta.signature, false);
-    root_signature.desc.Flags |= D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-    for (auto& rt_desc : meta.render_target_descs) {
-      rt_formats.push_back(to_dxgi_format(rt_desc.format));
-    }
-    is_depth_stencil_null = meta.is_depth_stencil_disabled;
-    if (meta.merge.is_alpha_blending) {
-      blend_state.RenderTarget[0].BlendEnable = true;
-      blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-      blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-      blend_state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-      blend_state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-      blend_state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    } else if (meta.merge.is_blending_addictive) {
-      blend_state.RenderTarget[0].BlendEnable = true;
-      blend_state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-      blend_state.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-      blend_state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-      blend_state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-      blend_state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-      blend_state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    }
-    raster_state.FrontCounterClockwise = !meta.front_clockwise;
-  }
-
-  UINT get_rtv_formats(DXGI_FORMAT (&dest)[8]) const {
-    for (int i = 0; i < rt_formats.size(); i++) {
-      dest[i] = rt_formats[i];
-    }
-    for (int i = rt_formats.size(); i < 8; i++) {
-      dest[i] = DXGI_FORMAT_UNKNOWN;
-    }
-    return UINT(rt_formats.size());
-  }
-
-  DXGI_FORMAT get_dsv_format() const {
-    return is_depth_stencil_null ? DXGI_FORMAT_UNKNOWN : DXGI_FORMAT_D24_UNORM_S8_UINT;
-  }
-};
-
-struct ComputeShaderDesc {
-  RootSignatureDescMemory signature {};
-
-  ComputeShaderDesc() {}
-  void init(ComputeShaderMetaInfo&& meta) { signature.init_signature(meta.signature, false); }
-};
-
-struct RayTraceShaderDesc {
-  RootSignatureDescMemory global {};
-  std::wstring hitgroup_name;
-  std::wstring closest_hit_name;
-  // std::wstring any_hit_name;
-  // std::wstring intersection_name;
-  RootSignatureDescMemory hitgroup {};
-  std::wstring raygen_name;
-  RootSignatureDescMemory raygen {};
-  std::wstring miss_name;
-  RootSignatureDescMemory miss {};
-
-  RayTraceShaderDesc() {}
-
-  RayTraceShaderDesc(RaytracingShaderMetaInfo&& meta) { init(std::move(meta)); }
-
-  void init(RaytracingShaderMetaInfo&& meta) {
-    hitgroup_name = std::move(meta.hitgroup_name);
-    closest_hit_name = std::move(meta.closest_hit_name);
-    raygen_name = std::move(meta.raygen_name);
-    miss_name = std::move(meta.miss_name);
-    global.init_signature(meta.global_signature, false);
-    hitgroup.init_signature(meta.hitgroup_signature, true);
-    raygen.init_signature(meta.raygen_signature, true);
-    miss.init_signature(meta.miss_signature, true);
-  }
-
-private:
-  // any form of copying is not allow
-  RayTraceShaderDesc(const RayTraceShaderDesc&) = delete;
-  RayTraceShaderDesc(RayTraceShaderDesc&&) = delete;
 };
 
 struct ShaderConstBuffers {
@@ -483,4 +287,3 @@ struct RaytracingShaderData : ShaderData {
 
 #endif
 
-#endif

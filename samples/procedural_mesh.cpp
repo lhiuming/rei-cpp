@@ -1,10 +1,10 @@
 #include <memory>
 
-#include <app_utils/app.h>
 #include <camera.h>
 #include <console.h>
 #include <geometry.h>
 #include <scene.h>
+#include <app_utils/app.h>
 
 using namespace std;
 using namespace rei;

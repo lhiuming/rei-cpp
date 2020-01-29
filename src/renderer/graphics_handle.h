@@ -1,7 +1,7 @@
 #ifndef REI_GRAPHIC_HANDLE_H
 #define REI_GRAPHIC_HANDLE_H
 
-#include "algebra.h"
+#include "graphics_const.h"
 
 /*
  * Some pointer/ID type for communicating between renderer and scenen objects.
@@ -11,39 +11,6 @@ namespace rei {
 
 class Renderer;
 
-enum class ResourceFormat {
-  Undefined,
-  R32G32B32A32Float,
-  R32G32Float,
-  R8G8B8A8Unorm,
-  D24Unorm_S8Uint,
-  AcclerationStructure,
-  Count
-};
-
-enum class ResourceDimension {
-  Undefined,
-  Raw,
-  StructuredBuffer,
-  Texture1D,
-  Texture1DArray,
-  Texture2D,
-  Texture2DArray,
-  Texture3D,
-  AccelerationStructure,
-};
-
-enum class ResourceState {
-  Undefined,
-  Present,
-  RenderTarget,
-  DeptpWrite,
-  CopySource,
-  CopyDestination,
-  PixelShaderResource,
-  ComputeShaderResource,
-  UnorderedAccess,
-};
 
 struct GraphicData {
   GraphicData(Renderer* owner) : owner(owner) {}

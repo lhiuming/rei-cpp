@@ -5,10 +5,6 @@ project (REI)
 #-----------------------
 # Project configurations
 
-# todo add system detection and build config
-option(BUILD_OPENGL "Build REI with OpenGL support" OFF)
-option(BUILD_DIRECT3D "Build REI with Direct3D support" ON)
-
 option(BUILD_SAMPLES "Build REI with samples projects" ON)
 
 set(core_data_name "CoreData")
@@ -86,6 +82,7 @@ source_group(TREE "${PROJECT_SOURCE_DIR}/src" FILES ${core_header})
 # NOTE: only support static linking
 set(core_library "rei")
 add_library(${core_library} STATIC ${core_source} ${core_header})
+target_include_directories(${core_library} PRIVATE ${PROJECT_SOURCE_DIR}/src)
 # TODO: set up dedicated public include dir for core_library
 target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src)
 target_include_directories(${core_library} INTERFACE ${PROJECT_SOURCE_DIR}/src/app_utils)
@@ -97,12 +94,6 @@ target_compile_features(${core_library} PUBLIC cxx_std_17)
 
 
 # Link Graphic api libraries
-if (BUILD_OPENGL)
-	target_compile_definitions(${core_library} PRIVATE OPENGL_ENABLED)
-endif()
-if (BUILD_DIRECT3D)
-	target_compile_definitions(${core_library} PRIVATE DIRECT3D_ENABLED)
-endif()
 # TODO set up pubblic include header and make this PRIVATE
 target_link_libraries(${core_library} PUBLIC ${external_libs})
 add_dependencies(${core_library} ${external_deps})
@@ -117,12 +108,7 @@ set(core_data_path "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${core_data_name}")
 set(core_data_source_directories "")
 set(core_data_source_files "")
 # collect data directories
-if(BUILD_OPENGL)
-	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/opengl/shader")
-endif()
-if(BUILD_DIRECT3D)
-	list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/direct3d/shader")
-endif()
+list(APPEND core_data_source_directories "${PROJECT_SOURCE_DIR}/src/direct3d/shader")
 # collect each data file
 foreach(core_data_src_dir ${core_data_source_directories})
 	file(GLOB_RECURSE files "${core_data_src_dir}/*")

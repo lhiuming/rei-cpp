@@ -1,5 +1,6 @@
 #include "common.hlsl"
 #include "deferred_common.hlsl"
+#include "procedural_env.hlsl"
 
 struct Light {
   float4 pos_dir;
