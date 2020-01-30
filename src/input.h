@@ -123,7 +123,9 @@ public:
   }
 
   Vec3 cursor_left_top() const { return m_cursor_left_top; }
+  Vec3 cursor_top_left() const { return m_cursor_left_top; }
   Vec3 cursor_right_bottom() const { return m_cursor_right_bottom; }
+  Vec3 cursor_bottom_right() const { return m_cursor_right_bottom; }
 
   template <typename T>
   bool has_any() {
@@ -132,13 +134,13 @@ public:
 
   template <typename T>
   InputBucketProxy<T> get() const {
-    size_t index = Input::get_index<T>();
+    constexpr size_t index = Input::get_index<T>();
     return InputBucketProxy<T>(m_inputs[index]);
   }
 
   template <typename T>
   bool empty() const {
-    size_t index = Input::get_index<T>();
+    constexpr size_t index = Input::get_index<T>();
     return m_inputs[index].empty();
   }
 

@@ -33,7 +33,7 @@ class Model;
 class Scene;
 
 struct SystemWindowID {
-  enum Platform {
+  enum class Platform {
     Win,
     Offscreen,
   } platform;

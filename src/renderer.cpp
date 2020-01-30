@@ -71,7 +71,7 @@ Renderer::Renderer(HINSTANCE hinstance, Options opt)
 
 SwapchainHandle Renderer::create_swapchain(
   SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count) {
-  REI_ASSERT(window_id.platform == SystemWindowID::Win);
+  REI_ASSERT(window_id.platform == SystemWindowID::Platform::Win);
   HWND hwnd = window_id.value.hwnd;
 
   auto device = device_resources->device();

@@ -87,11 +87,11 @@ void RayTracingApp::on_start() {
   const int balls_y = 2;
   for (int i = 0; i < balls_x; i++) {
     for (int j = 0; j < balls_y; j++) {
-      Vec3 pos = {(i - balls_x / 2) * 0.6 + j * 0.3, 0.25, 2.4 + j * 0.6};
+      Vec3 pos = {(i - balls_x / 2.0) * 0.6 + j * 0.3, 0.25, 2.4 + j * 0.6};
       auto ball_mat = make_shared<Material>(L"Varying Ball");
       ball_mat->set(L"albedo", Colors::fresnel0::copper);
       ball_mat->set(L"smoothness", i / double(balls_x));
-      ball_mat->set(L"metalness", j / (std::max)(double(balls_y - 1), 1.0));
+      ball_mat->set(L"metalness", j / (std::max)(double(balls_y - 1.0), 1.0));
       scene().add_model(Mat4::translate(pos), small_ball, ball_mat, L"One of Small Balls");
     }
   }
@@ -113,10 +113,12 @@ void RayTracingApp::on_update() {
 
 int main() {
   App::Config conf = {};
-  conf.title = L"Real-Time Ray-Tracing Demo (REI Sample)";
+  //conf.title = L"Real-Time Ray-Tracing Demo (REI Sample)";
+  conf.title = L"IMGUI testing";
   conf.width = 1920;
   conf.height = 1080;
   conf.bg_color = Colors::ayanami_blue;
+  // debugging imGUI
   conf.render_mode = App::RenderMode::UIOnly;
   auto app = RayTracingApp(conf);
   app.run();

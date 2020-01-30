@@ -1,16 +1,13 @@
-#if WIN32
+#include "app.h"
 
-#include "win_app.h"
+#include <imgui.h>
 
 #include <iomanip>
 #include <sstream>
 
-#include <imgui.h>
-
 #include "../debug.h"
-#include "../rmath.h"
-
 #include "../renderer.h"
+#include "../rmath.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -52,6 +49,13 @@ WinApp::WinApp(Config config) : config(config) {
   if (config.enable_dev_gui) {
     IMGUI_CHECKVERSION();
     m_imgui_context = ImGui::CreateContext();
+    // setup imgui
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendPlatformName = "imgui_impl_dx12";
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    ImGui::StyleColorsDark();
   }
 
   // Default viewer
@@ -103,6 +107,16 @@ void WinApp::on_start() {
   }
 }
 
+void WinApp::begin_tick() {
+  ImGui::SetCurrentContext(m_imgui_context);
+  ImGuiIO& io = ImGui::GetIO();
+  io.DisplaySize = {float(m_viewer->width()), float(m_viewer->height())};
+}
+
+void WinApp::end_tick() {
+  ImGui::SetCurrentContext(nullptr);
+}
+
 void WinApp::update() {
   // callback
   on_update();
@@ -112,36 +126,43 @@ void WinApp::update() {
 }
 
 void WinApp::on_update() {
+  update_ui();
   update_camera_control();
   update_title();
+}
+
+void WinApp::update_ui() {
+  // Update dev UI
+  if (m_imgui_context) {
+    ImGuiIO& io = ImGui::GetIO();
+    if (!m_input_bus->empty<CursorMove>()) {
+      Vec3 cursor_pos;
+      for (const auto& move : m_input_bus->get<CursorMove>()) {
+        cursor_pos = move.stop;
+      }
+      ImGui::SetCurrentContext(m_imgui_context);
+      // NOTE: ImGUI use top-left base
+      float pos_x = m_input_bus->cursor_left_top().x + cursor_pos.x;
+      float pos_y = m_input_bus->cursor_right_bottom().y - cursor_pos.y;
+      // TODO remove this after viewport resizing is implemented
+      float vp_scale_x = 1920.0f / m_viewer->width();
+      float vp_scale_y = 1080.0f / m_viewer->height();
+      io.MousePos.x = pos_x * vp_scale_x;
+      io.MousePos.y = pos_y * vp_scale_y;
+      io.MouseClickedPos[0] = io.MousePos;
+    }
+    io.MouseDown[0] = !m_input_bus->empty<CursorDown>();
+    io.MouseClicked[0] = !m_input_bus->empty<CursorUp>();
+  }
 }
 
 void WinApp::update_camera_control() {
   if (config.default_camera_control_enabled) {
     const Vec3 up {0, 1, 0};
-
-    // UI interaction
-    if (m_imgui_context) {
-      ImGuiIO& io = ImGui::GetIO();
-      if (!m_input_bus->empty<CursorMove>()) {
-        Vec3 cursor_pos;
-        for (const auto& move : m_input_bus->get<CursorMove>()) {
-          cursor_pos = move.stop;
-        }
-        ImGui::SetCurrentContext(m_imgui_context);
-        // NOTE: ImGUI use top-left base
-        io.MousePos.x = m_input_bus->cursor_left_top().x + cursor_pos.x;
-        io.MousePos.y = m_input_bus->cursor_right_bottom().y - cursor_pos.y;
-        io.MouseClickedPos[0] = io.MousePos;
-      }
-      io.MouseDown[0] = !m_input_bus->empty<CursorDown>();
-      io.MouseClicked[0] = !m_input_bus->empty<CursorUp>();
-    }
-
     // Rotate around target, and translate in the view plane
     Vec3 rotate;
     Vec3 translate;
-    for (auto& mov: m_input_bus->get<CursorDrag>()) {
+    for (auto& mov : m_input_bus->get<CursorDrag>()) {
       if (mov.alter == CursorAlterType::Left || mov.alter == CursorAlterType::None) {
         rotate += (mov.stop - mov.start);
       } else {
@@ -165,7 +186,7 @@ void WinApp::update_camera_control() {
 
     // Zoom in-or-out
     double zoom_in = 0;
-    for (auto& zoom: m_input_bus->get<Zoom>()) {
+    for (auto& zoom : m_input_bus->get<Zoom>()) {
       zoom_in += zoom.delta;
     }
     if (std::abs(zoom_in) != 0) {
@@ -230,11 +251,11 @@ void WinApp::run() {
     }
 
     // simple one tick
+    begin_tick();
     update();
     render();
+    end_tick();
   } // end while
 }
 
 } // namespace rei
-
-#endif

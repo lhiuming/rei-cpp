@@ -87,19 +87,7 @@ public:
 
     // Init ImGUI //
     Renderer* r = get_renderer();
-    ImGui::SetCurrentContext(m_imgui_context);
-
-    // Config 
     ImGuiIO& io = ImGui::GetIO();
-    io.BackendPlatformName = "imgui_impl_dx12";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
-    io.DisplaySize = {float(width), float(height)};
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    // ImGui::StyleColorsClassic();
 
     // Create ui shader
     m_imgui_shader
@@ -132,7 +120,6 @@ public:
       val.shader_resources = {m_imgui_fonts_texture};
       m_fonts_arg = r->create_shader_argument(val);
     }
-
 
     return 0; 
   }
