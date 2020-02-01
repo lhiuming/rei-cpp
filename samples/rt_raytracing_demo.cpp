@@ -87,7 +87,7 @@ void RayTracingApp::on_start() {
   const int balls_y = 2;
   for (int i = 0; i < balls_x; i++) {
     for (int j = 0; j < balls_y; j++) {
-      Vec3 pos = {(i - balls_x / 2.0) * 0.6 + j * 0.3, 0.25, 2.4 + j * 0.6};
+      Vec3 pos = {(i - balls_x / 2) * 0.6f + j * 0.3f, 0.25f, 2.4f + j * 0.6f};
       auto ball_mat = make_shared<Material>(L"Varying Ball");
       ball_mat->set(L"albedo", Colors::fresnel0::copper);
       ball_mat->set(L"smoothness", i / double(balls_x));

@@ -106,7 +106,7 @@ void RealtimePathTracingPipeline::transform_viewport(ViewportHandle handle, cons
   viewport->view_matrix = camera.world_to_camera();
   viewport->view_proj_matrix
     = r->is_depth_range_01() ? camera.world_to_device_halfz() : camera.world_to_device();
-  viewport->camera_pos = camera.position();
+  viewport->camera_pos = {camera.position(), 1};
   viewport->camera_matrix_dirty = true;
 }
 

@@ -97,8 +97,8 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
    * ref: https://en.wikipedia.org/wiki/Icosahedron
    */
 
-  static const double sqrt_5 = std::sqrt(5);
-  static const double g = (sqrt_5 + 1) / 2; // golden ratio
+  static const real_t sqrt_5 = std::sqrt(5);
+  static const real_t g = (sqrt_5 + 1) / 2; // golden ratio
 
   constexpr int regular_triangle_num = 20;
   constexpr int regular_vertex_num = 12;

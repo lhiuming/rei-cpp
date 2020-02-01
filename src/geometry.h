@@ -38,14 +38,14 @@ class Mesh : public Geometry {
 public:
   // Simple Vertex class
   struct Vertex {
-    Vec4 coord;  // Vertex position in right-hand world space
+    Vec3 coord;  // Vertex position in right-hand world space
     Vec3 normal; // Vertex normal
     Color color; // Vertex color
 
     Vertex() {}
-    Vertex(const Vec3& pos3) : coord(pos3, 1.0), normal(pos3.normalized()), color(Colors::white) {}
+    Vertex(const Vec3& pos3) : coord(pos3), normal(pos3.normalized()), color(Colors::white) {}
     Vertex(const Vec3& pos3, const Vec3& nor, const Color& c = Colors::white)
-        : coord(pos3, 1.0), normal(nor), color(c) {}
+        : coord(pos3), normal(nor), color(c) {}
   };
 
   // Triangle template class, details depend on implementation of mesh

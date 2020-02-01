@@ -16,49 +16,123 @@
 
 namespace rei {
 
+// Numerics type used in REI
+typedef float real_t;
+
 // Typed constants for in-source documentation
 
 // Indicating the handness of intented coordinate space. Default should be Right.
-enum Handness : unsigned char { Right, Left };
+enum class Handness : unsigned char { Right, Left };
 // Indicating the usage of transform matrix.
 // For example, matrix targeting column-vector should be used in the form `M*v`.
 // Column vector as default, to match whth column-major storage.
-enum VectorTarget : unsigned char { Column, Row };
+enum class VectorTarget : unsigned char { Column, Row };
+
+// Vec2 //////////////////////////////////////////////////////////////////////
+// A general 2D vector class
+////
+
+struct Vec2;
+inline Vec2 operator*(real_t c, const Vec2& v);
+inline Vec2 operator*(const Vec2& v, const Vec2& c);
+inline real_t dot(const Vec2& a, const Vec2& b);
+
+struct Vec2 {
+  real_t x;
+  real_t y;
+
+  constexpr Vec2() : x(0), y(0) {};
+  constexpr Vec2(real_t x, real_t y) : x(x), y(y) {};
+
+  real_t& operator[](int i) { return (&x)[i]; }
+  const real_t& operator[](int i) const { return (&x)[i]; }
+
+  // Scalar multiplications
+  Vec2& operator*=(real_t c) {
+    x *= c;
+    y *= c;
+    return *this;
+  }
+  Vec2 operator*(real_t c) const { return Vec2(x * c, y * c); }
+  Vec2 operator-() const { return Vec2(-x, -y); }
+
+  // Vector arithmatics
+  Vec2 operator+(const Vec2& rhs) const { // addition
+    return Vec2(x + rhs.x, y + rhs.y);
+  }
+  Vec2& operator+=(const Vec2& rhs) {
+    x += rhs.x;
+    y += rhs.y;
+    return *this;
+  }
+  Vec2 operator-(const Vec2& rhs) const { // subtraction
+    return Vec2(x - rhs.x, y - rhs.y);
+  }
+  Vec2& operator-=(const Vec2& rhs) {
+    x -= rhs.x;
+    y -= rhs.y;
+    return *this;
+  }
+
+  // Nroms
+  real_t norm2() const { return x * x + y * y; }
+  real_t norm() const { return std::sqrt(norm2()); }
+
+  // Normalization
+  static inline void normalize(Vec2& v) { v *= (real_t(1) / v.norm()); }
+  Vec2 normalized() const { return (*this) * (real_t(1) / this->norm()); }
+
+  // Value check
+  bool is_zero() const { return (x == real_t(0)) && (y == real_t(0)); }
+  bool operator==(const Vec2& rhs) const { return (x == rhs.x) && (y == rhs.y); }
+};
+
+inline Vec2 operator*(real_t c, const Vec2& v) {
+  return Vec2(c * v.x, c * v.y);
+}
+inline Vec2 operator*(const Vec2& a, const Vec2& b) {
+  return Vec2(a.x * b.x, a.y * b.y);
+}
+inline real_t dot(const Vec2& a, const Vec2& b) {
+  return a.x * b.x + a.y * b.y;
+}
+
+// Print 2D vector
+std::wostream& operator<<(std::wostream& os, const Vec2& v);
 
 // Vec3 //////////////////////////////////////////////////////////////////////
 // A general 3D vector class
 ////
 
 struct Vec3;
-inline Vec3 operator*(double c, const Vec3& x);
+inline Vec3 operator*(real_t c, const Vec3& x);
 inline Vec3 operator*(const Vec3& a, const Vec3& b);
-inline double dot(const Vec3& a, const Vec3& b);
+inline real_t dot(const Vec3& a, const Vec3& b);
 inline Vec3 cross(const Vec3& a, const Vec3& b);
 
 struct Vec3 {
-  double x;
-  double y;
-  double z;
+  real_t x;
+  real_t y;
+  real_t z;
 
   // Default constructor
-  constexpr Vec3() : x(0.0), y(0.0), z(0.0) {};
+  constexpr Vec3() : x(0), y(0), z(0) {};
 
   // Initialize components
-  constexpr Vec3(double x, double y, double z) : x(x), y(y), z(z) {};
+  constexpr Vec3(real_t x, real_t y, real_t z) : x(x), y(y), z(z) {};
 
   // Access elemebt by index (from 0)
-  // TODO: but is this portable ??? compliers may have differnt order
-  double& operator[](int i) { return (&x)[i]; }
-  const double& operator[](int i) const { return (&x)[i]; }
+  real_t& operator[](int i) { return (&x)[i]; }
+  const real_t& operator[](int i) const { return (&x)[i]; }
 
   // Scalar multiplications
-  Vec3& operator*=(double c) {
+  Vec3& operator*=(real_t c) {
     x *= c;
     y *= c;
     z *= c;
     return *this;
   }
-  Vec3 operator*(double c) const { return Vec3(x * c, y * c, z * c); }
+  Vec3 operator*(real_t c) const { return Vec3(x * c, y * c, z * c); }
   Vec3 operator-() const { return Vec3(-x, -y, -z); }
 
   // Vector arithmatics
@@ -82,32 +156,32 @@ struct Vec3 {
   }
 
   // Nroms
-  double norm2() const { return x * x + y * y + z * z; }
-  double norm() const { return std::sqrt(norm2()); }
+  real_t norm2() const { return x * x + y * y + z * z; }
+  real_t norm() const { return std::sqrt(norm2()); }
 
   // Normalization
-  static inline void normalize(Vec3& v) { v *= (1.0 / v.norm()); }
-  Vec3 normalized() const { return (*this) * (1.0 / this->norm()); }
+  static inline void normalize(Vec3& v) { v *= (real_t(1) / v.norm()); }
+  Vec3 normalized() const { return (*this) * (real_t(1) / this->norm()); }
 
   // transforms
-  static inline void rotate(Vec3& v, const Vec3& axis, double radian) {
-    double c = std::cos(radian), c_cp = 1 - c, s = std::sin(radian);
+  static inline void rotate(Vec3& v, const Vec3& axis, real_t radian) {
+    real_t c = std::cos(radian), c_cp = real_t(1) - c, s = std::sin(radian);
     Vec3 u = dot(v, axis) * axis, r = v - u;
     v = u + s * cross(axis, r) + c * r;
   }
-  Vec3 rotated(const Vec3& axis, double radian) const {
+  Vec3 rotated(const Vec3& axis, real_t radian) const {
     Vec3 ret = *this;
     rotate(ret, axis, radian);
     return ret;
   }
 
   // Value check
-  bool zero() const { return (x == 0) && (y == 0) && (z == 0); }
+  bool is_zero() const { return (x == real_t(0)) && (y == real_t(0)) && (z == real_t(0)); }
   bool operator==(const Vec3& rhs) const { return (x == rhs.x) && (y == rhs.y) && (z == rhs.z); }
 };
 
 // Scalar multiplications from left
-inline Vec3 operator*(double c, const Vec3& x) {
+inline Vec3 operator*(real_t c, const Vec3& x) {
   return x * c;
 }
 
@@ -116,7 +190,7 @@ inline Vec3 operator*(const Vec3& a, const Vec3& b) {
   return {a.x * b.x, a.y * b.y, a.z * b.z};
 }
 
-inline double dot(const Vec3& a, const Vec3& b) {
+inline real_t dot(const Vec3& a, const Vec3& b) {
   return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
 
@@ -148,9 +222,8 @@ struct Mat3 {
   Mat3(Vec3&& c1, Vec3&& c2, Vec3&& c3) : columns {c1, c2, c3} {}
 
   // Initialize with row data; useful for hard-coding constant matrix
-  Mat3(const double rows[9]); // TODO
-  Mat3(double a00, double a01, double a02, double a10, double a11, double a12, double a20,
-    double a21, double a22)
+  Mat3(const real_t rows[9]); // TODO
+  Mat3(real_t a00, real_t a01, real_t a02, real_t a10, real_t a11, real_t a12, real_t a20, real_t a21, real_t a22)
       : columns {{a00, a10, a20}, {a01, a11, a21}, {a02, a12, a22}} {}
 
   // Construct a diagonal matrix : A(i, i) = diag(i), otherwize zero
@@ -161,17 +234,17 @@ struct Mat3 {
   const Vec3& operator[](int i) const { return columns[i]; }
 
   // Access by element index (row, col), from 0
-  double& operator()(int i, int j) { return columns[j][i]; }
-  const double& operator()(int i, int j) const { return columns[j][i]; }
+  real_t& operator()(int i, int j) { return columns[j][i]; }
+  const real_t& operator()(int i, int j) const { return columns[j][i]; }
 
   // Scalar multiplication
-  Mat3& operator*=(double c) {
+  Mat3& operator*=(real_t c) {
     columns[0] *= c;
     columns[1] *= c;
     columns[2] *= c;
     return *this;
   }
-  Mat3 operator*(double c) const {
+  Mat3 operator*(real_t c) const {
     Mat3 ret {*this};
     return ret *= c;
   }
@@ -181,7 +254,7 @@ struct Mat3 {
   Mat3 T() const;                 // TODO
 
   // Determinant
-  double det() const;
+  real_t det() const;
 
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat3& A); // TODO
@@ -192,7 +265,7 @@ struct Mat3 {
 std::wostream& operator<<(std::wostream& os, const Mat3& m); // TODO
 
 // Scalar multiplication from left
-inline Mat3 operator*(double c, const Mat3& A) {
+inline Mat3 operator*(real_t c, const Mat3& A) {
   return A * c;
 }
 
@@ -209,38 +282,31 @@ inline Vec3 operator*(const Vec3& x, const Mat3& A) {
 ////
 
 struct Vec4 {
-  double x;
-  double y;
-  double z;
-  double h;
+  real_t x;
+  real_t y;
+  real_t z;
+  real_t h;
 
   // Default constructor
-  constexpr Vec4() : x(0.0), y(0.0), z(0.0), h(0.0) {};
+  constexpr Vec4() : x(0), y(0), z(0), h(0) {};
 
   // Initialize with components
-  constexpr Vec4(double x, double y, double z, double h) : x(x), y(y), z(z), h(h) {};
-
-  // Convert from Vec3
-  constexpr Vec4(const Vec3& v) : x(v.x), y(v.y), z(v.z), h(0.0) {};
-  constexpr Vec4(const Vec3& v, double h) : x(v.x), y(v.y), z(v.z), h(h) {};
-
-  // Convert to Vec3 from 4Dhomogenous, or projection/truncating
-  operator Vec3() const { return Vec3(x / h, y / h, z / h); }
-  Vec3 truncated() const { return Vec3(x, y, z); }
+  constexpr Vec4(real_t x, real_t y, real_t z, real_t h) : x(x), y(y), z(z), h(h) {};
+  constexpr Vec4(const Vec3& v, real_t h) : x(v.x), y(v.y), z(v.z), h(h) {};
 
   // Access element by index (from 0)
-  double& operator[](int i) { return (&x)[i]; }
-  const double& operator[](int i) const { return (&x)[i]; }
+  real_t& operator[](int i) { return (&x)[i]; }
+  const real_t& operator[](int i) const { return (&x)[i]; }
 
   // Scalar multiplications
-  Vec4& operator*=(double c) {
+  Vec4& operator*=(real_t c) {
     x *= x;
     y *= c;
     z *= c;
     h *= c;
     return *this;
   }
-  Vec4 operator*(double c) const { return Vec4(x * c, y * c, z * c, h * c); }
+  Vec4 operator*(real_t c) const { return Vec4(x * c, y * c, z * c, h * c); }
   Vec4 operator-() const { // negation: -X
     return Vec4(-x, -y, -z, -h);
   }
@@ -266,16 +332,20 @@ struct Vec4 {
     h -= rhs.h;
     return *this;
   }
+
+  // Convert to Vec3 from 4Dhomogenous, or projection/truncating
+  Vec3 homo_div() const { return Vec3(x / h, y / h, z / h); }
+  Vec3 truncated() const { return Vec3(x, y, z); }
 };
 
 // print 4D vector
 std::wostream& operator<<(std::wostream& os, const Vec4& v);
 
 // Scalar multiplications from left
-Vec4 operator*(double c, const Vec4& x);
+Vec4 operator*(real_t c, const Vec4& x);
 
 // Dot product
-double dot(const Vec4& a, const Vec4& b);
+real_t dot(const Vec4& a, const Vec4& b);
 
 // Mat4 ///////////////////////////////////////////////////////////////////////
 // 4x4 matrix. Useful to represent affine transformation in homogenous
@@ -294,10 +364,9 @@ struct Mat4 {
   // constexpr Mat4(Vec4&& c1, Vec4&& c2, Vec4&& c3, Vec4&& c4) : columns {c1, c2, c3, c4} {}
 
   // Initialize with row data; useful for hard-coding constant matrix
-  Mat4(const double rows[16]);
-  constexpr Mat4(double a00, double a01, double a02, double a03, double a10, double a11, double a12,
-    double a13, double a20, double a21, double a22, double a23, double a30, double a31, double a32,
-    double a33)
+  Mat4(const real_t rows[16]);
+  constexpr Mat4(real_t a00, real_t a01, real_t a02, real_t a03, real_t a10, real_t a11, real_t a12, real_t a13,
+    real_t a20, real_t a21, real_t a22, real_t a23, real_t a30, real_t a31, real_t a32, real_t a33)
       : columns {Vec4(a00, a10, a20, a30), Vec4(a01, a11, a21, a31), Vec4(a02, a12, a22, a32),
         Vec4(a03, a13, a23, a33)} {}
 
@@ -312,32 +381,32 @@ struct Mat4 {
   }
 
   // Construct a Identity matrix
-  constexpr static Mat4 I() { return from_diag({1.0, 1.0, 1.0, 1.0}); }
+  constexpr static Mat4 I() { return from_diag({1, 1, 1, 1}); }
 
   // Construct a translation matrix
   constexpr static Mat4 translate(
     const Vec3& translate, VectorTarget target = VectorTarget::Column) {
-    return {{1., 0, 0, 0}, {0, 1., 0, 0}, {0, 0, 1., 0}, {translate, 1.0}};
+    return {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {translate, 1}};
   }
 
   // Construct a rotation matrix
-  static Mat4 rotate(const Vec3& axis, double radian, Handness rot_hand = Handness::Right) {
-    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
-    Vec4 c0 = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
-    Vec4 c1 = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
-    Vec4 c2 = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
+  static Mat4 rotate(const Vec3& axis, real_t radian, Handness rot_hand = Handness::Right) {
+    real_t s = std::sin(radian), c = std::cos(radian), c_cp = real_t(1) - c;
+    Vec4 c0 = {c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s), 0};
+    Vec4 c1 = {c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s), 0};
+    Vec4 c2 = {c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c), 0};
     Vec4 c3 = {0, 0, 0, 1};
     return {c0, c1, c2, c3};
   }
 
   // Construct a translation and rotation matrix (translate first, then rotate locally)
   static Mat4 translate_rotate(
-    const Vec3& translate, const Vec3& axis, double radian, Handness rot_hand = Handness::Right) {
-    double s = std::sin(radian), c = std::cos(radian), c_cp = 1.0 - c;
-    Vec4 c0 = c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s);
-    Vec4 c1 = c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s);
-    Vec4 c2 = c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c);
-    Vec4 c3 = {translate, 1.};
+    const Vec3& translate, const Vec3& axis, real_t radian, Handness rot_hand = Handness::Right) {
+    real_t s = std::sin(radian), c = std::cos(radian), c_cp = real_t(1) - c;
+    Vec4 c0 = {c_cp * axis.x * axis + Vec3(1, axis.z, -axis.y) * Vec3(c, s, s), 0};
+    Vec4 c1 = {c_cp * axis.y * axis + Vec3(-axis.z, 1, axis.x) * Vec3(s, c, s), 0};
+    Vec4 c2 = {c_cp * axis.z * axis + Vec3(axis.y, -axis.x, 1) * Vec3(s, s, c), 0};
+    Vec4 c3 = {translate, 1};
     return {c0, c1, c2, c3};
   }
 
@@ -346,8 +415,8 @@ struct Mat4 {
   const Vec4& operator[](int i) const { return columns[i]; }
 
   // Access by element index (row, col), from 0
-  double& operator()(int i, int j) { return columns[j][i]; }
-  const double& operator()(int i, int j) const { return columns[j][i]; }
+  real_t& operator()(int i, int j) { return columns[j][i]; }
+  const real_t& operator()(int i, int j) const { return columns[j][i]; }
 
   // Element-wise operations
   Mat4 operator-(const Mat4& rhs) const;
@@ -357,7 +426,7 @@ struct Mat4 {
   Mat4 T() const;
 
   // Matric determinant (by Laplacian expansion)
-  double det() const;
+  real_t det() const;
 
   // Matrix inversion (assuem invertibility)
   static void inverse(Mat4& A);
@@ -373,27 +442,27 @@ struct Mat4 {
   Mat3 adj3() const;
 
   // Minor (reduced determinant)
-  double minor(int i, int j) const;
+  real_t minor(int i, int j) const;
 
   // Cofactor (signed minor)
-  double cofactor(int i, int j) const;
+  real_t cofactor(int i, int j) const;
 
   // Adjoint Mat4
   Mat4 adjoint() const;
 
   // Frobenius norm
-  double norm2() const;
-  double norm() const { return std::sqrt(norm2()); }
+  real_t norm2() const;
+  real_t norm() const { return std::sqrt(norm2()); }
 };
 
 // Print 4D matrix
 std::wostream& operator<<(std::wostream& os, const Mat4& m);
 
 // Scalar multiplication
-inline Mat4 operator*(const Mat4& A, double c) {
+inline Mat4 operator*(const Mat4& A, real_t c) {
   return Mat4(A[0] * c, A[1] * c, A[2] * c, A[3] * c);
 }
-inline Mat4 operator*(double c, const Mat4& A) {
+inline Mat4 operator*(real_t c, const Mat4& A) {
   return A * c;
 }
 
@@ -413,10 +482,10 @@ inline void flip_z_column(Mat4& m) {
 }
 
 inline void flip_z_row(Mat4& m) {
-  m(2, 0) *= -1;
-  m(2, 1) *= -1;
-  m(2, 2) *= -1;
-  m(2, 3) *= -1;
+  m(2, 0) *= real_t(-1);
+  m(2, 1) *= real_t(-1);
+  m(2, 2) *= real_t(-1);
+  m(2, 3) *= real_t(-1);
 }
 
 inline void handness_convert(Mat4& mat, bool rhs_handness_flip, bool lhs_handness_flip) {

@@ -146,7 +146,7 @@ void DeferredPipeline::transform_viewport(ViewportHandle handle, const Camera& c
   Renderer* r = get_renderer();
   REI_ASSERT(r);
 
-  viewport->cam_pos = camera.position();
+  viewport->cam_pos = {camera.position(), 1};
   viewport->view_proj = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
   viewport->view_proj_inv = viewport->view_proj.inv();
 }

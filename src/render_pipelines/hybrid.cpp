@@ -112,8 +112,8 @@ struct ViewportProxy {
       float rndx = HaltonSequence::sample<2>(frame_id);
       float rndy = HaltonSequence::sample<3>(frame_id);
       const Mat4 subpixel_jitter {
-        1, 0, 0, (rndx * 2 - 1) / double(width),  //
-        0, 1, 0, (rndy * 2 - 1) / double(height), //
+        1, 0, 0, (rndx * 2 - 1) / real_t(width),  //
+        0, 1, 0, (rndy * 2 - 1) / real_t(height), //
         0, 0, 1, 0,                               //
         0, 0, 0, 1                                //
       };
@@ -133,9 +133,9 @@ struct SceneProxy {
     Vec4 parset1;
     size_t cb_index;
     Vec4& albedo() { return parset0; }
-    double& smoothness() { return parset1.x; }
-    double& metalness() { return parset1.y; }
-    double& emissive() { return parset1.z; }
+    real_t& smoothness() { return parset1.x; }
+    real_t& metalness() { return parset1.y; }
+    real_t& emissive() { return parset1.z; }
   };
   struct ModelData {
     GeometryBufferHandles geo_buffers;
@@ -593,7 +593,7 @@ void HybridPipeline::transform_viewport(ViewportHandle handle, const Camera& cam
   Mat4 new_vp = r->is_depth_range_01() ? camera.view_proj_halfz() : camera.view_proj();
   Mat4 diff_mat = new_vp - viewport->view_proj;
   if (!m_enabled_accumulated_rtrt || diff_mat.norm2() > 0) {
-    viewport->cam_pos = camera.position();
+    viewport->cam_pos = {camera.position(), 1};
     viewport->proj = camera.project();
     viewport->proj_inv = viewport->proj.inv();
     viewport->view_proj = new_vp;
@@ -1048,7 +1048,7 @@ void HybridPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
   // -------
   // Pass: TAA on final shading result
   {
-    Vec4 parset0 {double(viewport->frame_id), taa_blend_factor, -1, -1};
+    Vec4 parset0 {real_t(viewport->frame_id), real_t(taa_blend_factor), -1, -1};
     cmd_list->update_const_buffer(viewport->taa_cb, 0, 0, parset0);
   }
   cmd_list->transition(viewport->taa_curr_input(), ResourceState::ComputeShaderResource);

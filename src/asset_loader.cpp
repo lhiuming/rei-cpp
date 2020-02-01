@@ -150,7 +150,7 @@ CameraPtr AssimpLoaderImpl::load_camera() {
 
   // Convert the first camera
   Mat4& trans = get<1>(cam_node);
-  Vec3 pos = Vec4(make_Vec3(cam.mPosition), 1.0) * trans;
+  Vec3 pos = (Vec4(make_Vec3(cam.mPosition), 1.0) * trans).homo_div();
   Vec3 dir = make_Vec3(cam.mLookAt) * trans.sub3();
   Vec3 up = make_Vec3(cam.mUp) * trans.sub3();
   auto ret = make_shared<Camera>(pos, dir, up);
@@ -313,7 +313,7 @@ MeshPtr AssimpLoaderImpl::make_mesh(
     // Coordinates & Normal (store in world-space)
     const aiVector3D& v = mesh.mVertices[i];
     const aiVector3D& n = mesh.mNormals[i]; // NOTE: pertain scaling !
-    Vec4 coord = Vec4(v.x, v.y, v.z, 1.0) * trans;
+    Vec3 coord = (Vec4(v.x, v.y, v.z, 1.0) * trans).homo_div();
     Vec3 normal = (Vec3(n.x, n.y, n.z) * trans_normal).normalized();
 
     // Color

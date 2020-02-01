@@ -189,7 +189,7 @@ void WinViewer::update_title(const std::wstring& new_title) {
 void WinViewer::update_cursor_range(InputBus* input) {
   if (input) {
     Vec3 left_top {0, 0, 0};
-    Vec3 right_bottom {double(m_client_width), double(m_client_height), 0.0f};
+    Vec3 right_bottom {real_t(m_client_width), real_t(m_client_height), 0.0f};
     input->set_cursor_range(left_top, right_bottom);
   }
 }

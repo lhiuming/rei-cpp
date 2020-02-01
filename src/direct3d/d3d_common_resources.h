@@ -172,8 +172,8 @@ struct VertexElement {
   DirectX::XMFLOAT3 normal;
 
   VertexElement() {}
-  VertexElement(const Vec4& p, const Color& c, const Vec3& n)
-      : pos(p.x, p.y, p.z, p.h), color(c.r, c.g, c.b, c.a), normal(n.x, n.y, n.z) {}
+  VertexElement(const Vec3& p, const Color& c, const Vec3& n)
+      : pos(p.x, p.y, p.z, 1), color(c.r, c.g, c.b, c.a), normal(n.x, n.y, n.z) {}
   VertexElement(
     float x, float y, float z, float r, float g, float b, float a, float nx, float ny, float nz)
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}

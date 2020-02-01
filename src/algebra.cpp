@@ -7,7 +7,11 @@ using namespace std;
 
 namespace rei {
 
-// Print Vec3
+wostream& operator<<(wostream& os, const Vec2& v) {
+  os << "Vec2(" << v.x << ", " << v.y << ")";
+  return os;
+}
+
 wostream& operator<<(wostream& os, const Vec3& v) {
   os << "Vec3(" << v.x << ", " << v.y << ", " << v.z << ")";
   return os;
@@ -17,7 +21,7 @@ wostream& operator<<(wostream& os, const Vec3& v) {
 // Member and Non-member functions.
 ////
 
-double Mat3::det() const {
+real_t Mat3::det() const {
   const Mat3& A = *this;
   return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1))
          + A(1, 0) * (A(2, 1) * A(0, 2) - A(2, 2) * A(0, 1))
@@ -46,12 +50,12 @@ std::wostream& operator<<(std::wostream& os, const Mat3& m) {
 ////
 
 // Scalar multiplications from left
-Vec4 operator*(double c, const Vec4& x) {
+Vec4 operator*(real_t c, const Vec4& x) {
   return x * c;
 }
 
 // Dot product
-double dot(const Vec4& a, const Vec4& b) {
+real_t dot(const Vec4& a, const Vec4& b) {
   return (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.h * b.h);
 }
 
@@ -65,7 +69,7 @@ wostream& operator<<(wostream& os, const Vec4& v) {
 ////
 
 // Row data constructor
-Mat4::Mat4(const double rows[16]) {
+Mat4::Mat4(const real_t rows[16]) {
   Mat4& me = *this;
   for (int i = 0; i < 4; ++i)
     for (int j = 0; j < 4; ++j)
@@ -87,7 +91,7 @@ Mat4 Mat4::operator-(const Mat4& rhs) const {
 void Mat4::transpose(Mat4& A) {
   for (int i = 0; i < 3; ++i)
     for (int j = i + 1; j < 3; ++j) {
-      double t = A(i, j);
+      real_t t = A(i, j);
       A(i, j) = A(j, i);
       A(j, i) = t;
     }
@@ -104,7 +108,7 @@ Mat4 Mat4::T() const {
 }
 
 // Determinant
-double Mat4::det() const {
+real_t Mat4::det() const {
   // Laplacian expansion
   return dot(columns[0], Vec4(cofactor(0, 0), cofactor(1, 0), cofactor(2, 0), cofactor(3, 0)));
 }
@@ -152,9 +156,9 @@ Mat3 Mat4::adj3() const {
 }
 
 // Minor (reduced determinant)
-double Mat4::minor(int i, int j) const {
+real_t Mat4::minor(int i, int j) const {
   // Now I really wish to learn meta-programming ... this is UGLY
-  auto A = [=](int r, int c) -> double {
+  auto A = [=](int r, int c) -> real_t {
     return (*this)((r >= i) ? (r + 1) : r, (c >= j) ? (c + 1) : c);
   };
   return A(0, 0) * (A(1, 1) * A(2, 2) - A(1, 2) * A(2, 1))
@@ -163,7 +167,7 @@ double Mat4::minor(int i, int j) const {
 }
 
 // Cofactor (signed minor)
-double Mat4::cofactor(int i, int j) const {
+real_t Mat4::cofactor(int i, int j) const {
   // return pow(-1, i+j) * minor(i, j)
   if ((i + j) & 1) return -1 * minor(i, j);
   return minor(i, j);
@@ -177,8 +181,8 @@ Mat4 Mat4::adjoint() const {
     cofactor(3, 2), cofactor(0, 3), cofactor(1, 3), cofactor(2, 3), cofactor(3, 3));
 }
 
-double Mat4::norm2() const {
-  double r = 0;
+real_t Mat4::norm2() const {
+  real_t r = 0;
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4; j++)
       r += columns[i][j] * columns[i][j];
