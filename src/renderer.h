@@ -323,6 +323,7 @@ public:
   SwapchainHandle create_swapchain(
     SystemWindowID window_id, size_t width, size_t height, size_t rendertarget_count);
   BufferHandle fetch_swapchain_render_target_buffer(SwapchainHandle swapchain);
+  void release_swapchain(SwapchainHandle h) {REI_NOT_IMPLEMENTED};
 
   BufferHandle create_texture(
     const TextureDesc& desc, ResourceState init_state, const Name& debug_name);
