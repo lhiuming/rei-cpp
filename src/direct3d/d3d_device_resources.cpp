@@ -140,7 +140,7 @@ void DeviceResources::flush_command_list() {
   m_command_queue->ExecuteCommandLists(1, temp_cmd_lists);
 }
 
-void DeviceResources::flush_command_queue_for_frame() {
+void DeviceResources::flush_command_queue_and_sync() {
   HRESULT hr;
 
   // Advance frame fence value

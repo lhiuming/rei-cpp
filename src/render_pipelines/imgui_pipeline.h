@@ -1,6 +1,5 @@
 #include <memory>
 
-#include "../direct3d/d3d_renderer.h"
 #include "render_pipeline_base.h"
 
 #include <imgui.h>
@@ -75,6 +74,8 @@ struct ImGuiShaderDesc : RasterizationShaderMetaInfo {
     this->merge.init_as_alpha_blending();
   }
 };
+
+/*
 
 class ImGuiPipeline : public RenderPipeline {
 public:
@@ -279,5 +280,6 @@ private:
 
   Renderer* get_renderer() { return m_renderer.lock().get(); }
 };
+*/
 
 } // namespace rei

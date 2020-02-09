@@ -10,6 +10,8 @@ using std::shared_ptr;
 using std::unique_ptr;
 using std::weak_ptr;
 
+#if 0
+
 namespace rei {
 
 struct PathTracingShaderMeta : RaytracingShaderMetaInfo {
@@ -212,3 +214,5 @@ void RealtimePathTracingPipeline::render(ViewportHandle viewport_handle, SceneHa
 }
 
 } // namespace rei
+
+#endif

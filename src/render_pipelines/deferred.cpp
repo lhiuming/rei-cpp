@@ -6,6 +6,8 @@
 #include "../container_utils.h"
 #include "../renderer.h"
 
+#if 0
+
 namespace rei {
 
 namespace deferred {
@@ -293,3 +295,5 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
 }
 
 } // namespace rei
+
+#endif

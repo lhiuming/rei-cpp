@@ -1,24 +1,23 @@
 // Source of renderer.h
 #include "renderer.h"
 
+#include <d3d12.h>
+#include <d3dx12.h>
+#include <windows.h>
+
 #include <array>
 #include <iomanip>
 #include <sstream>
 #include <string>
 #include <unordered_set>
 
-#include <d3d12.h>
-#include <d3dx12.h>
-#include <windows.h>
-
 #include "debug.h"
-#include "string_utils.h"
-
 #include "direct3d/d3d_common_resources.h"
 #include "direct3d/d3d_device_resources.h"
+#include "direct3d/d3d_renderer_resources.h"
 #include "direct3d/d3d_shader_struct.h"
 #include "direct3d/d3d_utils.h"
-#include "direct3d/d3d_renderer_resources.h"
+#include "string_utils.h"
 
 using std::array;
 using std::make_shared;
@@ -206,7 +205,8 @@ void Renderer::upload_texture(BufferHandle handle, const void* pixels) {
   const UINT64 width = desc.Width;
   const UINT64 height = desc.Height;
   const UINT stride = get_bytesize(desc.Format);
-  const UINT upload_pitch = (width * stride + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u);
+  const UINT upload_pitch = (width * stride + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u)
+                            & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1u);
   const UINT upload_size = height * upload_pitch;
   ComPtr<ID3D12Resource> upload_buffer;
   {
@@ -236,7 +236,8 @@ void Renderer::upload_texture(BufferHandle handle, const void* pixels) {
     void* mapped;
     upload_buffer->Map(0, nullptr, &mapped);
     for (int y = 0; y < height; y++)
-      memcpy((void*)((uintptr_t)mapped + y * upload_pitch), (const byte*)pixels + y * width * stride, width * stride);
+      memcpy((void*)((uintptr_t)mapped + y * upload_pitch),
+        (const byte*)pixels + y * width * stride, width * stride);
     upload_buffer->Unmap(0, nullptr);
 
     debug_name(upload_buffer, L"Texture Upload");
@@ -561,7 +562,8 @@ ShaderArgumentHandle Renderer::create_shader_argument(ShaderArgumentValue arg_va
   return ShaderArgumentHandle(arg_data);
 }
 
-GeometryBufferHandles Renderer::create_geometry(const LowLevelGeometryDesc& geometry, const Name& name) {
+GeometryBufferHandles Renderer::create_geometry(
+  const LowLevelGeometryDesc& geometry, const Name& name) {
   ID3D12GraphicsCommandList* cmd_list = device_resources->prepare_command_list();
   ID3D12Device* device = device_resources->device();
 
@@ -710,8 +712,11 @@ GeometryBufferHandles Renderer::create_geometry(const LowLevelGeometryDesc& geom
   return ret;
 }
 
-GeometryBufferHandles Renderer::create_geometry(const GeometryDesc& desc) {
-  auto& mesh = dynamic_cast<const Mesh&>(*(desc.geometry));
+GeometryBufferHandles Renderer::create_geometry(
+  const Geometry& geometry, const GeometryDesc& desc) {
+  auto mesh_ptr = geometry.mesh();
+  REI_ASSERT(mesh_ptr);
+  const auto& mesh = *mesh_ptr;
   using index_t = uint16_t;
   using vertex_t = VertexElement;
   const size_t i_count = mesh.get_triangles().size() * 3;
@@ -732,7 +737,7 @@ GeometryBufferHandles Renderer::create_geometry(const GeometryDesc& desc) {
   ll_desc.index = {indicies.data(), i_count, sizeof(index_t)};
   ll_desc.vertex = {vertices.data(), v_count, sizeof(vertex_t)};
   ll_desc.flags = desc.flags;
-  return create_geometry(ll_desc, desc.geometry->name());
+  return create_geometry(ll_desc, geometry.name());
 }
 
 void Renderer::update_geometry(
@@ -779,7 +784,8 @@ void Renderer::update_geometry(
     });
 }
 
-BufferHandle Renderer::create_raytracing_accel_struct(const RaytraceSceneDesc& desc, const Name& name) {
+BufferHandle Renderer::create_raytracing_accel_struct(
+  const RaytraceSceneDesc& desc, const Name& name) {
   const size_t model_count = desc.blas_buffer.size();
 
   // Collect geometries and models for AS building
@@ -1147,8 +1153,8 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
   TextureBuffer& tex = target->res.get<TextureBuffer>();
   ID3D12Resource* res = tex.buffer.Get();
   auto d3d_desc = res->GetDesc();
-  if ((d3d_desc.Flags
-      & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
+  if ((d3d_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+      != D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
     REI_ERROR(
       "Invalid resource type; The texture should created with allowance of unordred access");
     return;
@@ -1219,8 +1225,22 @@ void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_
 }
 
 Renderer* Renderer::prepare() {
-  // Finish previous resources commands
-  upload_resources();
+  // Finish previous commands, if any
+  // and clean-up delayed-release resources
+  {
+    // NOTE: if the cmd_list is closed, we don need to submit it
+    bool has_delayed_release = !m_delayed_release.empty() || !m_delayed_release_raw.empty();
+    if (is_uploading_resources || has_delayed_release) {
+      device_resources->flush_command_list();
+      device_resources->flush_command_queue_and_sync();
+      is_uploading_resources = false;
+    }
+
+    // Done with the delayed relased resources
+    // NOTE: both resource type can be release with smart pointer
+    m_delayed_release.clear();
+    m_delayed_release_raw.clear();
+  }
 
   // Begin command list recording
   auto cmd_list = device_resources->prepare_command_list();
@@ -1251,20 +1271,7 @@ void Renderer::present(SwapchainHandle handle, bool vsync) {
 
   // Wait
   // FIXME should not wait
-  device_resources->flush_command_queue_for_frame();
-}
-
-void Renderer::upload_resources() {
-  // NOTE: if the cmd_list is closed, we don need to submit it
-  bool has_delayed_release = !m_delayed_release.empty() || !m_delayed_release_raw.empty();
-  if (is_uploading_resources || has_delayed_release) {
-    device_resources->flush_command_list();
-    device_resources->flush_command_queue_for_frame();
-    is_uploading_resources = false;
-  }
-
-  // Done with the delayed relased resources
-  // NOTE: both resource type can be release with smart pointer
+  device_resources->flush_command_queue_and_sync();
   m_delayed_release.clear();
   m_delayed_release_raw.clear();
 }
@@ -1343,7 +1350,8 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   REI_ASSERT(SUCCEEDED(hr));
 }
 
-void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene, ComPtr<ID3D12Resource>& tlas_buffer) {
+void Renderer::build_dxr_acceleration_structure(
+  BuildAccelStruct&& scene, ComPtr<ID3D12Resource>& tlas_buffer) {
   auto device = device_resources->dxr_device();
   auto cmd_list = device_resources->prepare_command_list_dxr();
 
@@ -1402,7 +1410,7 @@ void Renderer::build_dxr_acceleration_structure(BuildAccelStruct&& scene, ComPtr
   cmd_list->BuildRaytracingAccelerationStructure(&tlas_desc, 0, nullptr);
   cmd_list->ResourceBarrier(
     1, &CD3DX12_RESOURCE_BARRIER::UAV(tlas_buffer.Get())); // sync before use
-  
+
   m_delayed_release_raw.emplace_back(instance_buffer);
   debug_name(instance_buffer, L"TLAS instance buffer");
   m_delayed_release_raw.emplace_back(scratch_buffer);

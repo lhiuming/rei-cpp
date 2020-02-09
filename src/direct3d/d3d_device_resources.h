@@ -64,7 +64,7 @@ public:
     return m_command_list.Get();
   }
   void flush_command_list();
-  void flush_command_queue_for_frame();
+  void flush_command_queue_and_sync();
 
 private:
   HINSTANCE hinstance = NULL;

@@ -6,10 +6,16 @@
 
 #include <imgui.h>
 
-#include "renderer/graphics_handle.h"
 #include "renderer.h"
+#include "renderer/graphics_handle.h"
 
 namespace rei {
+
+
+class RenderPipeline {
+};
+
+namespace renderpipeline_deprecated {
 
 struct ViewportConfig {
   size_t width, height;
@@ -17,16 +23,21 @@ struct ViewportConfig {
   ImGuiContext* imgui_context;
 };
 
+// deprecated
 struct SceneConfig {
   const Scene* scene;
 };
 
-class RenderPipeline {
+template <typename TViewport, typename TScene, typename TRenderer = Renderer>
+class SimplexPipeline : public RenderPipeline {
   using PtrType = std::uintptr_t;
-
+protected:
+  using RendererPtr = std::weak_ptr<TRenderer>;
 public:
   using ViewportHandle = PtrType;
   using SceneHandle = PtrType;
+
+  SimplexPipeline(std::weak_ptr<TRenderer> renderer) : m_renderer(renderer) {}
 
   virtual ViewportHandle register_viewport(ViewportConfig conf) = 0;
   virtual void remove_viewport(ViewportHandle viewport) = 0;
@@ -40,15 +51,6 @@ public:
   virtual void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) = 0;
 
   virtual void render(ViewportHandle viewport, SceneHandle scene) = 0;
-};
-
-template <typename TViewport, typename TScene, typename TRenderer = Renderer>
-class SimplexPipeline : public RenderPipeline {
-protected:
-  using RendererPtr = std::weak_ptr<TRenderer>;
-
-public:
-  SimplexPipeline(std::weak_ptr<TRenderer> renderer) : m_renderer(renderer) {}
 
 protected:
   using ViewportPtr = std::shared_ptr<TViewport>;
@@ -86,6 +88,10 @@ protected:
   TViewport* get_viewport(ViewportHandle handle) { return get_ptr(handle, viewports); }
   TScene* get_scene(SceneHandle handle) { return get_ptr(handle, scenes); }
 };
+
+}
+
+using namespace renderpipeline_deprecated;
 
 } // namespace rei
 

@@ -7,34 +7,17 @@
 #include "algebra.h"
 #include "color.h"
 #include "common.h"
+#include "container_utils.h"
 #include "renderer/graphics_handle.h"
 
 namespace rei {
 
-// Base class for all geometry object
-class Geometry : public NoCopy {
-public:
-  Geometry(Name name) : m_name(name) {};
-  virtual ~Geometry() = 0;
+// fwd decl
+class MeshData;
+class Geometries;
 
-  Geometry(Geometry&& other) = default;
-
-  const Name name() const { return m_name; }
-
-  // Debug info
-  virtual std::wstring summary() const { return L"<Base Geomtry>"; }
-  friend std::wostream& operator<<(std::wostream& os, const Geometry& g) {
-    return os << g.summary();
-  }
-
-protected:
-  Name m_name;
-};
-
-typedef std::shared_ptr<Geometry> GeometryPtr;
-
-// Triangular Mesh
-class Mesh : public Geometry {
+// Triangular Mesh Data
+class Mesh {
 public:
   // Simple Vertex class
   struct Vertex {
@@ -65,11 +48,9 @@ public:
   using Triangle = TriangleTpl<size_type>;
   using Index = size_type;
 
-  [[deprecated]] Mesh(std::string n)
-      : Geometry(L"deprecated") {REI_DEPRECATED} Mesh(std::wstring n = L"Mesh Un-named")
-      : Geometry(n) {}
-  Mesh(std::wstring name, std::vector<Vertex> vertices, std::vector<Triangle>&& triangles)
-      : Geometry(name), m_vertices(vertices), m_triangles(triangles) {}
+  Mesh() = default;
+  Mesh(std::vector<Vertex> vertices, std::vector<Triangle>&& triangles)
+      : m_vertices(vertices), m_triangles(triangles) {}
 
   Mesh(Mesh&& other) = default;
 
@@ -88,7 +69,7 @@ public:
   bool triangle_num() const { return m_triangles.size(); }
 
   // Debug info
-  std::wstring summary() const override;
+  std::wstring summary() const;
 
   // Some mesh-related utilities
   // Set `flip` to true if the orientation handness is different from coordinate handness
@@ -105,7 +86,49 @@ private:
   std::vector<Triangle> m_triangles;
 };
 
-typedef std::shared_ptr<Mesh> MeshPtr;
+// Base class for all geometry object
+class Geometry : public NoCopy {
+public:
+  using ID = std::uintptr_t;
+  static constexpr ID kInvalidID = 0;
+
+  ID id() const { return m_id; }
+  const Name name() const { return m_name; }
+
+  const Mesh* mesh() const { return &m_mesh; }
+
+  // Debug info
+  virtual std::wstring summary() const { return L"<Base Geomtry>"; }
+  friend std::wostream& operator<<(std::wostream& os, const Geometry& g) {
+    return os << g.summary();
+  }
+
+private:
+  ID m_id;
+  Name m_name;
+  // TODO make variant
+  Mesh m_mesh;
+
+  friend Geometries;
+
+  Geometry(ID id, Name name) : m_id(id), m_name(name) {};
+  Geometry(ID id, Name name, Mesh&& mesh) : m_id(id), m_name(name), m_mesh(std::move(mesh)) {};
+};
+
+typedef std::shared_ptr<Geometry> GeometryPtr;
+
+class Geometries {
+public:
+  Geometries();
+  ~Geometries() = default;
+
+  GeometryPtr create(Name&& name, Mesh&& mesh);
+  void destroy(GeometryPtr& ptr);
+
+private:
+  Geometry::ID m_next_id;
+  Hashmap<Geometry::ID, GeometryPtr> m_geometries;
+};
 
 } // namespace rei
 

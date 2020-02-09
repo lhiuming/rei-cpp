@@ -12,10 +12,6 @@ using std::wstring;
 
 namespace rei {
 
-Geometry::~Geometry() {
-  // Default behaviour
-}
-
 void Mesh::set(std::vector<Vertex>&& va, const std::vector<size_type>& ta) {
   m_vertices = va;
   m_triangles.reserve(ta.size() / 3);
@@ -31,7 +27,7 @@ void Mesh::set(std::vector<Vertex>&& va, std::vector<Triangle>&& ta) {
 // Debug print info
 wstring Mesh::summary() const {
   std::wostringstream oss;
-  oss << "Mesh name: " << m_name << ", vertices : " << m_vertices.size()
+  oss << "vertices : " << m_vertices.size()
       << ", triangles: " << m_triangles.size() << endl;
   oss << "  first 3 vertices: " << endl;
   for (int i = 0; i < 3; ++i) {
@@ -88,7 +84,7 @@ Mesh Mesh::procudure_cube(Vec3 extent, Vec3 origin, bool flip) {
     }
   }
 
-  return {L"Cube", std::move(vertices), std::move(triangles)};
+  return {std::move(vertices), std::move(triangles)};
 }
 
 Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 origin, bool flip) {
@@ -341,7 +337,24 @@ Mesh Mesh::procudure_sphere_icosahedron(int subdivision, double radius, Vec3 ori
     fill_quadrilateral(ministrip2);
   }
 
-  return {L"Icosahedron-Sphere", std::move(vertices), std::move(triangles)};
+  return {std::move(vertices), std::move(triangles)};
+}
+
+Geometries::Geometries() : m_next_id(1) {}
+
+GeometryPtr Geometries::create(Name&& name, Mesh&& mesh) {
+  REI_ASSERT(m_next_id != Geometry::kInvalidID);
+  auto ptr = std::shared_ptr<Geometry>(new Geometry(m_next_id, std::move(name), std::move(mesh)));
+  m_geometries.insert(ptr->id(), ptr);
+  m_next_id += 1;
+  return ptr;
+}
+
+void Geometries::destroy(GeometryPtr& ptr) {
+  Geometry::ID k = ptr->id();
+  REI_ASSERT(k != Geometry::kInvalidID);
+  int count = m_geometries.erase(k);
+  REI_ASSERT(count == 1);
 }
 
 } // namespace rei

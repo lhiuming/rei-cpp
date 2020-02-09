@@ -195,7 +195,6 @@ struct LowLevelGeometryDesc {
 };
 
 struct GeometryDesc {
-  GeometryPtr geometry;
   GeometryFlags flags {};
 };
 
@@ -376,7 +375,7 @@ public:
 
   GeometryBufferHandles create_geometry(
     const LowLevelGeometryDesc& geometry, const Name& debug_name = L"Unamed Goemetry");
-  GeometryBufferHandles create_geometry(const GeometryDesc& geometry);
+  GeometryBufferHandles create_geometry(const Geometry& geometry, const GeometryDesc& desc);
   void update_geometry(
     BufferHandle handle, LowLevelGeometryData data, size_t dest_element_offset = 0);
 
@@ -459,8 +458,6 @@ protected:
   // Ray Tracing Resources //
   UINT next_tlas_instance_id = 0;
   UINT generate_tlas_instance_id() { return next_tlas_instance_id++; }
-
-  void upload_resources();
 
   void build_raytracing_pso(const std::wstring& shader_path,
     const d3d::RaytracingShaderData& shader_data, ComPtr<ID3D12StateObject>& pso);

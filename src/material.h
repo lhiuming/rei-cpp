@@ -3,20 +3,26 @@
 
 #include <memory>
 
+#include "color.h"
+#include "common.h"
 #include "container_utils.h"
 #include "string_utils.h"
 #include "variant_utils.h"
 
-#include "color.h"
-
 namespace rei {
+
+// fwd decl
+class Materials;
 
 /*
  * General material property data.
  * Basically a bunch of hashmaps, storing limited amount of data types.
  */
-class Material {
+class Material : NoCopy {
 public:
+  using ID = std::uintptr_t;
+  static constexpr ID kInvalidID = 0;
+
   // clang-format off
   using MaterialProperty = Var<
     std::monostate,
@@ -27,11 +33,7 @@ public:
     >;
   // clang-format on
 
-  Material() : m_name(L"Unnamed") {}
-  Material(Name&& name) : m_name(name) {}
-
-  Material(Material&& other) = default;
-  Material(const Material& other) = default;
+  ID id() const { return m_id; }
 
   bool has(const Name& prop_name) const { return m_properties.has(prop_name); }
 
@@ -54,9 +56,15 @@ public:
   // void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
   // MaterialHandle get_graphic_handle() const { return graphic_handle; }
 
-protected:
+private:
+  ID m_id;
   Name m_name;
   Hashmap<Name, MaterialProperty> m_properties;
+
+  friend Materials;
+
+  Material(ID id) : m_id(id), m_name(L"Unnamed") {}
+  Material(ID id, Name&& name) : m_id(id), m_name(std::move(name)) {}
 
   friend std::wostream& operator<<(std::wostream& os, const Material& mat) {
     os << mat.m_name << " {";
@@ -72,6 +80,19 @@ protected:
 };
 
 using MaterialPtr = std::shared_ptr<Material>;
+
+class Materials {
+public:
+  Materials();
+  ~Materials() = default;
+
+  MaterialPtr create(Name name);
+  void destroy(MaterialPtr mat);
+
+private:
+  Material::ID m_next_id;
+  Hashmap<Material::ID, MaterialPtr> m_materials;
+};
 
 } // namespace rei
 

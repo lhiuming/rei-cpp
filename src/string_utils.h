@@ -32,6 +32,18 @@ static inline int to_cstr(const wchar_t* wchars, char* buffer) {
   return i;
 }
 
+template <typename... Args>
+static inline std::wstring format(const wchar_t* fmt, Args... args) {
+  static const std::wstring s_failed_result = std::wstring("<Failed String Formatting>");
+  int buf_size = std::swprintf(nullptr, 0, fmt, args...) + 1;
+  if (buf_size <= 0) return s_failed_result;
+  char* buf = new char[buf_size];
+  std::swprintf(buf, buf_size, fmt, args...);
+  std::wstring rtn = std::wstring(buff, buf_size);
+  delete[] buf;
+  return rtn;
+}
+
 } // namespace rei
 
 #endif

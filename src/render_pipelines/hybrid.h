@@ -12,38 +12,43 @@ class Renderer;
 
 // Forwared decl
 namespace hybrid {
-struct ViewportProxy;
-struct SceneProxy;
+struct ViewportData;
+struct SceneData;
+struct HybridData;
 } // namespace hybrid
 
 //
 // Hybrid pipeline mixing deferred-rasterizing and raytracing
 //
-class HybridPipeline
-    : public SimplexPipeline<hybrid::ViewportProxy, hybrid::SceneProxy, Renderer> {
-  using ViewportProxy = hybrid::ViewportProxy;
-  using SceneProxy = hybrid::SceneProxy;
-
+class HybridPipeline : public RenderPipeline {
 public:
-  HybridPipeline(RendererPtr renderer);
+  HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID wnd_id,
+    std::weak_ptr<Scene> scene, std::weak_ptr<Camera> camera);
+  ~HybridPipeline();
 
-  ViewportHandle register_viewport(ViewportConfig conf) override;
-  void remove_viewport(ViewportHandle viewport) override {}
-  void transform_viewport(ViewportHandle handle, const Camera& camera) override;
+  void on_create_geometry(const Geometry& geometry);
+  void on_create_material(const Material& material);
+  void on_create_model(const Model& model);
 
-  SceneHandle register_scene(SceneConfig conf) override;
-  void remove_scene(SceneHandle scene) override {}
-
-  void add_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override {}
-  void update_model(SceneHandle scene, const Model& model, Scene::ModelUID model_id) override;
-
-  virtual void render(ViewportHandle viewport, SceneHandle scene) override;
+  void render(size_t width, size_t height);
 
 private:
+  // Configuration
+  const int m_frame_buffer_count = 2;
   const bool m_enable_jittering = true;
   const bool m_enable_multibounce = true;
   const bool m_enabled_accumulated_rtrt = true;
   const int m_area_shadow_ssp_per_light = 4;
+
+  // Renderer
+  std::weak_ptr<Renderer> m_renderer;
+
+  // Scene & Viewport
+  std::weak_ptr<Scene> m_scene;
+  std::weak_ptr<Camera> m_camera;
+  std::unique_ptr<hybrid::SceneData> m_scene_data;
+  std::unique_ptr<hybrid::ViewportData> m_viewport_data;
+  std::unique_ptr<hybrid::HybridData> m_hybrid_data;
 
   ShaderHandle m_gpass_shader;
 
@@ -64,28 +69,14 @@ private:
 
   BufferHandle m_per_render_buffer;
 
-  using CombinedArgumentKey = std::pair<ViewportHandle, SceneHandle>;
-  struct RakHash {
-    // NOTE stole from boost
-    // ref: https://www.boost.org/doc/libs/1_35_0/doc/html/boost/hash_combine_id241013.html
-    void combine(size_t& seed, size_t v) const {
-      seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    }
-    size_t operator()(const CombinedArgumentKey& key) const {
-      size_t seed = 0;
-      combine(seed, std::hash<ViewportHandle>{}(key.first));
-      combine(seed, std::hash<SceneHandle>{}(key.second));
-      return seed;
-    }
-  };
-  Hashmap<CombinedArgumentKey, ShaderArgumentHandle, RakHash> m_raytracing_args;
-  Hashmap<CombinedArgumentKey, ShaderArgumentHandle, RakHash> m_shadow_tracing_args;
+  void update_scene();
+  void update_viewport(size_t width, size_t height);
+  void update_hybrid();
 
-  ShaderArgumentHandle fetch_raytracing_arg(ViewportHandle viewport, SceneHandle scene);
-  ShaderArgumentHandle fetch_shadow_tracing_arg(ViewportHandle viewport, SceneHandle scene);
-
-  ShaderArgumentHandle fetch_direct_punctual_lighting_arg(SceneProxy& scene, int cb_index);
-  ShaderArgumentHandle fetch_direct_area_lighting_arg(SceneProxy& scene, int cb_index);
+  ShaderArgumentHandle fetch_direct_punctual_lighting_arg(
+    Renderer& renderer, hybrid::SceneData& scene, int cb_index);
+  ShaderArgumentHandle fetch_direct_area_lighting_arg(
+    Renderer& renderer, hybrid::SceneData& scene, int cb_index);
 };
 
 } // namespace rei

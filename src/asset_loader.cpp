@@ -46,13 +46,17 @@ private:
   tuple<const aiNode*, Mat4> find_node(const aiNode* root, const string& node_name);
 
   int collect_mesh(const aiNode* node, vector<MeshPtr>& m_models, Mat4 trans);
+  #if 0
   Model load_model(const aiNode& node, Mat4 scene_trans);
+  #endif
 
   // Utilities
   static Vec3 make_Vec3(const aiVector3D& v);
   static Mat4 make_Mat4(const aiMatrix4x4& aim);
+  #if 0
   static Material make_material(const aiMaterial&);
   static MeshPtr make_mesh(const aiMesh& mesh, const Mat4 trans, const vector<Material>& maters);
+  #endif
 };
 
 // Main Interfaces //
@@ -91,8 +95,11 @@ int AssimpLoaderImpl::load_file(const string filename) {
   console << "  Materials: " << as->mNumMaterials << endl;
 
   // Load common material list
+  REI_NOT_IMPLEMENTED
+  #if 0
   for (int i = 0; i < as->mNumMaterials; ++i)
     this->materials_list.push_back(make_material(*(as->mMaterials[i])));
+  #endif
 
   return 0;
 }
@@ -124,10 +131,13 @@ ScenePtr AssimpLoaderImpl::load_scene() {
       console << "AssetLoader: Skip a Light node in scene";
       console << "(" << child.mNumMeshes << " meshes)" << endl;
     } else {
+      REI_NOT_IMPLEMENTED
+      #if 0
       // Load the model without instance-transform
       auto mi = load_model(child, coordinate_trans);
       if (mi.get_geometry()) // check if no real mesh loaded
         ret->add_model(std::move(mi));
+      #endif
     }
   }
 
@@ -196,7 +206,10 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& m_models
     // Convert the aiMesh stored in aiScene
     unsigned int mesh_ind = node->mMeshes[i];
 
+    REI_NOT_IMPLEMENTED
+    #if 0
     m_models.push_back(make_mesh(*(as->mMeshes[mesh_ind]), trans, materials_list));
+    #endif
     ++mesh_count;
   }
 
@@ -207,6 +220,7 @@ int AssimpLoaderImpl::collect_mesh(const aiNode* node, vector<MeshPtr>& m_models
   return mesh_count;
 }
 
+#if 0
 Model AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
   // Correct the world-transfor to fit in right-hand coordinate_trans
   Mat4 old_W = make_Mat4(node.mTransformation);
@@ -243,6 +257,7 @@ Model AssimpLoaderImpl::load_model(const aiNode& node, Mat4 coordinate_trans) {
   // Return an instance
   return Model {L"assimp no name", W, mesh, nullptr};
 }
+#endif
 
 // Utilities ////
 
@@ -259,6 +274,7 @@ inline Mat4 AssimpLoaderImpl::make_Mat4(const aiMatrix4x4& aim) {
     aim.c3, aim.d3, aim.a4, aim.b4, aim.c4, aim.d4);
 }
 
+#if 0
 // Convert all aiMaterial to Mesh::Material
 Material AssimpLoaderImpl::make_material(const aiMaterial& mater) {
   Material ret;
@@ -349,6 +365,7 @@ MeshPtr AssimpLoaderImpl::make_mesh(
   return ret;
 
 } // end make_mesh
+#endif
 
 // AssetLoader /////////////////////////////////////////////////////////////
 // Member functions are all just wappers!

@@ -23,29 +23,19 @@ WinApp::WinApp(Config config) : config(config) {
 
   m_input_bus = make_unique<InputBus>();
 
-  // Default renderer & pipeline
-  {
-    shared_ptr<Renderer> d3d_renderer;
-    Renderer::Options r_opts = {};
-    d3d_renderer = make_shared<Renderer>(hinstance, r_opts);
-    m_renderer = d3d_renderer;
-    switch (config.render_mode) {
-      case RenderMode::UIOnly:
-        m_pipeline = make_shared<ImGuiPipeline>(d3d_renderer);
-        break;
-      case RenderMode::Rasterization:
-        m_pipeline = make_shared<DeferredPipeline>(d3d_renderer);
-        break;
-      case RenderMode::RealtimeRaytracing:
-        m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
-        break;
-      case RenderMode::Hybrid:
-      default:
-        m_pipeline = make_shared<HybridPipeline>(d3d_renderer);
-        break;
-    }
-  }
+  // Default viewer
+  m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
+  m_viewer->set_input_bus(m_input_bus);
+  // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
 
+  // Create default scene and camera
+  m_geometries = make_shared<Geometries>();
+  m_materials = make_shared<Materials>();
+  m_scene = make_shared<Scene>();
+  m_camera = make_shared<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
+  m_camera->set_aspect(config.width, config.height);
+
+  // ImGUI context
   if (config.enable_dev_gui) {
     IMGUI_CHECKVERSION();
     m_imgui_context = ImGui::CreateContext();
@@ -53,39 +43,35 @@ WinApp::WinApp(Config config) : config(config) {
     ImGuiIO& io = ImGui::GetIO();
     io.BackendPlatformName = "imgui_impl_dx12";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
     ImGui::StyleColorsDark();
   }
 
-  // Default viewer
-  m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
-  m_viewer->set_input_bus(m_input_bus);
+  // Default renderer & pipeline
   {
-    ViewportConfig conf = {};
-    conf.window_id = m_viewer->get_window_id();
-    conf.width = config.width;
-    conf.height = config.height;
-    conf.imgui_context = m_imgui_context;
-    m_viewport_h = m_pipeline->register_viewport(conf);
+    Renderer::Options r_opts = {};
+    m_renderer = make_shared<Renderer>(hinstance, r_opts);
   }
-  // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
-
-  // Create default scene and camera
-  m_scene = make_unique<Scene>();
-  m_camera = make_unique<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
-  m_camera->set_aspect(config.width, config.height);
+  switch (config.render_mode) {
+    case RenderMode::Rasterization:
+    case RenderMode::RealtimeRaytracing:
+      // m_pipeline = make_shared<RealtimePathTracingPipeline>(d3d_renderer);
+      REI_ERROR("Support for this render pipeline is dropped.");
+      break;
+    case RenderMode::Hybrid:
+    default:
+      m_pipeline
+        = make_shared<HybridPipeline>(m_renderer, m_viewer->get_window_id(), m_scene, m_camera);
+      break;
+  }
 }
 
 WinApp::~WinApp() {
   log("WinApp terminated.");
 }
 
-void WinApp::initialize_scene() {
-  SceneConfig conf {};
-  conf.scene = m_scene.get();
-  m_scene_h = m_pipeline->register_scene(conf);
-}
+void WinApp::initialize_scene() {}
 
 void WinApp::start() {
   on_start();
@@ -219,21 +205,32 @@ void WinApp::render() {
 }
 
 void WinApp::on_render() {
-  // update camera
-  m_pipeline->transform_viewport(m_viewport_h, *m_camera);
-  // update model transform
-  for (ModelPtr& m : m_scene->get_models()) {
-    // TODO may be we need some transform mark-dirty mechanics?
-    m_pipeline->update_model(m_scene_h, *m, m_scene->get_id(m));
-  }
-  // render
-  m_pipeline->render(m_viewport_h, m_scene_h);
+  // main thread rendering
+  size_t width = m_viewer->width();
+  size_t height = m_viewer->height();
+  m_pipeline->render(width, height);
+}
 
-  // m_renderer->prepare(*m_scene);
-  // ScreenTransformHandle viewport = m_viewer->get_viewport();
-  // m_renderer->update_viewport_transform(viewport, *m_camera);
-  // auto culling_result = m_renderer->cull(viewport, *m_scene);
-  // m_renderer->render(viewport, culling_result);
+GeometryPtr WinApp::create_geometry(Mesh&& mesh) {
+  return create_geometry(L"unamed_mesh", std::move(mesh));
+}
+
+GeometryPtr WinApp::create_geometry(Name&& name, Mesh&& mesh) {
+  auto ptr = m_geometries->create(std::move(name), std::move(mesh));
+  m_pipeline->on_create_geometry(*ptr);
+  return ptr;
+}
+
+MaterialPtr WinApp::create_material(Name&& name) {
+  auto ptr = m_materials->create(std::move(name));
+  m_pipeline->on_create_material(*ptr);
+  return ptr;
+}
+
+ModelPtr WinApp::create_model(const Mat4& trans, GeometryPtr geo, MaterialPtr mat, Name&& name) {
+  auto ptr = m_scene->create_model(trans, geo, mat, std::move(name));
+  m_pipeline->on_create_model(*ptr);
+  return ptr;
 }
 
 void WinApp::run() {

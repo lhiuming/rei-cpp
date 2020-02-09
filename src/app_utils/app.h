@@ -17,7 +17,6 @@
 #include "scene.h"
 #include "render_pipeline.h"
 #include "renderer.h"
-#include "renderer/viewport.h"
 
 #include "viewer.h"
 
@@ -28,10 +27,10 @@ namespace rei {
 class WinApp {
 public:
   enum class RenderMode {
+    Default,
     Rasterization,
     RealtimeRaytracing,
     Hybrid,
-    UIOnly,
   };
 
   struct Config {
@@ -68,6 +67,12 @@ protected:
   virtual void on_update();
   virtual void on_render();
 
+  // content manipulation
+  GeometryPtr create_geometry(Mesh&& mesh);
+  GeometryPtr create_geometry(Name&& name, Mesh&& mesh);
+  MaterialPtr create_material(Name&& name);
+  ModelPtr create_model(const Mat4& trans, GeometryPtr geo, MaterialPtr mat, Name&& name); 
+
   // update routines
   void update_ui();
   void update_camera_control();
@@ -76,18 +81,18 @@ protected:
 private:
   HINSTANCE hinstance = NULL;
   std::shared_ptr<InputBus> m_input_bus;
-
   std::unique_ptr<Viewer> m_viewer;
-  std::unique_ptr<Scene> m_scene;
-  std::unique_ptr<Camera> m_camera;
+
+  std::shared_ptr<Geometries> m_geometries;
+  std::shared_ptr<Materials> m_materials;
+  std::shared_ptr<Scene> m_scene;
+  std::shared_ptr<Camera> m_camera;
 
   ImGuiContext* m_imgui_context = nullptr;
 
   std::shared_ptr<Renderer> m_renderer;
-  std::shared_ptr<Viewport> m_viewport;
-  std::shared_ptr<RenderPipeline> m_pipeline;
-  RenderPipeline::ViewportHandle m_viewport_h = 0;
-  RenderPipeline::SceneHandle m_scene_h = 0;
+  //std::shared_ptr<RenderPipeline> m_pipeline;
+  std::shared_ptr<HybridPipeline> m_pipeline;
 
   bool is_started = false;
 
