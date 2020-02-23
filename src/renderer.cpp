@@ -31,6 +31,8 @@ using std::vector;
 using std::weak_ptr;
 using std::wstring;
 
+#define GFX_SUPPORT_RENDER_PASS 0
+
 namespace rei {
 
 using namespace d3d;
@@ -913,6 +915,37 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   const FLOAT clear_depth = 0;
   const FLOAT clear_stentil = 0;
 
+#if !GFX_SUPPORTS_RENDER_PASS
+  FixedVec<D3D12_CPU_DESCRIPTOR_HANDLE, 8> rt_descriptors = {};
+  for (size_t i = 0; i < cmd.render_targets.size(); i++) {
+    BufferHandle h = cmd.render_targets[i];
+    auto rt_buf = to_buffer(h);
+    auto& tex = rt_buf->res.get<TextureBuffer>();
+    rt_descriptors.emplace_back(get_rtv_cpu(tex.buffer.Get()));
+
+    if (cmd.clear_rt) {
+      FLOAT color_values[4];
+      fill_color(color_values, clear_color);
+      cmd_list->ClearRenderTargetView(rt_descriptors[i], color_values, 0, NULL);
+    }
+  }
+  if (cmd.depth_stencil != c_empty_handle) {
+    auto buf = to_buffer(cmd.depth_stencil);
+    buf->get_res();
+    D3D12_CPU_DESCRIPTOR_HANDLE depth_descriptor = get_dsv_cpu(buf->get_res());
+    if (cmd.clear_ds) {
+      D3D12_CLEAR_FLAGS flags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
+      cmd_list->ClearDepthStencilView(depth_descriptor, flags, clear_depth, clear_stentil, 0, NULL);
+    }
+    cmd_list->OMSetRenderTargets(
+      rt_descriptors.size(), rt_descriptors.data(), true, &depth_descriptor);
+  } else {
+    cmd_list->OMSetRenderTargets(rt_descriptors.size(), rt_descriptors.data(), true, NULL);
+  }
+
+  return;
+#endif
+
   FixedVec<D3D12_RENDER_PASS_RENDER_TARGET_DESC, 8> rt_descs = {};
   REI_ASSERT(cmd.render_targets.max_size <= rt_descs.max_size);
   if (cmd.render_targets.size() > 0) {
@@ -967,6 +1000,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
 }
 
 void Renderer::end_render_pass() {
+#if !GFX_SUPPORTS_RENDER_PASS
+  return;
+#endif
+
   auto cmd_list = device_resources->prepare_command_list();
   cmd_list->EndRenderPass();
 }
