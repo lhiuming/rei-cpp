@@ -548,7 +548,7 @@ void HybridPipeline::on_create_model(const Model& model) {
     ShaderArgumentValue raster_arg_value = {};
     raster_arg_value.const_buffers = {m_scene_data->objects_cb};
     raster_arg_value.const_buffer_offsets = {mat.cb_index};
-    ShaderArgumentHandle raster_arg = r->create_shader_argument(raster_arg_value);
+    raster_arg = r->create_shader_argument(raster_arg_value);
   }
   ShaderArgumentHandle raytrace_arg;
   {
@@ -556,11 +556,13 @@ void HybridPipeline::on_create_model(const Model& model) {
     raytrace_arg_value.const_buffers = {m_scene_data->materials_cb};
     raytrace_arg_value.const_buffer_offsets = {mat.cb_index};
     raytrace_arg_value.shader_resources = {geo.index_buffer, geo.vertex_buffer};
-    ShaderArgumentHandle raytrace_arg = r->create_shader_argument(raytrace_arg_value);
+    raytrace_arg = r->create_shader_argument(raytrace_arg_value);
   }
   size_t cb_index = m_scene_data->models.size();
   size_t tlas_instance_id = cb_index;
   Mat4 init_trans = model.get_transform();
+  REI_ASSERT(raster_arg != c_empty_handle);
+  REI_ASSERT(raytrace_arg != c_empty_handle);
   SceneData::ModelData data {
     geo_id, mat_id, raster_arg, raytrace_arg, cb_index, tlas_instance_id, init_trans};
 

@@ -39,7 +39,10 @@ static inline void error(LogMsg msg, MetaMsg meta = k_empty_meta) {
 
 template <typename T, typename LogMsg>
 static inline bool error_if(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
-  if (expr) { error(msg, meta); }
+  if (expr) { 
+    error(msg, meta); 
+    return true;
+  }
   return false;
 }
 
