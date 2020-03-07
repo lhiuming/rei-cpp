@@ -5,11 +5,13 @@
 #include <unordered_map>
 #include <vector>
 
+#define NOMINMAX
 #include <d3d12.h>
 #include <d3dcompiler.h>
 #include <dxgi1_4.h>
 #include <windows.h>
 #include <wrl.h>
+#undef NOMINMAX
 
 #include "common.h"
 //#include "algebra.h"

@@ -52,6 +52,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	add_definitions(-DUSE_MSVC)
 	add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+	add_definitions(-DNOMINMAX)
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 	# using GCC
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")

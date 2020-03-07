@@ -4,7 +4,7 @@
 #include <memory>
 #include <set>
 
-#include "algebra.h"
+#include "math/algebra.h"
 #include "geometry.h"
 #include "material.h"
 #include "renderer/graphics_handle.h"

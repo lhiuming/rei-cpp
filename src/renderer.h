@@ -3,24 +3,26 @@
 
 #include <cstddef>
 #include <memory>
+#include <numeric>
 
-#if WIN32
+#if 0
+#define NOMINMAX
 #include <windows.h>
+#undef NOMINMAX
 #endif
-
-#include "container_utils.h"
-#include "type_utils.h"
 
 #include "camera.h"
 #include "color.h"
+#include "container_utils.h"
 #include "scene.h"
 #include "shader_struct.h"
+#include "type_utils.h"
 /*
  * renderer.h
  */
 
-#include "renderer/graphics_handle.h"
 #include "renderer/graphics_desc.h"
+#include "renderer/graphics_handle.h"
 
 //#include "direct3d/d3d_resource_types.h"
 #include "direct3d/d3d_common_resources.h"
@@ -136,8 +138,8 @@ struct ShaderCompileConfig {
     Macro(std::string n, std::string d = "TRUE") : name(n), definition(d) {}
   };
   FixedVec<Macro, 16> definitions;
-  template<unsigned int N>
-  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) { 
+  template <unsigned int N>
+  static ShaderCompileConfig defines(FixedVec<Macro, N>&& defs) {
     static_assert(N <= 16);
     ShaderCompileConfig ret {defs};
     return ret;
@@ -173,7 +175,7 @@ struct TextureDesc {
     return {width, height, format, {false, false, true}};
   }
   static TextureDesc simple_2d(size_t width, size_t height, ResourceFormat format) {
-    return { width, height, format, {false, false, false} };
+    return {width, height, format, {false, false, false}};
   }
 };
 
@@ -255,6 +257,16 @@ struct RenderRect {
 using RenderViewaport = RenderRect<float>;
 using RenderArea = RenderRect<int>;
 
+struct ClearArea : public RenderArea {
+  // If true, ignore the area dimension.
+  bool clearAll;
+
+  ClearArea(bool clearAll) : RenderArea(), clearAll(clearAll) {};
+  ClearArea(RenderArea ra) : RenderArea(ra), clearAll(false) {};
+
+  static ClearArea all() { return ClearArea(true); }
+};
+
 struct RenderPassCommand {
   FixedVec<BufferHandle, 8> render_targets;
   BufferHandle depth_stencil = c_empty_handle;
@@ -300,7 +312,7 @@ struct ViewportData;
 struct CullingData;
 
 struct CommittedResource;
-}
+} // namespace d3d
 
 class Renderer : private NoCopy {
   using Self = typename Renderer;
@@ -410,7 +422,7 @@ public:
     raytrace(cmd);
   }
 
-  void clear_texture(BufferHandle target, Vec4 clear_value, RenderArea clear_area);
+  void clear_texture(BufferHandle target, Vec4 clear_value, ClearArea clear_area);
   void copy_texture(BufferHandle src, BufferHandle dest, bool revert_state = true);
 
   // TODO return a command list object

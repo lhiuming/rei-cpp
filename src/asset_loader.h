@@ -6,7 +6,7 @@
 #include <tuple>
 #include <vector>
 
-#include "algebra.h"
+#include "math/algebra.h"
 #include "camera.h"
 #include "scene.h"
 

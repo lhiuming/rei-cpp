@@ -1,8 +1,8 @@
 #ifndef REI_CAMERA_H
 #define REI_CAMERA_H
 
-#include "algebra.h"
-#include "rmath.h"
+#include "math/algebra.h"
+#include "math/num_types.h"
 
 /*
  * camera.h

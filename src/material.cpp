@@ -19,4 +19,8 @@ void Materials::destroy(MaterialPtr mat) {
   REI_ASSERT(count == 1, format("Destory material with %d instance!", count));
 }
 
+std::wostream& operator<<(std::wostream& os, const Material& mat) {
+    return os << mat.m_name << "(id:" << mat.m_id << "): " << mat.m_props;
 }
+
+} // namespace rei

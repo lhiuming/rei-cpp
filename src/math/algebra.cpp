@@ -1,4 +1,3 @@
-// source of math.h
 #include "algebra.h"
 
 #include "console.h"

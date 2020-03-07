@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <ostream>
 
-#include "algebra.h"
+#include "math/algebra.h"
 
 /*
  * color.h
@@ -38,7 +38,8 @@ public:
   Color operator*(float c) const { return Color(r * c, g * c, b * c, a * c); }
 
   // Convert to Vec4
-  explicit operator Vec4() const { return {r, g, b, a}; }
+  constexpr explicit operator Vec4() const { return {r, g, b, a}; }
+  constexpr Vec4 to_vec4() const { return Vec4(r, g, b, a); }
 };
 
 // Print out the color

@@ -7,7 +7,7 @@
 
 #include "../debug.h"
 #include "../renderer.h"
-#include "../rmath.h"
+#include "math/math_utils.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -212,11 +212,7 @@ void WinApp::on_render() {
 }
 
 GeometryPtr WinApp::create_geometry(Mesh&& mesh) {
-  return create_geometry(L"unamed_mesh", std::move(mesh));
-}
-
-GeometryPtr WinApp::create_geometry(Name&& name, Mesh&& mesh) {
-  auto ptr = m_geometries->create(std::move(name), std::move(mesh));
+  auto ptr = m_geometries->create(L"unamed_mesh", std::move(mesh));
   m_pipeline->on_create_geometry(*ptr);
   return ptr;
 }

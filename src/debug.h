@@ -1,7 +1,14 @@
 #ifndef REI_DEBUG_H
 #define REI_DEBUG_H
 
-#if DEBUG
+// Set debug mode
+#ifndef REI_DEBUG
+#ifdef DEBUG
+#define REI_DEBUG
+#endif
+#endif
+
+#ifdef REI_DEBUG
 #include <stdexcept>
 #endif
 
@@ -84,32 +91,27 @@ static inline void uninit(T expr, LogMsg msg, MetaMsg meta = k_empty_meta) {
 #define REI_DEBUG_META \
   " -- function " REI_FUNC_META ", in file " __FILE__ " (line " REI_STRINGFY(__LINE__) ")"
 
+#ifdef REI_DEBUG
 #define REI_THROW(msg) throw std::runtime_error(msg)
+#else
+#define REI_THROW(msg) 
+#endif
 
 #define REI_WARNING(msg) ::rei::warning(msg, REI_DEBUG_META)
 #define REI_WARNINGIF(expr) ::rei::warning_if(expr, #expr, REI_DEBUG_META)
 
-#if THROW
 #define REI_ERROR(msg) (::rei::error(msg, REI_DEBUG_META), REI_THROW(msg))
-#else
-#define REI_ERROR(msg) ::rei::error(msg, REI_DEBUG_META)
-#endif
 #define REI_ERRORIF(expr) ::rei::error_if(expr, #expr, REI_DEBUG_META)
 
-#if THROW
 #define REI_ASSERT(expr) \
   ((expr) ? true : (::rei::rassert(false, #expr, REI_DEBUG_META), REI_THROW(#expr)))
 #define REI_ASSERT_MSG(expr, msg) \
   ((expr) ? true : (::rei::rassert(false, msg, REI_DEBUG_META), REI_THROW(#expr)))
-#else
-#define REI_ASSERT(expr) ::rei::rassert(expr, #expr, REI_DEBUG_META)
-#define REI_ASSERT_MSG(expr, msg) ::rei::rassert(expr, msg, REI_DEBUG_META)
-#endif
 
-#if THROW
+#ifdef REI_DEBUG
 #define REI_UNINIT(var) (var ? REI_THROW(#var " is not empry") : var, var)
 #else
-#define UNINIT(var) (::rei::uninit(var, #var "is not empty", REI_DEBUG_META), var)
+#define REI_UNINIT(var) (::rei::uninit(var, #var "is not empty", REI_DEBUG_META), var)
 #endif
 
 #define REI_NOT_IMPLEMENT() (::rei::not_implemented(REI_DEBUG_META))

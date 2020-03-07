@@ -4,7 +4,7 @@
 #include <array>
 #include <vector>
 
-#include "algebra.h"
+#include "math/algebra.h"
 #include "variant_utils.h"
 #include "debug.h"
 

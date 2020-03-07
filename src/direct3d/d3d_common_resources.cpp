@@ -15,6 +15,7 @@ RenderTargetSpec::RenderTargetSpec() {
   dxgi_rt_format = DXGI_FORMAT_R8G8B8A8_UNORM;
   dxgi_ds_format = DXGI_FORMAT_D24_UNORM_S8_UINT;
   REI_ASSERT(is_right_handed);
+  rt_clear = {0, 0, 0, 0};
   ds_clear.Depth = 0.0;
   ds_clear.Stencil = 0;
 }

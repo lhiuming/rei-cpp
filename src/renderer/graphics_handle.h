@@ -1,6 +1,7 @@
 #ifndef REI_GRAPHIC_HANDLE_H
 #define REI_GRAPHIC_HANDLE_H
 
+#include <memory>
 #include "graphics_const.h"
 
 /*

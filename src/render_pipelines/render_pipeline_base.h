@@ -1,19 +1,18 @@
 #ifndef REI_RENDER_PIPELINE_BASE_H
 #define REI_RENDER_PIPELINE_BASE_H
 
+#include <imgui.h>
+
 #include <memory>
 #include <unordered_map>
 
-#include <imgui.h>
-
 #include "renderer.h"
 #include "renderer/graphics_handle.h"
+#include "render_pass.h"
 
 namespace rei {
 
-
-class RenderPipeline {
-};
+class RenderPipeline {};
 
 namespace renderpipeline_deprecated {
 
@@ -31,8 +30,10 @@ struct SceneConfig {
 template <typename TViewport, typename TScene, typename TRenderer = Renderer>
 class SimplexPipeline : public RenderPipeline {
   using PtrType = std::uintptr_t;
+
 protected:
   using RendererPtr = std::weak_ptr<TRenderer>;
+
 public:
   using ViewportHandle = PtrType;
   using SceneHandle = PtrType;
@@ -89,7 +90,7 @@ protected:
   TScene* get_scene(SceneHandle handle) { return get_ptr(handle, scenes); }
 };
 
-}
+} // namespace renderpipeline_deprecated
 
 using namespace renderpipeline_deprecated;
 

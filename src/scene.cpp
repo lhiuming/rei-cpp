@@ -5,7 +5,7 @@
 #include <sstream>
 #include <vector>
 
-#include "algebra.h"
+#include "math/algebra.h"
 
 namespace rei {
 

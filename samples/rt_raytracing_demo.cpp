@@ -1,6 +1,6 @@
 #include <memory>
 
-#include <rmath.h>
+#include <math/num_types.h>
 #include <scene.h>
 
 #include <app_utils/app.h>

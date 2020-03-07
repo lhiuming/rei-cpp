@@ -4,35 +4,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../container_utils.h"
-#include "../renderer.h"
+#include "container_utils.h"
+#include "math/halton.h"
+#include "renderer.h"
 #include "scene.h"
 
 namespace rei {
 
 namespace hybrid {
-
-struct HaltonSequence {
-  size_t index = 0;
-
-  HaltonSequence(size_t init_index = 0) : index(init_index) {}
-
-  template <int Base>
-  static float sample(int index) {
-    float a = 0;
-    float inv_base = 1.0f / float(Base);
-    for (float mult = inv_base; index != 0; index /= Base, mult *= inv_base) {
-      a += float(index % Base) * mult;
-    }
-    return a;
-  }
-
-  float next() { return sample<2>(++index); }
-  Vec4 next4() {
-    ++index;
-    return Vec4(sample<2>(index), sample<3>(index), sample<5>(index), sample<7>(index));
-  }
-};
 
 struct ViewportData {
   SystemWindowID wnd_id;
@@ -53,33 +32,10 @@ struct ViewportData {
   BufferHandle raytracing_output_buffer;
   ShaderArgumentHandle blit_raytracing_output;
 
-  // Statochastic Shadowed area lighting
   struct AreaLightHandles {
     BufferHandle unshadowed;
-    BufferHandle stochastic_sample_ray;
-    BufferHandle stochastic_sample_radiance;
-    BufferHandle stochastic_unshadowed;
-    BufferHandle stochastic_shadowed;
-    // BufferHandle stochastic_variance;
-    BufferHandle denoised_unshadowed;
-    BufferHandle denoised_shadowed;
-
     ShaderArgumentHandle unshadowed_pass_arg;
-    ShaderArgumentHandle sample_gen_pass_arg;
-    // ShaderArgumentHandle variance_pass_arg;
-    // ShaderArgumentHandle variance_filter_pass_arg;
-    ShaderArgumentHandle denoise_fistpass_arg0;
-    ShaderArgumentHandle denoise_finalpass_arg0;
-    ShaderArgumentHandle denoise_common_arg1;
-
-    // debug pass
     ShaderArgumentHandle blit_unshadowed;
-    ShaderArgumentHandle blit_stochastic_sample_ray;
-    ShaderArgumentHandle blit_stochastic_sample_radiance;
-    ShaderArgumentHandle blit_stochastic_unshadowed;
-    ShaderArgumentHandle blit_stochastic_shadowed;
-    ShaderArgumentHandle blit_denoised_unshadowed;
-    ShaderArgumentHandle blit_denoised_shadowed;
   } area_light;
 
   // TAA resources
@@ -261,80 +217,6 @@ struct HybridDirectAreaLightingShaderDesc : HybridDirectLightingShaderDesc {
   HybridDirectAreaLightingShaderDesc() {}
 };
 
-struct HybridStochasticGenShaderDesc : ComputeShaderMetaInfo {
-  HybridStochasticGenShaderDesc() {
-    ShaderParameter space0 {};
-    space0.const_buffers = {
-      ConstantBuffer(), // light data
-    };
-    ShaderParameter space1 {};
-    space1.shader_resources = {
-      ShaderResource(), // depth
-      ShaderResource(), // gbuffers
-      ShaderResource(),
-      ShaderResource(),
-    };
-    space1.unordered_accesses = {
-      UnorderedAccess(), // output U_n
-      UnorderedAccess(), // output ray sample
-      UnorderedAccess(), // output radiance sample
-    };
-    space1.const_buffers = {
-      ConstantBuffer(), // per-render data
-    };
-    signature.param_table = {space0, space1};
-  }
-};
-
-struct HybridShtochasticShadowTraceShaderDesc : RaytracingShaderMetaInfo {
-  HybridShtochasticShadowTraceShaderDesc() {
-    ShaderParameter space0 {};
-    space0.const_buffers = {ConstantBuffer()};       // Per-render CN
-    space0.shader_resources = {ShaderResource(),     // TLAS
-      ShaderResource(),                              // depth buffer
-      ShaderResource(),                              // sample ray
-      ShaderResource()};                             // sample radiance
-    space0.unordered_accesses = {UnorderedAccess()}; // output buffer
-    global_signature.param_table = {space0};
-
-    hitgroup_name = L"hit_group0";
-    raygen_name = L"raygen_shader";
-    closest_hit_name = L"closest_hit_shader";
-    miss_name = L"miss_shader";
-  }
-};
-
-struct HybridStochasticShadowDenoiseShaderDesc : ComputeShaderMetaInfo {
-  HybridStochasticShadowDenoiseShaderDesc(bool finalpass = false) {
-    ShaderParameter space0 {};
-    space0.shader_resources = {
-      ShaderResource(), // two input
-      ShaderResource(),
-    };
-    if (finalpass) {
-      space0.unordered_accesses = {
-        UnorderedAccess(), // sigle output
-      };
-    } else {
-      space0.unordered_accesses = {
-        UnorderedAccess(), // two output
-        UnorderedAccess(),
-      };
-    }
-    ShaderParameter space1 {};
-    space1.shader_resources = {
-      ShaderResource(), // depth
-      ShaderResource(), // gbuffers - rt0 normal
-      ShaderResource(), // unshadowd analytic radiance
-      // ShaderResource(), // stochastic variance estimate
-    };
-    space1.const_buffers = {
-      ConstantBuffer(), // per-render data
-    };
-    signature.param_table = {space0, space1};
-  }
-};
-
 struct BlitShaderDesc : RasterizationShaderMetaInfo {
   BlitShaderDesc() {
     ShaderParameter space0 {};
@@ -366,7 +248,8 @@ HybridPipeline::HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID 
       m_camera(camera),
       m_enable_multibounce(true),
       m_enabled_accumulated_rtrt(true),
-      m_area_shadow_ssp_per_light(4) {
+      m_area_shadow_ssp_per_light(4),
+      m_sto_shadow_pass(renderer) {
   std::shared_ptr<Renderer> r = renderer.lock();
 
   // Init pipeline
@@ -382,24 +265,6 @@ HybridPipeline::HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID 
       L"CoreData/shader/hybrid_direct_lighting.hlsl", HybridDirectLightingShaderDesc());
     m_area_lighting_shader = r->create_shader(
       L"CoreData/shader/hybrid_direct_area_lighting.hlsl", HybridDirectAreaLightingShaderDesc());
-  }
-
-  {
-    m_stochastic_shadow_sample_gen_shader
-      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_sample_generate.hlsl",
-        HybridStochasticGenShaderDesc());
-    m_stochastic_shadow_trace_shader
-      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_trace.hlsl",
-        HybridShtochasticShadowTraceShaderDesc());
-    m_stochastic_shadow_trace_shadertable
-      = r->create_shader_table(1, m_stochastic_shadow_trace_shader);
-    m_stochastic_shadow_denoise_firstpass_shader
-      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_denoise.hlsl",
-        HybridStochasticShadowDenoiseShaderDesc());
-    m_stochastic_shadow_denoise_finalpass_shader
-      = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_denoise.hlsl",
-        HybridStochasticShadowDenoiseShaderDesc(true),
-        ShaderCompileConfig::defines<1>({{"FINAL_PASS", "1"}}));
   }
 
   {
@@ -492,6 +357,7 @@ void HybridPipeline::on_create_geometry(const Geometry& geo) {
   desc.flags.include_blas = true;
   GeometryBufferHandles buffers = r->create_geometry(geo, desc);
 
+  REI_ASSERT(!m_scene_data->geometries.has(geo.id()));
   m_scene_data->geometries.insert({geo.id(), buffers});
 }
 
@@ -516,10 +382,6 @@ void HybridPipeline::on_create_material(const Material& mat) {
     REI_ASSERT(mat_arg);
     data.arg = mat_arg;
   }
-  data.albedo() = Vec4(mat.get<Color>(L"albedo").value_or(Colors::magenta));
-  data.smoothness() = mat.get<double>(L"smoothness").value_or(0);
-  data.metalness() = mat.get<double>(L"metalness").value_or(0);
-  data.emissive() = mat.get<double>(L"emissive").value_or(0);
 
   m_scene_data->materials.insert({mat.id(), data});
 }
@@ -543,11 +405,13 @@ void HybridPipeline::on_create_model(const Model& model) {
   if (REI_ERRORIF(mat_ptr == nullptr, "Fail to find material data")) return;
   auto& mat = *mat_ptr;
 
+  const size_t cb_index = m_scene_data->models.size();
+
   ShaderArgumentHandle raster_arg;
   {
     ShaderArgumentValue raster_arg_value = {};
     raster_arg_value.const_buffers = {m_scene_data->objects_cb};
-    raster_arg_value.const_buffer_offsets = {mat.cb_index};
+    raster_arg_value.const_buffer_offsets = {cb_index};
     raster_arg = r->create_shader_argument(raster_arg_value);
   }
   ShaderArgumentHandle raytrace_arg;
@@ -558,7 +422,6 @@ void HybridPipeline::on_create_model(const Model& model) {
     raytrace_arg_value.shader_resources = {geo.index_buffer, geo.vertex_buffer};
     raytrace_arg = r->create_shader_argument(raytrace_arg_value);
   }
-  size_t cb_index = m_scene_data->models.size();
   size_t tlas_instance_id = cb_index;
   Mat4 init_trans = model.get_transform();
   REI_ASSERT(raster_arg != c_empty_handle);
@@ -585,6 +448,7 @@ void HybridPipeline::render(size_t width, size_t height) {
   // update scene and view port data
   update_scene();
   update_viewport(width, height);
+  update_hybrid();
 
   // render info
   Mat4 view_proj = viewport.get_view_proj(viewport.view_proj_dirty && m_enable_jittering);
@@ -686,10 +550,10 @@ void HybridPipeline::render(size_t width, size_t height) {
   cmd_list->transition(viewport.deferred_shading_output, ResourceState::UnorderedAccess);
   // currently both taa and direct-lighting write to the same UA buffer
   cmd_list->barrier(viewport.deferred_shading_output);
-  int light_count = 0;
   static int light_indices[] = {0, 1};
   static Color light_colors[] = {Colors::white * 1.3, Colors::white * 1};
-  static Vec4 light_pos_dirs[] = {{Vec3(1, 2, 1).normalized(), 0}, {0, 2, 0, 1}};
+  static Vec4 light_pos_dirs[] = {{Vec3(1, 2, 1).normalized(), 0}, {0, 2.5, 0, 1}};
+  const int light_count = ARRAYSIZE(light_indices);
   for (int i = 0; i < light_count; i++) {
     int light_index = light_indices[i];
     Vec4 light_color = Vec4(light_colors[i]);
@@ -789,107 +653,8 @@ void HybridPipeline::render(size_t width, size_t height) {
 
   // -------
   // Pass: Stochastic Shadow
-
-  cmd_list->transition(viewport.area_light.stochastic_unshadowed, ResourceState::UnorderedAccess);
-  cmd_list->transition(viewport.area_light.stochastic_shadowed, ResourceState::UnorderedAccess);
-  cmd_list->clear_texture(viewport.area_light.stochastic_unshadowed, {0, 0, 0, 0},
-    RenderArea::full(viewport.width, viewport.height));
-  cmd_list->clear_texture(viewport.area_light.stochastic_shadowed, {0, 0, 0, 0},
-    RenderArea::full(viewport.width, viewport.height));
-  cmd_list->barrier(viewport.area_light.stochastic_unshadowed);
-  cmd_list->barrier(viewport.area_light.stochastic_shadowed);
-
-  // generate stochastic sample, and trace
-  // NOTE: per light, multiple ray-per-pixel
-  HaltonSequence halton {viewport.frame_id};
-  for (int i = 0; i < area_light_indices.size(); i++) {
-    int light_index = area_light_indices[i];
-    Vec4 light_color = Vec4(area_light_colors[i]);
-    Vec4 light_shape = area_light_shapes[i];
-
-    // update light data and random data
-    cmd_list->update_const_buffer(scene.area_lights, light_index, 0, light_shape);
-    cmd_list->update_const_buffer(scene.area_lights, light_index, 1, light_color);
-
-    for (int sp = 0; sp < m_area_shadow_ssp_per_light; sp++) {
-      // update random data for each sample pass
-      cmd_list->update_const_buffer(scene.area_lights, light_index, 2, halton.next4());
-
-      // sample gen
-      cmd_list->transition(
-        viewport.area_light.stochastic_sample_ray, ResourceState::UnorderedAccess);
-      cmd_list->transition(
-        viewport.area_light.stochastic_sample_radiance, ResourceState::UnorderedAccess);
-      cmd_list->clear_texture(viewport.area_light.stochastic_sample_ray, {0, 0, 0, 0},
-        RenderArea::full(viewport.width, viewport.height));
-      cmd_list->clear_texture(viewport.area_light.stochastic_sample_radiance, {0, 0, 0, 0},
-        RenderArea::full(viewport.width, viewport.height));
-      cmd_list->barrier(viewport.area_light.stochastic_sample_ray);
-      cmd_list->barrier(viewport.area_light.stochastic_sample_radiance);
-      DispatchCommand dispatch {};
-      dispatch.compute_shader = m_stochastic_shadow_sample_gen_shader;
-      dispatch.arguments = {fetch_direct_area_lighting_arg(renderer, scene, light_index),
-        viewport.area_light.sample_gen_pass_arg};
-      dispatch.dispatch_x = viewport.width / 8;
-      dispatch.dispatch_y = viewport.height / 8;
-      dispatch.dispatch_z = 1;
-      cmd_list->dispatch(dispatch);
-
-      // shadow trace
-      cmd_list->transition(
-        viewport.area_light.stochastic_sample_ray, ResourceState::ComputeShaderResource);
-      cmd_list->transition(
-        viewport.area_light.stochastic_sample_radiance, ResourceState::ComputeShaderResource);
-      cmd_list->barrier(viewport.area_light.stochastic_sample_ray);
-      cmd_list->barrier(viewport.area_light.stochastic_sample_radiance);
-      RaytraceCommand trace {};
-      trace.raytrace_shader = m_stochastic_shadow_trace_shader;
-      trace.arguments = {hybrid.rt_shdow_pass_arg};
-      trace.shader_table = m_stochastic_shadow_trace_shadertable;
-      trace.width = viewport.width;
-      trace.height = viewport.height;
-      cmd_list->raytrace(trace);
-    } // end for each ssp
-
-  } // end for each area light
-
-  // Two-pass denoise -> output final shade //
-  cmd_list->transition(
-    viewport.area_light.stochastic_shadowed, ResourceState::ComputeShaderResource);
-  cmd_list->transition(
-    viewport.area_light.stochastic_unshadowed, ResourceState::ComputeShaderResource);
-  cmd_list->transition(viewport.area_light.denoised_shadowed, ResourceState::UnorderedAccess);
-  cmd_list->transition(viewport.area_light.denoised_unshadowed, ResourceState::UnorderedAccess);
-  cmd_list->clear_texture(viewport.area_light.denoised_shadowed, Vec4(0, 0, 0, 0),
-    RenderArea::full(viewport.width, viewport.height));
-  cmd_list->clear_texture(viewport.area_light.denoised_unshadowed, Vec4(0, 0, 0, 0),
-    RenderArea::full(viewport.width, viewport.height));
-  cmd_list->barrier(viewport.area_light.denoised_shadowed);
-  cmd_list->barrier(viewport.area_light.denoised_unshadowed);
-  {
-    DispatchCommand dispatch {};
-    dispatch.compute_shader = m_stochastic_shadow_denoise_firstpass_shader;
-    dispatch.arguments
-      = {viewport.area_light.denoise_fistpass_arg0, viewport.area_light.denoise_common_arg1};
-    dispatch.dispatch_x = viewport.width / 8;
-    dispatch.dispatch_y = viewport.height / 8;
-    dispatch.dispatch_z = 1;
-    cmd_list->dispatch(dispatch);
-  }
-  cmd_list->transition(viewport.area_light.denoised_shadowed, ResourceState::ComputeShaderResource);
-  cmd_list->transition(
-    viewport.area_light.denoised_unshadowed, ResourceState::ComputeShaderResource);
-  {
-    DispatchCommand dispatch {};
-    dispatch.compute_shader = m_stochastic_shadow_denoise_finalpass_shader;
-    dispatch.arguments
-      = {viewport.area_light.denoise_finalpass_arg0, viewport.area_light.denoise_common_arg1};
-    dispatch.dispatch_x = viewport.width / 8;
-    dispatch.dispatch_y = viewport.height / 8;
-    dispatch.dispatch_z = 1;
-    cmd_list->dispatch(dispatch);
-  }
-
+  m_sto_shadow_pass.run(
+    viewport.area_light.unshadowed, viewport.frame_id, m_area_shadow_ssp_per_light);
   //--- End Stochastic Shadow
 
   // -------
@@ -979,18 +744,6 @@ void HybridPipeline::render(size_t width, size_t height) {
         };
 
     debug_blit_pass(viewport.area_light.unshadowed, viewport.area_light.blit_unshadowed);
-    debug_blit_pass(
-      viewport.area_light.stochastic_unshadowed, viewport.area_light.blit_stochastic_unshadowed);
-    debug_blit_pass(
-      viewport.area_light.stochastic_sample_ray, viewport.area_light.blit_stochastic_sample_ray);
-    debug_blit_pass(viewport.area_light.stochastic_sample_radiance,
-      viewport.area_light.blit_stochastic_sample_radiance);
-    debug_blit_pass(
-      viewport.area_light.stochastic_shadowed, viewport.area_light.blit_stochastic_shadowed);
-    debug_blit_pass(
-      viewport.area_light.denoised_shadowed, viewport.area_light.blit_denoised_shadowed);
-    debug_blit_pass(
-      viewport.area_light.denoised_unshadowed, viewport.area_light.blit_denoised_unshadowed);
     debug_blit_pass(viewport.raytracing_output_buffer, viewport.blit_raytracing_output);
   }
 
@@ -1008,6 +761,8 @@ void HybridPipeline::update_scene() {
 
   auto r = m_renderer.lock();
 
+  Hashmap<Material::ID, Material*> curr_materials;
+
   // Fetch model transform
   // TODO mark ditry for geometry instances
   for (ModelPtr& m : scene->get_models()) {
@@ -1015,7 +770,26 @@ void HybridPipeline::update_scene() {
     auto* data = proxy.models.try_get(id);
     REI_ASSERT(data);
     data->trans = m->get_transform();
+    // collect materials
+    auto& mat = m->get_material();
+    if (mat) { curr_materials.insert(mat->id(), mat.get()); }
   }
+
+  // Fetch current material data
+  for (auto& pair : curr_materials) {
+    Material::ID id = pair.first;
+    Material* mat = pair.second;
+    REI_ASSERT(mat);
+    auto* data = proxy.materials.try_get(id);
+    REI_ASSERT(data);
+
+    data->albedo() = mat->get<Color>(L"albedo").value_or(Colors::magenta).to_vec4();
+    data->smoothness() = mat->get<double>(L"smoothness").value_or(0);
+    data->metalness() = mat->get<double>(L"metalness").value_or(0);
+    data->emissive() = mat->get<double>(L"emissive").value_or(0);
+  }
+
+  curr_materials.clear();
 
   // Re-build Acceleration structure and shader table
   if (scene_data.tlas_or_shadertable_dirty) {
@@ -1041,6 +815,9 @@ void HybridPipeline::update_scene() {
 }
 
 void HybridPipeline::update_viewport(size_t width, size_t height) {
+  // ignore case when minimixed
+  if (width == 0 || height == 0) return;
+
   REI_ASSERT(width > 0 && height > 0);
   std::shared_ptr<Renderer> renderer_ptr = m_renderer.lock();
   std::shared_ptr<Camera> camera_ptr = m_camera.lock();
@@ -1097,28 +874,9 @@ void HybridPipeline::update_viewport(size_t width, size_t height) {
       TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
       ResourceState::UnorderedAccess, L"Deferred Shading Output");
 
-    // area light resources
     proxy.area_light.unshadowed = r->create_texture_2d(
       TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
       ResourceState::UnorderedAccess, L"Area Light Unshadowed");
-    proxy.area_light.stochastic_unshadowed = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Stochastic Unshadowed");
-    proxy.area_light.stochastic_sample_ray = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Ray");
-    proxy.area_light.stochastic_sample_radiance = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Stochastic Sample-Radiance");
-    proxy.area_light.stochastic_shadowed = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Stochastic Shadowed");
-    proxy.area_light.denoised_shadowed = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Denoised Shadowed");
-    proxy.area_light.denoised_unshadowed = r->create_texture_2d(
-      TextureDesc::unorder_access(width, height, ResourceFormat::R32G32B32A32Float),
-      ResourceState::UnorderedAccess, L"Area Light Denoised Unshadowed");
 
     // helper routine
     auto make_blit_arg = [&](BufferHandle source) {
@@ -1159,50 +917,6 @@ void HybridPipeline::update_viewport(size_t width, size_t height) {
         = {0}; // FIXME current all viewport using the same part of per-render buffer
       proxy.area_light.unshadowed_pass_arg = r->create_shader_argument(val);
       REI_ASSERT(proxy.area_light.unshadowed_pass_arg);
-      proxy.area_light.blit_unshadowed = make_blit_arg(proxy.area_light.unshadowed);
-    }
-    {
-      ShaderArgumentValue val {};
-      val.shader_resources
-        = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.gbuffer1, proxy.gbuffer2};
-      val.unordered_accesses = {proxy.area_light.stochastic_unshadowed,
-        proxy.area_light.stochastic_sample_ray, proxy.area_light.stochastic_sample_radiance};
-      val.const_buffers = {m_per_render_buffer};
-      val.const_buffer_offsets
-        = {0}; // FIXME current all viewport using the same part of per-render buffer
-      proxy.area_light.sample_gen_pass_arg = r->create_shader_argument(val);
-      REI_ASSERT(proxy.area_light.sample_gen_pass_arg);
-      proxy.area_light.blit_stochastic_unshadowed
-        = make_blit_arg(proxy.area_light.stochastic_unshadowed);
-      proxy.area_light.blit_stochastic_sample_ray
-        = make_blit_arg(proxy.area_light.stochastic_sample_ray);
-      proxy.area_light.blit_stochastic_sample_radiance
-        = make_blit_arg(proxy.area_light.stochastic_sample_radiance);
-    }
-    {
-      proxy.area_light.blit_stochastic_shadowed
-        = make_blit_arg(proxy.area_light.stochastic_shadowed);
-    }
-    {
-      ShaderArgumentValue val1 {};
-      val1.const_buffers = {m_per_render_buffer};
-      val1.const_buffer_offsets = {0};
-      val1.shader_resources
-        = {proxy.depth_stencil_buffer, proxy.gbuffer0, proxy.area_light.unshadowed};
-      proxy.area_light.denoise_common_arg1 = r->create_shader_argument(val1);
-      ShaderArgumentValue first0 {};
-      first0.shader_resources
-        = {proxy.area_light.stochastic_shadowed, proxy.area_light.stochastic_unshadowed};
-      first0.unordered_accesses
-        = {proxy.area_light.denoised_shadowed, proxy.area_light.denoised_unshadowed};
-      proxy.area_light.denoise_fistpass_arg0 = r->create_shader_argument(first0);
-      ShaderArgumentValue final0 = first0;
-      final0.unordered_accesses = {proxy.deferred_shading_output};
-      proxy.area_light.denoise_finalpass_arg0 = r->create_shader_argument(final0);
-
-      proxy.area_light.blit_denoised_shadowed = make_blit_arg(proxy.area_light.denoised_shadowed);
-      proxy.area_light.blit_denoised_unshadowed
-        = make_blit_arg(proxy.area_light.denoised_unshadowed);
     }
 
     // Multibounce tracing arguments
@@ -1279,6 +993,7 @@ void HybridPipeline::update_hybrid() {
     m_hybrid_data->rt_gi_pass_arg = arg;
   }
 
+#if SSAL
   // Raytracing shadow pass argument
   if (viewport.gbuffer_dirty || !hybrid.rt_shdow_pass_arg) {
     if (hybrid.rt_shdow_pass_arg) REI_WARNING("TODO release old shader arguments");
@@ -1297,6 +1012,7 @@ void HybridPipeline::update_hybrid() {
     REI_ASSERT(arg);
     m_hybrid_data->rt_shdow_pass_arg = arg;
   }
+#endif
 }
 
 ShaderArgumentHandle HybridPipeline::fetch_direct_punctual_lighting_arg(

@@ -5,7 +5,7 @@
 
 #include "console.h"
 #include "debug.h"
-#include "rmath.h"
+#include "math/math_utils.h"
 
 // using namespace std;
 
@@ -44,7 +44,7 @@ void Camera::set_params(double aspect, double angle, double znear, double zfar) 
   }
 
   this->m_aspect = aspect;
-  this->angle = min(max(angle, 5.0), 160.0);
+  this->angle = std::min(std::max(angle, 5.0), 160.0);
   this->znear = znear;
   this->zfar = zfar;
 
@@ -54,7 +54,7 @@ void Camera::set_params(double aspect, double angle, double znear, double zfar) 
 // Dynamics Configurations //
 
 void Camera::zoom(double q) {
-  angle = min(max(angle - q, 5.0), min(160.0, 160.0 * m_aspect));
+  angle = std::min(std::max(angle - q, 5.0), std::min(160.0, 160.0 * m_aspect));
   mark_proj_trans_dirty();
 }
 

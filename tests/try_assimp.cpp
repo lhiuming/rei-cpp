@@ -1,6 +1,6 @@
 // Try the assimp model loader
 
-#include <algebra.h>
+#include <math/algebra.h>
 #include <console.h>
 
 #include <assimp/postprocess.h> // Post processing flags

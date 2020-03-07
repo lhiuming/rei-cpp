@@ -18,13 +18,14 @@ class Materials;
  * General material property data.
  * Basically a bunch of hashmaps, storing limited amount of data types.
  */
+
 class Material : NoCopy {
 public:
   using ID = std::uintptr_t;
   static constexpr ID kInvalidID = 0;
 
   // clang-format off
-  using MaterialProperty = Var<
+  using Property = Var<
     std::monostate,
     Color, 
     Vec4, 
@@ -33,50 +34,69 @@ public:
     >;
   // clang-format on
 
+  class PropertySet {
+  public:
+    bool has(const Name& prop_name) const { return m_table.has(prop_name); }
+
+    void set(Name&& prop_name, Property&& prop_value) {
+      m_table.insert_or_assign(std::move(prop_name), std::move(prop_value));
+    }
+
+    const Property& get(const Name& prop_name) const {
+      const Property* value = m_table.try_get(prop_name);
+      return value ? *value : Property();
+    }
+
+    template <typename T>
+    std::optional<T> get(const Name& prop_name) const {
+      const Property* value = m_table.try_get(prop_name);
+      const T* ptr = std::get_if<T>(value);
+      return ptr ? *ptr : std::optional<T>();
+    }
+
+  private:
+    Hashmap<Name, Property> m_table;
+    friend Material;
+
+    friend std::wostream& operator<<(std::wostream& os, const PropertySet& props) {
+      os << "{";
+      auto beg = props.m_table.cbegin();
+      const auto end = props.m_table.cend();
+      while (beg != end) {
+        os << beg->first << ":" << beg->second;
+        beg++;
+        if (beg != end) { os << ", "; }
+      }
+      os << "}";
+      return os;
+    }
+
+  };
+
   ID id() const { return m_id; }
 
-  bool has(const Name& prop_name) const { return m_properties.has(prop_name); }
-
-  void set(Name&& prop_name, MaterialProperty&& prop_value) {
-    m_properties.insert_or_assign(std::move(prop_name), std::move(prop_value));
-  }
-
-  const MaterialProperty& get(const Name& prop_name) const {
-    const MaterialProperty* value = m_properties.try_get(prop_name);
-    return value ? *value : MaterialProperty();
-  }
-
+  // Proxy methods
+  bool has(const Name& prop_name) const { return m_props.has(prop_name); }
+  const Property& get(const Name& prop_name) const { return m_props.get(prop_name); }
   template <typename T>
   std::optional<T> get(const Name& prop_name) const {
-    const MaterialProperty* value = m_properties.try_get(prop_name);
-    const T* ptr = std::get_if<T>(value);
-    return ptr ? *ptr : std::optional<T>();
+    return m_props.get<T>(prop_name);
   }
-
-  // void set_graphic_handle(MaterialHandle h) { graphic_handle = h; }
-  // MaterialHandle get_graphic_handle() const { return graphic_handle; }
+  void set(Name&& prop_name, Property&& prop_value) {
+    m_props.set(std::move(prop_name), std::move(prop_value));
+  }
 
 private:
   ID m_id;
   Name m_name;
-  Hashmap<Name, MaterialProperty> m_properties;
+  PropertySet m_props;
 
   friend Materials;
 
   Material(ID id) : m_id(id), m_name(L"Unnamed") {}
   Material(ID id, Name&& name) : m_id(id), m_name(std::move(name)) {}
 
-  friend std::wostream& operator<<(std::wostream& os, const Material& mat) {
-    os << mat.m_name << " {";
-    auto beg = mat.m_properties.cbegin();
-    const auto end = mat.m_properties.cend();
-    while (beg != end) {
-      os << beg->first << ":" << beg->second;
-      beg++;
-      if (beg != end) { os << ", "; }
-    }
-    os << "}";
-  }
+  friend std::wostream& operator<<(std::wostream& os, const Material& mat);
 };
 
 using MaterialPtr = std::shared_ptr<Material>;

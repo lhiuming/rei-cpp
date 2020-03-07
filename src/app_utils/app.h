@@ -69,7 +69,6 @@ protected:
 
   // content manipulation
   GeometryPtr create_geometry(Mesh&& mesh);
-  GeometryPtr create_geometry(Name&& name, Mesh&& mesh);
   MaterialPtr create_material(Name&& name);
   ModelPtr create_model(const Mat4& trans, GeometryPtr geo, MaterialPtr mat, Name&& name); 
 

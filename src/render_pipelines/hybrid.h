@@ -5,6 +5,7 @@
 #include <string>
 
 #include "render_pipeline_base.h"
+#include "stochastic_shadow.h"
 
 namespace rei {
 
@@ -56,18 +57,14 @@ private:
   ShaderHandle m_punctual_lighting_shader;
   ShaderHandle m_area_lighting_shader;
 
-  ShaderHandle m_stochastic_shadow_sample_gen_shader;
-  ShaderHandle m_stochastic_shadow_trace_shader;
-  BufferHandle m_stochastic_shadow_trace_shadertable;
-  ShaderHandle m_stochastic_shadow_denoise_firstpass_shader;
-  ShaderHandle m_stochastic_shadow_denoise_finalpass_shader;
-
   ShaderHandle m_multibounce_shader;
 
   ShaderHandle m_taa_shader;
   ShaderHandle m_blit_shader;
 
   BufferHandle m_per_render_buffer;
+
+  StochasticShadow m_sto_shadow_pass;
 
   void update_scene();
   void update_viewport(size_t width, size_t height);

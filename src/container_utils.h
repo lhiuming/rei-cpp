@@ -167,7 +167,7 @@ public:
   bool has(const TKey& key) const { return find(key) != end(); }
 
   using std::unordered_map<TKey, TVal, Hasher>::insert;
-  void insert(TKey&& k, TVal&& val) { this->insert({std::forward(k), std::forward(val)}); }
+  void insert(TKey&& k, TVal&& val) { this->insert({std::move(k), std::move(val)}); }
   void insert(const TKey& k, const TVal& val) { this->insert({k, val}); }
 
   TVal* try_get(const TKey& key) {

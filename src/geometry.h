@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "algebra.h"
+#include "math/algebra.h"
 #include "color.h"
 #include "common.h"
 #include "container_utils.h"

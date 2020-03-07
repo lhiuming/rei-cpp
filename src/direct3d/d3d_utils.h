@@ -1,17 +1,21 @@
 #ifndef REI_DIRECT3D_D3D_UTILS_H
 #define REI_DIRECT3D_D3D_UTILS_H
 
+#include <algorithm>
+
+#define NOMINMAX
 #include <d3d12.h>
 #include <d3dcompiler.h>
 #include <d3dx12.h>
 #include <dxcapi.h>
 #include <windows.h>
 #include <wrl.h>
+#undef NOMINMAX
 
 #include "debug.h"
 #include "type_utils.h"
 
-#include "algebra.h"
+#include "math/algebra.h"
 #include "color.h"
 
 namespace rei {
@@ -143,10 +147,6 @@ inline void fill_vec4(FLOAT (&dest)[4], const Vec4& src) {
   dest[3] = src.h;
 }
 
-inline void fill_color(FLOAT (&dest)[4], const Color& src) {
-  fill_vec4(dest, Vec4(src));
-}
-
 // Wrapper class for a reused upload buffer,
 // with handy operation
 class UploadBuffer : NoCopy {
@@ -170,7 +170,7 @@ public:
     D3D12_RESOURCE_STATES init_states = D3D12_RESOURCE_STATE_GENERIC_READ)
       : m_layout(layout),
         m_address_start_alignment(
-          max(layout.element_alignment, layout.buffer_alignment)), // assume they are compatible
+          std::max(layout.element_alignment, layout.buffer_alignment)), // assume they are compatible
         m_element_num(element_num),
         m_element_bytewidth(align_bytesize(layout.element_width, layout.element_alignment)),
         m_effective_bytewidth(element_num * m_element_bytewidth),

@@ -1,9 +1,11 @@
 // Source of renderer.h
 #include "renderer.h"
 
+#define NOMINMAX
 #include <d3d12.h>
 #include <d3dx12.h>
 #include <windows.h>
+#undef NOMINMAX
 
 #include <array>
 #include <iomanip>
@@ -170,11 +172,15 @@ BufferHandle Renderer::create_texture(
       res_desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     auto heap_desc = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
     auto heap_flags = D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES;
-    D3D12_CLEAR_VALUE _optimized_clear = {}; // special clear value; usefull for framebuffer types
+    D3D12_CLEAR_VALUE _optimized_clear = {}; // optmized clear value; useful for render target types
+    _optimized_clear.Format = dxgi_format;
     D3D12_CLEAR_VALUE* optimized_clear_ptr = NULL;
     if (desc.flags.allow_depth_stencil) {
-      _optimized_clear.Format = dxgi_format;
+      // TODO actually read from texture desc
       _optimized_clear.DepthStencil = curr_target_spec.ds_clear;
+      optimized_clear_ptr = &_optimized_clear;
+    } else if (desc.flags.allow_render_target) {
+      curr_target_spec.rt_clear.fill(_optimized_clear.Color);
       optimized_clear_ptr = &_optimized_clear;
     }
     HRESULT hr = device->CreateCommittedResource(
@@ -910,10 +916,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
-  // hardcode
-  const Color clear_color {0, 0, 0, 1};
-  const FLOAT clear_depth = 0;
-  const FLOAT clear_stentil = 0;
+  // FIXME currently just using a global value
+  const DxColor clear_color = curr_target_spec.rt_clear;
+  const FLOAT clear_depth = curr_target_spec.ds_clear.Depth;
+  const FLOAT clear_stentil = curr_target_spec.ds_clear.Stencil;
 
 #if !GFX_SUPPORTS_RENDER_PASS
   FixedVec<D3D12_CPU_DESCRIPTOR_HANDLE, 8> rt_descriptors = {};
@@ -924,9 +930,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
     rt_descriptors.emplace_back(get_rtv_cpu(tex.buffer.Get()));
 
     if (cmd.clear_rt) {
-      FLOAT color_values[4];
-      fill_color(color_values, clear_color);
-      cmd_list->ClearRenderTargetView(rt_descriptors[i], color_values, 0, NULL);
+      cmd_list->ClearRenderTargetView(rt_descriptors[i], clear_color.data, 0, NULL);
     }
   }
   if (cmd.depth_stencil != c_empty_handle) {
@@ -934,6 +938,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
     buf->get_res();
     D3D12_CPU_DESCRIPTOR_HANDLE depth_descriptor = get_dsv_cpu(buf->get_res());
     if (cmd.clear_ds) {
+      // TODO wrap dx header in a single file and suppress this warning
       D3D12_CLEAR_FLAGS flags = D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL;
       cmd_list->ClearDepthStencilView(depth_descriptor, flags, clear_depth, clear_stentil, 0, NULL);
     }
@@ -963,7 +968,7 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
       if (cmd.clear_rt) {
         rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_CLEAR;
         rt_desc.BeginningAccess.Clear.ClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        fill_color(rt_desc.BeginningAccess.Clear.ClearValue.Color, clear_color);
+        clear_color.fill(rt_desc.BeginningAccess.Clear.ClearValue.Color);
       } else {
         rt_desc.BeginningAccess.Type = D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE;
       }
@@ -1178,7 +1183,7 @@ void Renderer::raytrace(const RaytraceCommand& cmd) {
   }
 }
 
-void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea area) {
+void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, ClearArea area) {
   auto device = device_resources->device();
   auto cmd_list = device_resources->prepare_command_list();
 
@@ -1219,12 +1224,16 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, RenderArea a
   FLOAT color[4];
   fill_vec4(color, clear_value);
   D3D12_RECT clear_rect; // NOTE DirectX sreen orientation
-  clear_rect.left = area.offset_left;
-  clear_rect.top = area.offset_top;
-  clear_rect.right = area.offset_left + area.width;
-  clear_rect.bottom = area.offset_top + area.height;
-  cmd_list->ClearUnorderedAccessViewFloat(
-    gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
+  if (area.clearAll) {
+    cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 0, NULL);
+  } else {
+    clear_rect.left = area.offset_left;
+    clear_rect.top = area.offset_top;
+    clear_rect.right = area.offset_left + area.width;
+    clear_rect.bottom = area.offset_top + area.height;
+    cmd_list->ClearUnorderedAccessViewFloat(
+      gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
+  }
 }
 
 void Renderer::copy_texture(BufferHandle src_h, BufferHandle dst_h, bool revert_state) {
@@ -1321,7 +1330,7 @@ void Renderer::build_raytracing_pso(const std::wstring& shader_path,
   const UINT payload_max_size = sizeof(float) * 4 + sizeof(int) * 1;
   const UINT attr_max_size = sizeof(float) * 2;
   const UINT max_raytracing_recursion_depth
-    = min(D3D12_RAYTRACING_MAX_DECLARABLE_TRACE_RECURSION_DEPTH, 8);
+    = std::min(D3D12_RAYTRACING_MAX_DECLARABLE_TRACE_RECURSION_DEPTH, 8);
 
   // short cut
   auto device = device_resources->dxr_device();

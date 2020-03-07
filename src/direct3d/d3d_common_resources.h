@@ -4,12 +4,14 @@
 #include <array>
 #include <memory>
 
+#define NOMINMAX
 #include <DirectXMath.h>
 #include <d3d12.h>
 #include <d3dx12.h>
 #include <dxgi1_4.h>
 #include <windows.h>
 #include <wrl.h>
+#undef NOMINMAX
 
 #include "common.h"
 //#include "../scene.h"
@@ -19,9 +21,8 @@
 //#include "../shader_struct.h"
 
 #include "d3d_utils.h"
-
-#include "renderer/graphics_handle.h"
 #include "renderer/graphics_desc.h"
+#include "renderer/graphics_handle.h"
 
 namespace rei {
 
@@ -38,7 +39,6 @@ using std::move;
 // Some contants
 constexpr DXGI_FORMAT c_index_format = DXGI_FORMAT_R16_UINT;
 constexpr DXGI_FORMAT c_accel_struct_vertex_pos_format = DXGI_FORMAT_R32G32B32_FLOAT;
-
 
 inline static constexpr UINT64 get_bytesize(DXGI_FORMAT format) {
   switch (format) {
@@ -179,20 +179,36 @@ struct VertexElement {
       : pos(x, y, z, 1), color(r, g, b, a), normal(nx, ny, nz) {}
 };
 
+struct DxColor{
+  FLOAT data[4];
+
+  void fill(FLOAT (&target)[4]) const {
+    for (int i = 0; i < 4; i++)
+      target[i] = data[i];
+  }
+
+  bool operator==(const DxColor& other) const {
+    for (int i = 0; i < 4; i++)
+      if (data[i] != other.data[i]) return false;
+    return true;
+  }
+};
+
 struct RenderTargetSpec {
   DXGI_SAMPLE_DESC sample_desc; // multi-sampling parameters
   ResourceFormat rt_format;
   ResourceFormat ds_format;
   DXGI_FORMAT dxgi_rt_format;
   DXGI_FORMAT dxgi_ds_format;
+  DxColor rt_clear;
   D3D12_DEPTH_STENCIL_VALUE ds_clear;
   RenderTargetSpec();
 
   bool operator==(const RenderTargetSpec& other) const {
     return sample_desc.Count == other.sample_desc.Count
            && sample_desc.Quality == other.sample_desc.Quality && rt_format == other.rt_format
-           && ds_format == other.ds_format && ds_clear.Depth == other.ds_clear.Depth
-           && ds_clear.Stencil == other.ds_clear.Stencil;
+           && rt_clear == other.rt_clear && ds_format == other.ds_format
+           && ds_clear.Depth == other.ds_clear.Depth && ds_clear.Stencil == other.ds_clear.Stencil;
   }
 
   std::size_t simple_hash() const {
@@ -286,4 +302,3 @@ struct RaytracingShaderData : ShaderData {
 } // namespace rei
 
 #endif
-
