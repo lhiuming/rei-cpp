@@ -14,9 +14,11 @@
 #include "camera.h"
 #include "color.h"
 #include "container_utils.h"
+#include "math/rect.h"
 #include "scene.h"
 #include "shader_struct.h"
 #include "type_utils.h"
+
 /*
  * renderer.h
  */
@@ -185,9 +187,13 @@ struct GeometryFlags {
 };
 
 struct LowLevelGeometryData {
-  const void* addr = nullptr;
+  const void* addr = nullptr; /// Init data
   size_t element_count = 0;
   size_t element_bytesize = 0;
+
+  static LowLevelGeometryData size_only(size_t ele_count, size_t ele_bsize) {
+    return {nullptr, ele_count, ele_bsize};
+  }
 };
 
 struct LowLevelGeometryDesc {
@@ -229,24 +235,21 @@ struct UpdateShaderTable {
 };
 
 template <typename Numeric>
-struct RenderRect {
-  Numeric offset_left = 0;
-  Numeric offset_top = 0;
-  Numeric width = 0;
-  Numeric height = 0;
-
+struct RenderRect : Rect<Numeric, Numeric> {
+  Numeric offset_left() const { return x; }
+  Numeric offset_top() const { return y; }
   bool is_empty() const { return width <= 0 || height <= 0; }
 
   RenderRect shrink_to_upper_left(
     Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_top = 0) const {
     REI_ASSERT(height >= sheight + pad_top);
-    return {offset_left + pad_left, offset_top + pad_top, swidth, sheight};
+    return {offset_left() + pad_left, offset_top() + pad_top, swidth, sheight};
   }
 
   RenderRect shrink_to_lower_left(
     Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_bottom = 0) const {
     REI_ASSERT(height >= sheight + pad_bottom);
-    return {offset_left + pad_left, offset_top + height - (pad_bottom + sheight), swidth, sheight};
+    return {offset_left() + pad_left, offset_top() + height - (pad_bottom + sheight), swidth, sheight};
   }
 
   static RenderRect full(Numeric width, Numeric height) {

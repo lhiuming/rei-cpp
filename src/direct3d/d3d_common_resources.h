@@ -208,7 +208,7 @@ struct RenderTargetSpec {
     return sample_desc.Count == other.sample_desc.Count
            && sample_desc.Quality == other.sample_desc.Quality && rt_format == other.rt_format
            && rt_clear == other.rt_clear && ds_format == other.ds_format
-           && ds_clear.Depth == other.ds_clear.Depth && ds_clear.Stencil == other.ds_clear.Stencil;
+           && ds_clear.Depth == other.ds_clear.Depth && ds_clear.Stencil == other.ds_clear.Stencil; 
   }
 
   std::size_t simple_hash() const {

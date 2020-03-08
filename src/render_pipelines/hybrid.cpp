@@ -243,14 +243,18 @@ struct TaaShaderDesc : ComputeShaderMetaInfo {
 
 HybridPipeline::HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID wnd_id,
   std::weak_ptr<Scene> scene, std::weak_ptr<Camera> camera)
-    : m_renderer(renderer),
-      m_scene(scene),
-      m_camera(camera),
+    : HybridPipeline(Context {renderer, wnd_id, scene, camera}) {}
+
+HybridPipeline::HybridPipeline(const Context& context)
+    : m_renderer(context.renderer),
+      m_scene(context.scene),
+      m_camera(context.camera),
       m_enable_multibounce(true),
       m_enabled_accumulated_rtrt(true),
       m_area_shadow_ssp_per_light(4),
-      m_sto_shadow_pass(renderer) {
-  std::shared_ptr<Renderer> r = renderer.lock();
+      m_sto_shadow_pass(context.renderer),
+      m_imgui_pass(context.renderer, context.imgui) {
+  std::shared_ptr<Renderer> r = context.renderer.lock();
 
   // Init pipeline
   {
@@ -291,7 +295,7 @@ HybridPipeline::HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID 
 
   // Init viewport data
   m_viewport_data = std::make_unique<ViewportData>();
-  { m_viewport_data->wnd_id = wnd_id; }
+  { m_viewport_data->wnd_id = context.wnd_id; }
 
   // Init scene data
   m_scene_data = std::make_unique<SceneData>();
@@ -653,8 +657,32 @@ void HybridPipeline::render(size_t width, size_t height) {
 
   // -------
   // Pass: Stochastic Shadow
-  m_sto_shadow_pass.run(
-    viewport.area_light.unshadowed, viewport.frame_id, m_area_shadow_ssp_per_light);
+  {
+    StochasticShadowPass::Parameters params;
+    params.frame_id = viewport.frame_id;
+    params.width = viewport.width;
+    params.height = viewport.height;
+    params.ssp_per_light = m_area_shadow_ssp_per_light;
+    params.lightCount = area_light_indices.size();
+    params.area_light_indices = area_light_indices.data();
+    params.area_light_colors = area_light_colors.data();
+    params.area_light_shapes = area_light_shapes.data();
+    params.area_light_arg_getter = [&](int light_index) {
+      Renderer& r = *(m_renderer.lock());
+      return fetch_direct_area_lighting_arg(r, scene, light_index);
+    };
+    params.area_light_cb = scene.area_lights;
+    params.unshadowed = viewport.area_light.unshadowed;
+    params.depth_stencil_buffer = viewport.depth_stencil_buffer;
+    params.gbuffer0 = viewport.gbuffer0;
+    params.gbuffer1 = viewport.gbuffer1;
+    params.gbuffer2 = viewport.gbuffer2;
+    params.per_render_buffer = m_per_render_buffer;
+    params.tlas = scene.tlas;
+    params.shading_output
+      = viewport.deferred_shading_output; // write to the same final shading buffer
+    m_sto_shadow_pass.run(params);
+  }
   //--- End Stochastic Shadow
 
   // -------
@@ -745,6 +773,12 @@ void HybridPipeline::render(size_t width, size_t height) {
 
     debug_blit_pass(viewport.area_light.unshadowed, viewport.area_light.blit_unshadowed);
     debug_blit_pass(viewport.raytracing_output_buffer, viewport.blit_raytracing_output);
+  }
+
+  // Draw IM GUI at the end
+  {
+    ImGuiPass::Parameters params {render_target};
+    m_imgui_pass.run(params);
   }
 
   // Update frame-counting in the end
@@ -992,27 +1026,6 @@ void HybridPipeline::update_hybrid() {
     REI_ASSERT(arg);
     m_hybrid_data->rt_gi_pass_arg = arg;
   }
-
-#if SSAL
-  // Raytracing shadow pass argument
-  if (viewport.gbuffer_dirty || !hybrid.rt_shdow_pass_arg) {
-    if (hybrid.rt_shdow_pass_arg) REI_WARNING("TODO release old shader arguments");
-
-    ShaderArgumentValue val {};
-    val.const_buffers = {m_per_render_buffer};
-    val.const_buffer_offsets = {0};
-    val.shader_resources = {
-      scene.tlas,                                     // t0 TLAS
-      viewport.depth_stencil_buffer,                  // t1 G-buffer depth
-      viewport.area_light.stochastic_sample_ray,      // t2 sample ray
-      viewport.area_light.stochastic_sample_radiance, // t3 sample radiance
-    };
-    val.unordered_accesses = {viewport.area_light.stochastic_shadowed};
-    ShaderArgumentHandle arg = renderer.create_shader_argument(val);
-    REI_ASSERT(arg);
-    m_hybrid_data->rt_shdow_pass_arg = arg;
-  }
-#endif
 }
 
 ShaderArgumentHandle HybridPipeline::fetch_direct_punctual_lighting_arg(

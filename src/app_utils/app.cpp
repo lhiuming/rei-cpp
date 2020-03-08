@@ -1,13 +1,12 @@
 #include "app.h"
 
-#include <imgui.h>
-
-#include <iomanip>
-#include <sstream>
-
 #include "../debug.h"
 #include "../renderer.h"
 #include "math/math_utils.h"
+#include "editor/imgui_global.h"
+
+#include <iomanip>
+#include <sstream>
 
 using std::make_shared;
 using std::make_unique;
@@ -28,25 +27,15 @@ WinApp::WinApp(Config config) : config(config) {
   m_viewer->set_input_bus(m_input_bus);
   // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
 
+  // ImGUI context
+  if (config.enable_dev_gui) { m_imgui = make_shared<ImGUI>(); }
+
   // Create default scene and camera
   m_geometries = make_shared<Geometries>();
   m_materials = make_shared<Materials>();
   m_scene = make_shared<Scene>();
   m_camera = make_shared<Camera>(Vec3 {0, 0, 10}, Vec3 {0, 0, -1});
   m_camera->set_aspect(config.width, config.height);
-
-  // ImGUI context
-  if (config.enable_dev_gui) {
-    IMGUI_CHECKVERSION();
-    m_imgui_context = ImGui::CreateContext();
-    // setup imgui
-    ImGuiIO& io = ImGui::GetIO();
-    io.BackendPlatformName = "imgui_impl_dx12";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-    ImGui::StyleColorsDark();
-  }
 
   // Default renderer & pipeline
   {
@@ -60,10 +49,15 @@ WinApp::WinApp(Config config) : config(config) {
       REI_ERROR("Support for this render pipeline is dropped.");
       break;
     case RenderMode::Hybrid:
-    default:
-      m_pipeline
-        = make_shared<HybridPipeline>(m_renderer, m_viewer->get_window_id(), m_scene, m_camera);
+    default: {
+      HybridPipeline::Context ctx;
+      ctx.renderer = m_renderer;
+      ctx.wnd_id = m_viewer->get_window_id();
+      ctx.scene = m_scene;
+      ctx.camera = m_camera;
+      m_pipeline = make_shared<HybridPipeline>(ctx);
       break;
+    }
   }
 }
 
@@ -94,13 +88,11 @@ void WinApp::on_start() {
 }
 
 void WinApp::begin_tick() {
-  ImGui::SetCurrentContext(m_imgui_context);
-  ImGuiIO& io = ImGui::GetIO();
-  io.DisplaySize = {float(m_viewer->width()), float(m_viewer->height())};
+  g_ImGUI.begin_new_frame();
+  g_ImGUI.set_display_size(float(m_viewer->width()), float(m_viewer->height()));
 }
 
 void WinApp::end_tick() {
-  ImGui::SetCurrentContext(nullptr);
 }
 
 void WinApp::update() {
@@ -119,27 +111,21 @@ void WinApp::on_update() {
 
 void WinApp::update_ui() {
   // Update dev UI
-  if (m_imgui_context) {
-    ImGuiIO& io = ImGui::GetIO();
-    if (!m_input_bus->empty<CursorMove>()) {
-      Vec3 cursor_pos;
-      for (const auto& move : m_input_bus->get<CursorMove>()) {
-        cursor_pos = move.stop;
-      }
-      ImGui::SetCurrentContext(m_imgui_context);
-      // NOTE: ImGUI use top-left base
-      float pos_x = m_input_bus->cursor_left_top().x + cursor_pos.x;
-      float pos_y = m_input_bus->cursor_right_bottom().y - cursor_pos.y;
-      // TODO remove this after viewport resizing is implemented
-      float vp_scale_x = 1920.0f / m_viewer->width();
-      float vp_scale_y = 1080.0f / m_viewer->height();
-      io.MousePos.x = pos_x * vp_scale_x;
-      io.MousePos.y = pos_y * vp_scale_y;
-      io.MouseClickedPos[0] = io.MousePos;
+  if (!m_input_bus->empty<CursorMove>()) {
+    Vec3 cursor_pos;
+    for (const auto& move : m_input_bus->get<CursorMove>()) {
+      cursor_pos = move.stop;
     }
-    io.MouseDown[0] = !m_input_bus->empty<CursorDown>();
-    io.MouseClicked[0] = !m_input_bus->empty<CursorUp>();
+    // NOTE: ImGUI use top-left base
+    float pos_x = m_input_bus->cursor_left_top().x + cursor_pos.x;
+    float pos_y = m_input_bus->cursor_right_bottom().y - cursor_pos.y;
+    // TODO remove this after viewport resizing is implemented
+    float vp_scale_x = 1920.0f / m_viewer->width();
+    float vp_scale_y = 1080.0f / m_viewer->height();
+    g_ImGUI.update_mouse_pos(pos_x * vp_scale_x, pos_y * vp_scale_y);
   }
+  g_ImGUI.update_mouse_down(0, !m_input_bus->empty<CursorDown>());
+  g_ImGUI.update_mouse_clicked(0, !m_input_bus->empty<CursorUp>());
 }
 
 void WinApp::update_camera_control() {

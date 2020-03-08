@@ -1,16 +1,41 @@
 #pragma once
 
-#include "renderer/graphics_handle.h"
-#include "renderer.h"
 #include "render_pass.h"
+#include "renderer.h"
+#include "renderer/graphics_handle.h"
+
+// temporarily, for StochasticShadow::Parameters
+#include <functional>
 
 namespace rei {
 
-class StochasticShadow : public RenderPass {
+class StochasticShadowPass : public RenderPass {
 public:
-  StochasticShadow(std::weak_ptr<Renderer> renderer);
+  struct Parameters {
+    size_t frame_id;
+    int width;
+    int height;
+    int ssp_per_light;
+    int lightCount;
+    int* area_light_indices;
+    Color* area_light_colors;
+    Vec4* area_light_shapes;
+    std::function<ShaderArgumentHandle(int)> area_light_arg_getter; 
+    BufferHandle area_light_cb;
+    BufferHandle unshadowed;
+    BufferHandle depth_stencil_buffer;
+    BufferHandle gbuffer0;
+    BufferHandle gbuffer1;
+    BufferHandle gbuffer2;
+    BufferHandle per_render_buffer;
+    BufferHandle tlas;
+    BufferHandle shading_output;
+  };
 
-  void run(BufferHandle unshadowed, size_t frame_id, int m_area_shadow_ssp_per_light);
+public:
+  StochasticShadowPass(std::weak_ptr<Renderer> renderer);
+
+  void run(const Parameters& params);
 
 private:
   std::weak_ptr<Renderer> m_renderer;
@@ -31,7 +56,6 @@ private:
   BufferHandle denoised_unshadowed;
   BufferHandle denoised_shadowed;
 
-  ShaderArgumentHandle unshadowed_pass_arg;
   ShaderArgumentHandle sample_gen_pass_arg;
   // ShaderArgumentHandle variance_pass_arg;
   // ShaderArgumentHandle variance_filter_pass_arg;
@@ -39,7 +63,11 @@ private:
   ShaderArgumentHandle denoise_finalpass_arg0;
   ShaderArgumentHandle denoise_common_arg1;
 
-  #if 0
+  ShaderArgumentHandle rt_shadow_pass_arg;
+
+  bool buffer_create = false;
+
+#if 0
   // debug pass
   ShaderArgumentHandle blit_stochastic_sample_ray;
   ShaderArgumentHandle blit_stochastic_sample_radiance;
@@ -47,7 +75,7 @@ private:
   ShaderArgumentHandle blit_stochastic_shadowed;
   ShaderArgumentHandle blit_denoised_unshadowed;
   ShaderArgumentHandle blit_denoised_shadowed;
-  #endif
+#endif
 };
 
 } // namespace rei

@@ -4,12 +4,18 @@
 #include <functional>
 #include <string>
 
+#include "imgui_pass.h"
 #include "render_pipeline_base.h"
 #include "stochastic_shadow.h"
 
 namespace rei {
 
 class Renderer;
+class ImGUI;
+class Scene;
+class Camera;
+class Geometry;
+class Material;
 
 // Forwared decl
 namespace hybrid {
@@ -23,8 +29,18 @@ struct HybridData;
 //
 class HybridPipeline : public RenderPipeline {
 public:
+  struct Context {
+    std::weak_ptr<Renderer> renderer;
+    SystemWindowID wnd_id;
+    std::weak_ptr<Scene> scene;
+    std::weak_ptr<Camera> camera;
+    std::weak_ptr<ImGUI> imgui;
+  };
+
+public:
   HybridPipeline(std::weak_ptr<Renderer> renderer, SystemWindowID wnd_id,
     std::weak_ptr<Scene> scene, std::weak_ptr<Camera> camera);
+  HybridPipeline(const Context& context);
   ~HybridPipeline();
 
   void on_create_geometry(const Geometry& geometry);
@@ -64,7 +80,8 @@ private:
 
   BufferHandle m_per_render_buffer;
 
-  StochasticShadow m_sto_shadow_pass;
+  StochasticShadowPass m_sto_shadow_pass;
+  ImGuiPass m_imgui_pass;
 
   void update_scene();
   void update_viewport(size_t width, size_t height);

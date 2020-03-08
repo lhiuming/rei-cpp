@@ -1,8 +1,6 @@
 #ifndef REI_RENDER_PIPELINE_BASE_H
 #define REI_RENDER_PIPELINE_BASE_H
 
-#include <imgui.h>
-
 #include <memory>
 #include <unordered_map>
 
@@ -12,6 +10,9 @@
 
 namespace rei {
 
+// forward decl
+class ImGUI;
+
 class RenderPipeline {};
 
 namespace renderpipeline_deprecated {
@@ -19,7 +20,6 @@ namespace renderpipeline_deprecated {
 struct ViewportConfig {
   size_t width, height;
   SystemWindowID window_id;
-  ImGuiContext* imgui_context;
 };
 
 // deprecated

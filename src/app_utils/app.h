@@ -81,13 +81,12 @@ private:
   HINSTANCE hinstance = NULL;
   std::shared_ptr<InputBus> m_input_bus;
   std::unique_ptr<Viewer> m_viewer;
+  std::shared_ptr<ImGUI> m_imgui;
 
   std::shared_ptr<Geometries> m_geometries;
   std::shared_ptr<Materials> m_materials;
   std::shared_ptr<Scene> m_scene;
   std::shared_ptr<Camera> m_camera;
-
-  ImGuiContext* m_imgui_context = nullptr;
 
   std::shared_ptr<Renderer> m_renderer;
   //std::shared_ptr<RenderPipeline> m_pipeline;
