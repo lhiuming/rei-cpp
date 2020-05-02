@@ -106,8 +106,8 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
       return 0;
     }
     case WM_SIZE: {
-      m_window_height = LOWORD(lParam);
-      m_window_width = HIWORD(lParam);
+      m_window_width = LOWORD(lParam);
+      m_window_height = HIWORD(lParam);
       RECT rect;
       bool got = ::GetClientRect(m_hwnd, &rect);
       REI_ASSERT(got);

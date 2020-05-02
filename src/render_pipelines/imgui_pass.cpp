@@ -55,11 +55,11 @@ float4 PS(PS_INPUT input) : SV_Target\
 struct ImGuiShaderDesc : RasterizationShaderMetaInfo {
   ImGuiShaderDesc() {
     VertexInputDesc pos
-      = {"POSITION", 0, ResourceFormat::R32G32Float, ImGUI::RenderData::pos_offset()};
+      = {"POSITION", 0, ResourceFormat::R32G32Float, ImGUI::RenderDataRef::pos_offset()};
     VertexInputDesc uv
-      = {"TEXCOORD", 0, ResourceFormat::R32G32Float, ImGUI::RenderData::uv_offset()};
+      = {"TEXCOORD", 0, ResourceFormat::R32G32Float, ImGUI::RenderDataRef::uv_offset()};
     VertexInputDesc color
-      = {"COLOR", 0, ResourceFormat::R8G8B8A8Unorm, ImGUI::RenderData::color_offset()};
+      = {"COLOR", 0, ResourceFormat::R8G8B8A8Unorm, ImGUI::RenderDataRef::color_offset()};
     this->vertex_input_desc = {pos, uv, color};
     ShaderParameter space0 {};
     space0.const_buffers = {ConstantBuffer()};
@@ -85,9 +85,9 @@ ImGuiPass::ImGuiPass(std::weak_ptr<Renderer> renderer) : m_renderer(renderer) {
     imgui::vertex_shader_text, imgui::pixel_shader_text, imgui::ImGuiShaderDesc());
   // Create default font texture
   {
-    unsigned char* pixels;
-    int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    const unsigned char* pixels;
+    unsigned int width, height;
+    g_ImGUI.get_font_atlas_RGBA32(&width, &height, &pixels);
     TextureDesc desc
       = TextureDesc::simple_2d(size_t(width), size_t(height), ResourceFormat::R8G8B8A8Unorm);
     m_imgui_fonts_texture
@@ -95,7 +95,6 @@ ImGuiPass::ImGuiPass(std::weak_ptr<Renderer> renderer) : m_renderer(renderer) {
     REI_ASSERT(m_imgui_fonts_texture);
     r->upload_texture(m_imgui_fonts_texture, pixels);
     r->transition(m_imgui_fonts_texture, ResourceState::PixelShaderResource);
-    io.Fonts->TexID = 0;
   }
   // const buffer
   {
@@ -125,14 +124,15 @@ void ImGuiPass::run(const Parameters& params) {
   //   -- then bind all kinds of states and draw
   //   -- finnaly, convert the imgui commands to render commands
   // ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
-  const ImGUI::RenderData data = g_ImGUI.prepare_render_data(debug_showDemo);
+  g_ImGUI.set_font_atlas(m_imgui_fonts_texture);
+  const ImGUI::RenderDataRef data = g_ImGUI.prepare_render_data(&m_opened);
 
   // update buffer size
   {
     const LowLevelGeometryData total_index = LowLevelGeometryData::size_only(
-      data.total_index_count(), ImGUI::RenderData::index_bytesize());
+      data.total_index_count(), ImGUI::RenderDataRef::index_bytesize());
     const LowLevelGeometryData total_vertex = LowLevelGeometryData::size_only(
-      data.total_vertex_count(), ImGUI::RenderData::vertec_bytesize());
+      data.total_vertex_count(), ImGUI::RenderDataRef::vertec_bytesize());
     if (m_imgui_vertex_buffer == c_empty_handle) {
       // create buffers
       LowLevelGeometryDesc desc {total_index, total_vertex};
@@ -149,10 +149,10 @@ void ImGuiPass::run(const Parameters& params) {
   }
 
   // update buffer content
+  const RenderViewport vp = data.viewport();
   {
     // const buffer
     {
-      Rectf vp = data.viewport();
       float L = vp.x;
       float R = vp.x + vp.width;
       float T = vp.y;
@@ -167,21 +167,15 @@ void ImGuiPass::run(const Parameters& params) {
     }
 
     // upload geometry buffer data
-    LowLevelGeometryData index {};
-    index.element_bytesize = ImGUI::RenderData::index_bytesize();
-    LowLevelGeometryData vertex {};
-    vertex.element_bytesize = ImGUI::RenderData::vertec_bytesize();
     size_t index_count = 0, vertex_count = 0;
-    for (int n = 0; n < draw_data->CmdListsCount; n++) {
-      const ImDrawList* cmd_list = draw_data->CmdLists[n];
-      index.addr = cmd_list->IdxBuffer.Data;
-      index.element_count = cmd_list->IdxBuffer.Size;
+    for (size_t n = 0; n < data.ui_window_count(); n++) {
+      const ImGUI::WindowDataRef win = data.get_ui_window_data(n);
+      LowLevelGeometryData index, vertex;
+      win.GetGeometry(index, vertex);
       r->update_geometry(m_imgui_index_buffer, index, index_count);
-      vertex.addr = cmd_list->VtxBuffer.Data;
-      vertex.element_count = cmd_list->VtxBuffer.Size;
       r->update_geometry(m_imgui_vertex_buffer, vertex, vertex_count);
-      index_count += cmd_list->IdxBuffer.Size;
-      vertex_count += cmd_list->VtxBuffer.Size;
+      index_count += index.element_count;
+      vertex_count += vertex.element_count;
     }
   }
   // draw
@@ -193,48 +187,42 @@ void ImGuiPass::run(const Parameters& params) {
     raster.depth_stencil = c_empty_handle;
     raster.clear_rt = false;
     raster.clear_ds = false;
-    raster.viewport = RenderViewaport::full(draw_data->DisplaySize.x, draw_data->DisplaySize.y);
+    raster.viewport = vp;
     raster.area = {};
     cmd_list->begin_render_pass(raster);
 
     size_t global_vtx_offset = 0;
     size_t global_idx_offset = 0;
-    ImVec2 clip_off = draw_data->DisplayPos;
     DrawCommand draw {};
     draw.index_buffer = m_imgui_index_buffer;
     draw.vertex_buffer = m_imgui_vertex_buffer;
     draw.shader = m_imgui_shader;
-    for (int n = 0; n < draw_data->CmdListsCount; n++) {
-      const ImDrawList* im_cmd_list = draw_data->CmdLists[n];
-      for (int cmd_i = 0; cmd_i < im_cmd_list->CmdBuffer.Size; cmd_i++) {
-        const ImDrawCmd* pcmd = &im_cmd_list->CmdBuffer[cmd_i];
-        if (pcmd->UserCallback != NULL) {
-          // User callback, registered via ImDrawList::AddCallback()
-          // (ImDrawCallback_ResetRenderState is a special callback value used by the user to
-          // request the renderer to reset render state.)
-          if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-            REI_WARNING("Ignored callback");
-          else
-            pcmd->UserCallback(im_cmd_list, pcmd);
+    for (size_t n = 0; n < data.ui_window_count(); n++) {
+      const ImGUI::WindowDataRef win = data.get_ui_window_data(n);
+      for (size_t cmd_i = 0; cmd_i < win.total_draw_count(); cmd_i++) {
+        const ImGUI::DrawCmdRef uiCmd = win.get_ui_draw_cmd(cmd_i);
+
+        if (uiCmd.handle_ui_callback(win)) continue;
+
+        // Apply Scissor, Bind texture, Draw
+        draw.override_area = uiCmd.get_scissor(vp);
+        draw.index_count = uiCmd.index_count();
+        draw.index_offset = uiCmd.index_offset() + global_idx_offset;
+        draw.vertex_offset = uiCmd.vertex_offset() + global_vtx_offset;
+
+        if (uiCmd.use_texture(m_imgui_fonts_texture)) {
+          draw.arguments = {m_fonts_arg};
         } else {
-          // Apply Scissor, Bind texture, Draw
-          draw.override_area
-            = {int(pcmd->ClipRect.x - clip_off.x), int(pcmd->ClipRect.y - clip_off.y),
-              int(pcmd->ClipRect.z - pcmd->ClipRect.x), int(pcmd->ClipRect.w - pcmd->ClipRect.y)};
-          draw.index_count = pcmd->ElemCount;
-          draw.index_offset = pcmd->IdxOffset + global_idx_offset;
-          draw.vertex_offset = pcmd->VtxOffset + global_vtx_offset;
-          if (pcmd->TextureId == 0) {
-            draw.arguments = {m_fonts_arg};
-          } else {
-            REI_WARNING("Unknow texture");
-          }
-          // ctx->RSSetScissorRects(1, &r);
-          cmd_list->draw(draw);
+          REI_WARNING("IMGUI PASS: uiDraw uses unknown texture");
         }
+
+        cmd_list->draw(draw);
       }
-      global_idx_offset += im_cmd_list->IdxBuffer.Size;
-      global_vtx_offset += im_cmd_list->VtxBuffer.Size;
+
+      unsigned int drawn_idx, drawn_vert;
+      win.GetGeometryInfo(drawn_idx, drawn_vert);
+      global_idx_offset += drawn_idx;
+      global_vtx_offset += drawn_vert;
     }
     cmd_list->end_render_pass();
   } // end draw

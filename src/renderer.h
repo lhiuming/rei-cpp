@@ -240,6 +240,11 @@ struct RenderRect : Rect<Numeric, Numeric> {
   Numeric offset_top() const { return y; }
   bool is_empty() const { return width <= 0 || height <= 0; }
 
+  Numeric left() const { return x; }
+  Numeric right() const { return x + width; }
+  Numeric top() const { return y; }
+  Numeric bottom() const { return y + height; }
+
   RenderRect shrink_to_upper_left(
     Numeric swidth, Numeric sheight, Numeric pad_left = 0, Numeric pad_top = 0) const {
     REI_ASSERT(height >= sheight + pad_top);
@@ -257,7 +262,7 @@ struct RenderRect : Rect<Numeric, Numeric> {
   }
 };
 
-using RenderViewaport = RenderRect<float>;
+using RenderViewport = RenderRect<float>;
 using RenderArea = RenderRect<int>;
 
 struct ClearArea : public RenderArea {
@@ -273,7 +278,7 @@ struct ClearArea : public RenderArea {
 struct RenderPassCommand {
   FixedVec<BufferHandle, 8> render_targets;
   BufferHandle depth_stencil = c_empty_handle;
-  RenderViewaport viewport;
+  RenderViewport viewport;
   RenderArea area;
   bool clear_rt;
   bool clear_ds;

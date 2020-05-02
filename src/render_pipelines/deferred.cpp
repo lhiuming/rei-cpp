@@ -242,7 +242,7 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     gpass.depth_stencil = viewport->depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
-    gpass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    gpass.viewport = RenderViewport::full(viewport->width, viewport->height);
     gpass.area = RenderArea::full(viewport->width, viewport->height);
   }
   cmd_list->begin_render_pass(gpass);
@@ -272,7 +272,7 @@ void DeferredPipeline::render(ViewportHandle viewport_h, SceneHandle scene_h) {
     shading_pass.depth_stencil = c_empty_handle;
     shading_pass.clear_rt = true;
     shading_pass.clear_ds = false;
-    shading_pass.viewport = RenderViewaport::full(viewport->width, viewport->height);
+    shading_pass.viewport = RenderViewport::full(viewport->width, viewport->height);
     shading_pass.area = RenderArea::full(viewport->width, viewport->height);
   }
   cmd_list->begin_render_pass(shading_pass);

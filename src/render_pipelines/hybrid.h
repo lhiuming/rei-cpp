@@ -34,7 +34,6 @@ public:
     SystemWindowID wnd_id;
     std::weak_ptr<Scene> scene;
     std::weak_ptr<Camera> camera;
-    std::weak_ptr<ImGUI> imgui;
   };
 
 public:

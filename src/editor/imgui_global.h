@@ -4,6 +4,6 @@
 
 namespace rei {
 
-static ImGUI g_ImGUI;
+extern ImGUI g_ImGUI;
 
 }

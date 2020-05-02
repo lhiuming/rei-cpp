@@ -253,7 +253,7 @@ HybridPipeline::HybridPipeline(const Context& context)
       m_enabled_accumulated_rtrt(true),
       m_area_shadow_ssp_per_light(4),
       m_sto_shadow_pass(context.renderer),
-      m_imgui_pass(context.renderer, context.imgui) {
+      m_imgui_pass(context.renderer) {
   std::shared_ptr<Renderer> r = context.renderer.lock();
 
   // Init pipeline
@@ -506,7 +506,7 @@ void HybridPipeline::render(size_t width, size_t height) {
     gpass.depth_stencil = viewport.depth_stencil_buffer;
     gpass.clear_ds = true;
     gpass.clear_rt = true;
-    gpass.viewport = RenderViewaport::full(viewport.width, viewport.height);
+    gpass.viewport = RenderViewport::full(viewport.width, viewport.height);
     gpass.area = RenderArea::full(viewport.width, viewport.height);
   }
   cmd_list->begin_render_pass(gpass);
@@ -718,7 +718,7 @@ void HybridPipeline::render(size_t width, size_t height) {
     render_pass.depth_stencil = c_empty_handle;
     render_pass.clear_ds = false;
     render_pass.clear_rt = true;
-    render_pass.viewport = RenderViewaport::full(viewport.width, viewport.height);
+    render_pass.viewport = RenderViewport::full(viewport.width, viewport.height);
     render_pass.area = RenderArea::full(viewport.width, viewport.height);
     cmd_list->begin_render_pass(render_pass);
 
@@ -740,7 +740,7 @@ void HybridPipeline::render(size_t width, size_t height) {
     const size_t blit_height = viewport.height / 8;
     const size_t blit_width = blit_height * viewport.width / viewport.height;
     int debug_blit_count = 0;
-    const RenderViewaport full_vp = RenderViewaport::full(viewport.width, viewport.height);
+    const RenderViewport full_vp = RenderViewport::full(viewport.width, viewport.height);
     const RenderArea full_area = RenderArea::full(viewport.width, viewport.height);
     auto debug_blit_pass
       = [&](BufferHandle texture, ShaderArgumentHandle blit_arg, bool full = false) {

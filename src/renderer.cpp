@@ -889,7 +889,7 @@ void Renderer::update_shader_table(const UpdateShaderTable& cmd) {
 }
 
 void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
-  const RenderViewaport viewport = cmd.viewport;
+  const RenderViewport viewport = cmd.viewport;
   const RenderArea& area = cmd.area;
 
   auto cmd_list = device_resources->prepare_command_list();
@@ -898,8 +898,8 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
   {
     // NOTE: DirectX viewport starts from top-left to bottom-right.
     D3D12_VIEWPORT d3d_vp {};
-    d3d_vp.TopLeftX = viewport.offset_left;
-    d3d_vp.TopLeftY = viewport.offset_top;
+    d3d_vp.TopLeftX = viewport.offset_left();
+    d3d_vp.TopLeftY = viewport.offset_top();
     d3d_vp.Width = viewport.width;
     d3d_vp.Height = viewport.height;
     d3d_vp.MinDepth = D3D12_MIN_DEPTH;
@@ -909,10 +909,10 @@ void Renderer::begin_render_pass(const RenderPassCommand& cmd) {
 
   if (!area.is_empty()) {
     D3D12_RECT scissor {};
-    scissor.left = float(area.offset_left);
-    scissor.top = float(area.offset_top);
-    scissor.right = float(area.offset_left + area.width);
-    scissor.bottom = float(area.offset_top + area.height);
+    scissor.left = float(area.left());
+    scissor.top = float(area.top());
+    scissor.right = float(area.right());
+    scissor.bottom = float(area.bottom());
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
@@ -1057,10 +1057,10 @@ void Renderer::draw(const DrawCommand& cmd) {
   if (!cmd.override_area.is_empty()) {
     const RenderArea& area = cmd.override_area;
     D3D12_RECT scissor {};
-    scissor.left = float(area.offset_left);
-    scissor.top = float(area.offset_top);
-    scissor.right = float(area.offset_left + area.width);
-    scissor.bottom = float(area.offset_top + area.height);
+    scissor.left = float(area.left());
+    scissor.top = float(area.top());
+    scissor.right = float(area.right());
+    scissor.bottom = float(area.bottom());
     cmd_list->RSSetScissorRects(1, &scissor);
   }
 
@@ -1227,10 +1227,10 @@ void Renderer::clear_texture(BufferHandle handle, Vec4 clear_value, ClearArea ar
   if (area.clearAll) {
     cmd_list->ClearUnorderedAccessViewFloat(gpu_descriptor, cpu_descriptor, res, color, 0, NULL);
   } else {
-    clear_rect.left = area.offset_left;
-    clear_rect.top = area.offset_top;
-    clear_rect.right = area.offset_left + area.width;
-    clear_rect.bottom = area.offset_top + area.height;
+    clear_rect.left = area.left();
+    clear_rect.top = area.top();
+    clear_rect.right = area.right();
+    clear_rect.bottom = area.bottom();
     cmd_list->ClearUnorderedAccessViewFloat(
       gpu_descriptor, cpu_descriptor, res, color, 1, &clear_rect);
   }

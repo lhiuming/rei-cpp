@@ -88,8 +88,9 @@ void WinApp::on_start() {
 }
 
 void WinApp::begin_tick() {
-  g_ImGUI.begin_new_frame();
+  // NOTE: must set up correct display size before begin new frame
   g_ImGUI.set_display_size(float(m_viewer->width()), float(m_viewer->height()));
+  g_ImGUI.begin_new_frame();
 }
 
 void WinApp::end_tick() {
