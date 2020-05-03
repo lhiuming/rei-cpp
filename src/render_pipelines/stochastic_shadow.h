@@ -20,7 +20,7 @@ public:
     int* area_light_indices;
     Color* area_light_colors;
     Vec4* area_light_shapes;
-    std::function<ShaderArgumentHandle(int)> area_light_arg_getter; 
+    std::function<ShaderArgumentHandle(int)> area_light_arg_getter;
     BufferHandle area_light_cb;
     BufferHandle unshadowed;
     BufferHandle depth_stencil_buffer;
@@ -35,10 +35,15 @@ public:
 public:
   StochasticShadowPass(std::weak_ptr<Renderer> renderer);
 
+  bool enabled() const { return m_enabled; }
   void run(const Parameters& params);
+
+  void on_gui();
 
 private:
   std::weak_ptr<Renderer> m_renderer;
+
+  bool m_enabled;
 
   // Shaders
   ShaderHandle m_stochastic_shadow_sample_gen_shader;

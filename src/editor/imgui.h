@@ -75,7 +75,15 @@ public:
   void update_mouse_down(unsigned int index, bool down = true);
   void update_mouse_clicked(unsigned int index, bool clicked = true);
 
-  RenderDataRef prepare_render_data(bool* demoOpenState = nullptr);
+  void test();
+  void show_imgui_demo();
+
+  bool show_collapsing_header(const char* label);
+  void show_checkbox(const char* label, bool* value);
+  void show_seperator();
+  void show_tex(const char* text);
+
+  RenderDataRef prepare_render_data();
 
 private:
   void* m_dear_ctx;

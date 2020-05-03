@@ -17,6 +17,8 @@ public:
   };
   void run(const Parameters& params);
 
+  void on_gui() {}
+
 private:
   std::weak_ptr<Renderer> m_renderer;
 

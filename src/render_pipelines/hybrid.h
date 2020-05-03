@@ -48,6 +48,8 @@ public:
 
   void render(size_t width, size_t height);
 
+  void on_gui();
+
 private:
   // Configuration
   const int m_frame_buffer_count = 2;

@@ -63,9 +63,40 @@ void ImGUI::update_mouse_clicked(unsigned int index, bool clicked) {
   DEAR_IO->MouseClicked[index] = clicked;
 }
 
-ImGUI::RenderDataRef ImGUI::prepare_render_data(bool* demoOpenState) {
+void ImGUI::test() {
   set_to_dear_current();
-  if (demoOpenState) ImGui::ShowDemoWindow(demoOpenState);
+  static bool checked = false;
+  ImGui::Checkbox("Check box test", &checked);
+}
+
+void ImGUI::show_imgui_demo() {
+  set_to_dear_current();
+  static bool open = false;
+  ImGui::ShowDemoWindow(&open);
+}
+
+bool ImGUI::show_collapsing_header(const char* label) {
+  set_to_dear_current();
+  return ImGui::CollapsingHeader(label);
+}
+
+void ImGUI::show_checkbox(const char* label, bool* value) {
+  set_to_dear_current();
+  ImGui::Checkbox(label, value);
+}
+
+void ImGUI::show_seperator() {
+  set_to_dear_current();
+  ImGui::Separator();
+}
+
+void ImGUI::show_tex(const char* text) {
+  set_to_dear_current();
+  ImGui::Text(text);
+}
+
+ImGUI::RenderDataRef ImGUI::prepare_render_data() {
+  set_to_dear_current();
   ImGui::Render();
   RenderDataRef ret {ImGui::GetDrawData()};
   return ret;

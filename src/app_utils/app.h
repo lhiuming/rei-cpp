@@ -81,7 +81,6 @@ private:
   HINSTANCE hinstance = NULL;
   std::shared_ptr<InputBus> m_input_bus;
   std::unique_ptr<Viewer> m_viewer;
-  std::shared_ptr<ImGUI> m_imgui;
 
   std::shared_ptr<Geometries> m_geometries;
   std::shared_ptr<Materials> m_materials;
@@ -93,6 +92,8 @@ private:
   std::shared_ptr<HybridPipeline> m_pipeline;
 
   bool is_started = false;
+  bool m_show_dev_ui = true;
+  bool m_show_dev_ui_demo = false;
 
   using clock_t = std::chrono::high_resolution_clock;
   clock_t clock;

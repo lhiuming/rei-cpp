@@ -1,5 +1,6 @@
 #include "stochastic_shadow.h"
 
+#include "editor/imgui_global.h"
 #include "math/halton.h"
 
 namespace rei {
@@ -78,7 +79,8 @@ struct HybridStochasticShadowDenoiseShaderDesc : ComputeShaderMetaInfo {
   }
 };
 
-StochasticShadowPass::StochasticShadowPass(std::weak_ptr<Renderer> renderer) : m_renderer(renderer) {
+StochasticShadowPass::StochasticShadowPass(std::weak_ptr<Renderer> renderer)
+    : m_renderer(renderer), m_enabled(true) {
   auto r = renderer.lock();
   m_stochastic_shadow_sample_gen_shader
     = r->create_shader(L"CoreData/shader/hybrid_stochastic_shadow_sample_generate.hlsl",
@@ -100,6 +102,8 @@ StochasticShadowPass::StochasticShadowPass(std::weak_ptr<Renderer> renderer) : m
 void StochasticShadowPass::run(const Parameters& params) {
   const int width = params.width;
   const int height = params.height;
+
+  if (!enabled()) return;
 
   // Allocate Resources
   if (!buffer_create) {
@@ -261,6 +265,12 @@ void StochasticShadowPass::run(const Parameters& params) {
     dispatch.dispatch_y = height / 8;
     dispatch.dispatch_z = 1;
     cmd_list->dispatch(dispatch);
+  }
+}
+
+void StochasticShadowPass::on_gui() {
+  if (g_ImGUI.show_collapsing_header("Stocastic Shadow Pass")) {
+    g_ImGUI.show_checkbox("Enabled", &this->m_enabled);
   }
 }
 

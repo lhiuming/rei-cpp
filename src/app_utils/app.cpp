@@ -1,12 +1,12 @@
 #include "app.h"
 
-#include "../debug.h"
-#include "../renderer.h"
-#include "math/math_utils.h"
-#include "editor/imgui_global.h"
-
 #include <iomanip>
 #include <sstream>
+
+#include "../debug.h"
+#include "../renderer.h"
+#include "editor/imgui_global.h"
+#include "math/math_utils.h"
 
 using std::make_shared;
 using std::make_unique;
@@ -26,9 +26,6 @@ WinApp::WinApp(Config config) : config(config) {
   m_viewer = make_unique<WinViewer>(hinstance, config.width, config.height, config.title);
   m_viewer->set_input_bus(m_input_bus);
   // m_renderer->set_viewport_clear_value(m_viewer->get_viewport(), config.bg_color);
-
-  // ImGUI context
-  if (config.enable_dev_gui) { m_imgui = make_shared<ImGUI>(); }
 
   // Create default scene and camera
   m_geometries = make_shared<Geometries>();
@@ -93,8 +90,7 @@ void WinApp::begin_tick() {
   g_ImGUI.begin_new_frame();
 }
 
-void WinApp::end_tick() {
-}
+void WinApp::end_tick() {}
 
 void WinApp::update() {
   // callback
@@ -127,6 +123,28 @@ void WinApp::update_ui() {
   }
   g_ImGUI.update_mouse_down(0, !m_input_bus->empty<CursorDown>());
   g_ImGUI.update_mouse_clicked(0, !m_input_bus->empty<CursorUp>());
+
+  if (config.enable_dev_gui) {
+    // Toggle dev ui
+    m_input_bus->get<KeyUp>().for_each([&](const KeyUp& keyup) {
+      switch (keyup.key) {
+        case KeyCode::F1:
+          m_show_dev_ui = !m_show_dev_ui;
+          break;
+        case KeyCode::F2:
+          m_show_dev_ui_demo = !m_show_dev_ui_demo;
+          m_show_dev_ui &= !m_show_dev_ui_demo;
+          break;
+      }
+    });
+
+    if (m_show_dev_ui_demo) { g_ImGUI.show_imgui_demo(); }
+
+    if (m_show_dev_ui) {
+      // on_gui events
+      m_pipeline->on_gui();
+    }
+  }
 }
 
 void WinApp::update_camera_control() {

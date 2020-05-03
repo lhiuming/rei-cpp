@@ -9,6 +9,8 @@
 #include "renderer.h"
 #include "scene.h"
 
+#include "editor/imgui_global.h"
+
 namespace rei {
 
 namespace hybrid {
@@ -786,6 +788,10 @@ void HybridPipeline::render(size_t width, size_t height) {
 
   cmd_list->transition(render_target, ResourceState::Present);
   cmd_list->present(viewport.swapchain, false);
+}
+
+void HybridPipeline::on_gui() {
+  m_sto_shadow_pass.on_gui();
 }
 
 void HybridPipeline::update_scene() {

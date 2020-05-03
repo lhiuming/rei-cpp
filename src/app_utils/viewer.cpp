@@ -90,6 +90,39 @@ void WinViewer::on_window_destroy() {
   m_hwnd = NULL;
 }
 
+inline bool vk_in_range(WPARAM p, WPARAM p0, WPARAM p1) {
+  return (p0 <= p) && (p <= p1);
+}
+
+inline KeyCode keycode_shift(KeyCode keycode_base, int shift) {
+  int enum_value = static_cast<int>(keycode_base);
+  enum_value += shift;
+  return static_cast<KeyCode>(enum_value);
+}
+
+inline KeyCode keycode_range_remap(
+  WPARAM p, WPARAM p0, WPARAM p1, KeyCode keycode0, KeyCode keycode1) {
+  int kc0 = static_cast<int>(keycode0);
+  int kc1 = static_cast<int>(keycode1);
+  REI_ASSERT(p1 > p0);
+  REI_ASSERT((int(p1) - int(p0)) == (kc1 - kc0));
+  REI_ASSERT(vk_in_range(p, p0, p1));
+  return keycode_shift(keycode0, p - p0);
+}
+
+KeyCode translate_keycode(WPARAM p) {
+  // ref: https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+
+#define REI_TRANSLATE_KEYCODE_RANGE(vk0, vk1, kc0, kc1) \
+  if (vk_in_range(p, vk0, vk1)) return keycode_range_remap(p, vk0, vk1, kc0, kc1);
+
+  REI_TRANSLATE_KEYCODE_RANGE(VK_F1, VK_F12, KeyCode::F1, KeyCode::F12);
+
+#undef REI_TRANSLATE_KEYCODE_RANGE;
+
+  return KeyCode::Unmapped;
+}
+
 LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
   // Internal input handeling
   switch (msg) {
@@ -155,6 +188,20 @@ LRESULT WinViewer::process_wnd_msg(UINT msg, WPARAM wParam, LPARAM lParam) {
         double delta = GET_WHEEL_DELTA_WPARAM(wParam) / (double)WHEEL_DELTA;
         bool altered = (GET_KEYSTATE_WPARAM(wParam) == MK_SHIFT);
         input.push(Zoom {delta, altered});
+        return 0;
+      }
+      case WM_KEYDOWN: {
+        // ref: https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
+        bool prevDown = lParam & (1 << 30);
+        if (prevDown)
+          input.push(KeyHold {translate_keycode(wParam)});
+        else
+          input.push(KeyDown {translate_keycode(wParam)});
+        return 0;
+      }
+      case WM_KEYUP: {
+        // ref: https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-keyup
+        input.push(KeyUp {translate_keycode(wParam)});
         return 0;
       }
     }

@@ -4,9 +4,9 @@
 #include <array>
 #include <vector>
 
+#include "debug.h"
 #include "math/algebra.h"
 #include "variant_utils.h"
-#include "debug.h"
 
 namespace rei {
 
@@ -46,6 +46,24 @@ struct Zoom {
 };
 
 // clang-format off
+enum class KeyCode {
+  Esc, Tab, Caps, ShiftLeft, ShiftRight, CtrlLeft, CtrlRight, AltLeft, AltRight, Enter,
+  F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+  Unmapped,
+};
+// clang-format on
+
+struct KeyDown {
+  KeyCode key;
+};
+struct KeyUp {
+  KeyCode key;
+};
+struct KeyHold {
+  KeyCode key;
+};
+
+// clang-format off
 typedef Var<
   CursorPress
   , CursorRelease
@@ -54,6 +72,9 @@ typedef Var<
   , CursorDown
   , CursorUp
   , Zoom
+  , KeyDown
+  , KeyUp
+  , KeyHold
 > Input;
 // clang-format on
 
@@ -109,6 +130,12 @@ public:
 
     InputBucketItr<T> begin() { return InputBucketItr<T>(bkt, 0); }
     InputBucketItr<T> end() { return InputBucketItr<T>(bkt, bkt.size()); }
+    template <class Func>
+    void for_each(const Func& fn) const {
+      for (auto beg = bkt.begin(); beg != bkt.end(); beg++) {
+        fn(beg->get<T>());
+      }
+    }
 
     size_t size() const { return bkt.size(); }
   };

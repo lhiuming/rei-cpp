@@ -125,7 +125,8 @@ void ImGuiPass::run(const Parameters& params) {
   //   -- finnaly, convert the imgui commands to render commands
   // ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
   g_ImGUI.set_font_atlas(m_imgui_fonts_texture);
-  const ImGUI::RenderDataRef data = g_ImGUI.prepare_render_data(&m_opened);
+  //const ImGUI::RenderDataRef data = g_ImGUI.prepare_render_data(&m_opened);
+  const ImGUI::RenderDataRef data = g_ImGUI.prepare_render_data();
 
   // update buffer size
   {
